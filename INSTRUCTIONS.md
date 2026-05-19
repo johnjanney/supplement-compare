@@ -12,7 +12,41 @@ This file is the operator's reference. Architectural rationale belongs in
 
 ## 1. Installing and updating the plugin
 
-TBD — lands with Phase 1.
+The plugin source lives under `plugin/` in this repo. To install on the live
+site:
+
+1. Package the plugin directory as a zip:
+
+   ```bash
+   cd plugin && zip -r ../supplement-compare-$(grep -oE "'[0-9]+\.[0-9]+\.[0-9]+'" supplement-compare.php | head -1 | tr -d "'").zip . -x '*.gitkeep' && cd ..
+   ```
+
+   (A `scripts/package-plugin.sh` helper that does this with the version baked
+   in lands in a later phase per PROJECTBRIEF.md §11. Until then, use the
+   one-liner above or zip the directory manually.)
+
+2. In WordPress admin → Plugins → Add New → Upload Plugin, upload the `.zip`.
+
+3. Click **Activate**. Activation runs `Supcomp_Activator::activate`, which
+   creates the eight `wp_supcomp_*` tables and seeds default options
+   (currency = USD, staleness thresholds 48h / 168h, default affiliate
+   disclosure copy).
+
+**Verifying the upload took.** The version shown in WP Admin → Plugins next
+to "Supplement Compare" must match the version in `plugin/supplement-compare.php`
+and `CHANGELOG.md`. If it doesn't, you uploaded an older build. This is
+load-bearing — every functional change bumps the version for exactly this
+reason (PROJECTBRIEF.md §11).
+
+**Updating.** Repeat the steps above with a newer `.zip`. WordPress's
+"Replace" flow handles overwriting. On boot, `Supcomp_Installer::maybe_upgrade()`
+detects a stale schema-version option and re-runs `dbDelta`, which adds any
+new columns or indexes without disturbing existing data.
+
+**Deactivation** is safe — it does nothing destructive. **Uninstall**
+(clicking "Delete" on the plugin) currently does nothing either; intentional,
+because we'd rather leave orphan tables than risk silently wiping operator
+curation work. See `plugin/uninstall.php` for the deferred decision.
 
 ## 2. Running the Python extractor to produce a CSV
 
