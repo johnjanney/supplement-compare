@@ -42,6 +42,9 @@ class Supcomp_Plugin {
 	private static function load_domain() {
 		$inc = SUPPLEMENT_COMPARE_PLUGIN_DIR . 'includes/';
 
+		require_once $inc . 'class-affiliate-url-template.php';
+
+		require_once $inc . 'db/class-merchants-repo.php';
 		require_once $inc . 'db/class-ingredients-repo.php';
 		require_once $inc . 'db/class-canonical-products-repo.php';
 
@@ -65,7 +68,9 @@ class Supcomp_Plugin {
 		add_action( 'admin_init', array( 'Supcomp_Settings', 'register' ) );
 
 		// Each screen that handles form submissions registers its own
-		// admin_post_* hooks. Screens without POST handlers omit register_hooks().
+		// admin_post_* and admin-ajax / admin_enqueue_scripts hooks. Screens
+		// without POST handlers omit register_hooks().
+		Supcomp_Merchants_Screen::register_hooks();
 		Supcomp_Ingredients_Screen::register_hooks();
 		Supcomp_Canonical_Products_Screen::register_hooks();
 	}

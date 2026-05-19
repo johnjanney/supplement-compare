@@ -68,7 +68,78 @@ TBD — lands with Phase 4.
 
 ## 6. Adding a new merchant
 
-TBD — lands with Phase 3 (merchant management).
+A merchant row is created **once per affiliate program** you've joined. The
+merchant must exist before its CSV can be imported — Phase 4's importer
+matches each CSV row's `site` column to a merchant via `merchants.site_url`.
+
+**WP Admin → Supplement Compare → Merchants → Add New.**
+
+Required fields:
+- **Slug** — internal identifier, e.g. `nootropics-depot`. Never shown publicly.
+- **Name** — display name on offer cards, e.g. "Nootropics Depot".
+- **Site URL** — merchant homepage. This is the natural key the extractor's CSV
+  ties to. Whatever you type here is normalized: scheme defaults to `https://`,
+  trailing slash stripped. Match it to the URL the Python script crawls.
+
+Other fields:
+- **Platform** — `shopify`, `woocommerce`, `generic`, or `manual`. Informational
+  in Phase 3; will gate import validation later.
+- **Default currency** — ISO 4217. Used when this merchant's CSV omits currency.
+- **Affiliate URL template** — see below.
+- **Status** — `active` (default), `paused` (offers hidden, imports rejected),
+  `dead` (permanently retired).
+- **Notes** — operator-only. Stash affiliate program IDs, network names, contact
+  emails, terms-of-service caveats.
+
+### Affiliate URL template
+
+Every Buy Now button goes through `/out/{offer_id}` (Phase 7). The redirect
+endpoint substitutes this template at click time. Four patterns are supported
+(PROJECTBRIEF.md §5):
+
+| Pattern | Template example |
+|---|---|
+| Simple query append | `{product_url}?aff=john` |
+| Multiple params | `{product_url}?utm_source=affiliate&ref=john` |
+| Network redirect | `https://partners.example.com/c/?id=42&u={url_encoded_product_url}` |
+| Path-based | `https://merchant.com/ref/john{path}` |
+
+Variables:
+- `{product_url}` — the source product URL, verbatim.
+- `{url_encoded_product_url}` — same, rawurlencoded. Use this when embedding
+  the source URL inside another URL's query parameter.
+- `{path}` — path portion only (e.g. `/products/foo`), no scheme/host/query.
+- `{handle}` — product slug, from `/products/<handle>` if available.
+
+The engine auto-detects when a `{product_url}` substitution would produce a
+double `?` (e.g. template `{product_url}?aff=john` against URL
+`https://store.com/p/foo?variant=42`) and flips the appended `?` to `&`.
+
+### Template tester
+
+The edit form has a Template Tester section right under the template field:
+
+1. Type or paste your template in the field above.
+2. Paste 1–N example product URLs in the textarea, one per line. Use real URLs
+   from this merchant if possible.
+3. Click **Test template**. Each input URL becomes one row with the generated
+   affiliate URL beside it. Errors (malformed URL, unknown placeholder) show
+   inline in red.
+
+The tester runs the exact engine `/out/` will use at click time, so what you
+see in the preview is what site visitors get redirected to.
+
+### Pause vs. Dead
+
+Use **Pause** when you're temporarily holding off on a merchant — terms
+re-negotiation, affiliate program review, anything reversible. Pause = active
+offers hidden, imports rejected, data preserved. Click **Resume** on the list
+row to flip it back.
+
+Use **Dead** (via the status dropdown on the edit form) for a permanent
+retirement — merchant out of business, affiliate program ended. Same effect as
+Pause but signals operator intent. Both states are reversible at the data
+layer; only your habits distinguish them.
 
 ## 7. Adding a canonical ingredient
 
