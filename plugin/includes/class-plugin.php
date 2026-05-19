@@ -38,6 +38,9 @@ class Supcomp_Plugin {
 		// Phase 8: public JSON cache invalidation listener + hourly cron.
 		Supcomp_JSON_Exporter::register_hooks();
 
+		// Phase 9: public-facing [supplement_compare] shortcode.
+		Supcomp_Shortcode::register();
+
 		if ( is_admin() ) {
 			self::load_admin();
 		}

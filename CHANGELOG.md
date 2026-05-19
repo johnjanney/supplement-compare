@@ -17,6 +17,33 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [0.10.0] — 2026-05-19
+
+### Added
+- `[supplement_compare]` shortcode (`plugin/includes/public/class-shortcode.php`). Renders a placeholder div; the JS asset fetches the public JSON and hydrates it into an in-memory comparison table. Enqueue is gated on shortcode presence — pages without it don't ship the JS / CSS. Supports `canonical="slug"` (start on a specific canonical's detail) and `ingredient="name"` (pre-filter the list) attributes.
+- `plugin/assets/public/frontend.js` — ~400-line vanilla JS app. No build step. Hash routing (`#/` for list, `#/canonical/{slug}` for detail). List view groups offers by canonical and computes lowest_cost_per_active_unit + merchant count from FILTERED offers (so filters interact correctly). Detail view sorts all offers for one canonical. Filters: search, form, ingredient, in-stock-only, third-party-only, COA-only. Sort by cost-per-active-unit (default), price, brand, merchant, recency.
+- `plugin/assets/public/frontend.css` — minimal styling, mobile-responsive (filters stack vertically, table scrolls horizontally on narrow screens).
+- Affiliate disclosure rendered on every comparison page from the `supcomp_affiliate_disclosure` option. "Data last updated" stamp from the JSON's `generated_at`. Stale offers dim with a "data may be outdated" inline note. Buy Now buttons link to `/out/{id}` with `rel="nofollow sponsored noopener"`.
+- `INSTRUCTIONS.md` §14 — placing the shortcode, variants, what renders, cache-busting behavior.
+
+### Changed
+- `class-plugin.php` `boot()` calls `Supcomp_Shortcode::register()` so the shortcode is registered on both front-end and back-end requests.
+- `plugin/supplement-compare.php` requires the shortcode class up front (it's lightweight and used on every front-end page).
+- `INSTRUCTIONS.md` Troubleshooting renumbered from §15 to §16 to make room for the new shortcode section.
+
+### Deprecated
+### Removed
+### Fixed
+### Security
+- All user-supplied data (CSV-derived titles, merchant names, ingredient names) is HTML-escaped in the JS before innerHTML write. URL attributes go through a separate escapeAttr() helper.
+- Buy Now anchors get `rel="nofollow sponsored noopener"` per Google's affiliate-disclosure expectations.
+
+### Notes
+- Alias matching in search isn't shipped — the §9 JSON payload deliberately omits aliases (they're internal). Search currently hits product_title, brand, canonical display_name, ingredient.name. Adding aliases to the payload is a one-line repo + exporter change if it turns out visitors search by alternate names.
+- No price-range slider; it's a planned filter from the brief but the basic in-stock + trust + form + ingredient set covers the common case. Easy to add when there's a real signal that visitors filter by price.
+
+---
+
 ## [0.9.0] — 2026-05-19
 
 ### Added

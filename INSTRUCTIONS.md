@@ -511,11 +511,51 @@ Click **Regenerate now** to force a regenerate immediately. Useful when:
   WordPress's pseudo-cron via `define('DISABLE_WP_CRON', true)` if the
   site has low traffic.
 
-## 14. Editing per-canonical-product page content (SEO)
+## 14. Placing the public comparison interface
+
+The plugin ships a shortcode that renders the public comparison interface
+wherever you embed it.
+
+**Basic usage:** add `[supplement_compare]` to any page or post. The
+operator typically dedicates one page (e.g. `/compare/`) and embeds the
+shortcode there.
+
+**Variants:**
+- `[supplement_compare]` — full app, list view default. Visitors see all
+  canonical products with the lowest cost-per-active-unit + merchant count
+  per row, can filter and sort, and drill into per-canonical comparison.
+- `[supplement_compare canonical="l-theanine-200mg-capsule"]` — starts on
+  a specific canonical's detail comparison.
+- `[supplement_compare ingredient="L-Theanine"]` — list view pre-filtered
+  to one ingredient.
+
+**What renders:**
+- Top filter bar: search, form, ingredient, in-stock-only, third-party-only,
+  COA-only, sort.
+- A list-or-detail table, hash-routed (`#/` for list, `#/canonical/<slug>`
+  for detail).
+- Below the table: the affiliate disclosure (configurable in Settings) and
+  the "Data last updated" timestamp from the JSON's `generated_at`.
+
+**Cache busting:** the shortcode appends `?ver={last-generated timestamp}`
+to the JSON URL, so visitors get the freshest data when the JSON
+regenerates. The browser caches per its normal rules between regenerations.
+
+**Buy Now buttons** link to `/out/{offer_id}` (Phase 7), which logs the
+click and 302-redirects to the merchant via the affiliate URL template.
+Buttons get `rel="nofollow sponsored noopener"` per Google's affiliate-
+disclosure expectations.
+
+**No data yet?** A fresh install shows "No comparison data is published
+yet" until the JSON file has been generated (which requires at least one
+approved offer + the exporter to have run, either via auto-invalidation or
+the manual Regenerate button in Settings).
+
+## 15. Editing per-canonical-product page content (SEO)
 
 TBD — lands with Phase 10 (SEO and per-canonical pages).
 
-## 15. Troubleshooting
+## 16. Troubleshooting
 
 **"CSV is missing required column(s)" on upload.** The Python extractor
 output doesn't match the §4 contract. Most common cause: someone has an
