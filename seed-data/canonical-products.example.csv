@@ -1,0 +1,5 @@
+slug,ingredient_slug,ingredient_form,strength_per_serving,servings_per_container,standardization_compound,standardization_percentage,display_name,seo_indexable,status
+l-theanine-200mg-capsule,l-theanine,capsule,200,,,,L-Theanine 200mg Capsules,false,active
+l-theanine-100g-powder,l-theanine,powder,1000,100,,,L-Theanine 1g Powder Serving,false,active
+magnesium-glycinate-200mg-capsule,magnesium-glycinate,capsule,200,,,,Magnesium Glycinate 200mg Capsules (28.2mg elemental),false,active
+bacopa-monnieri-50-300mg-capsule,bacopa-monnieri-50,capsule,300,,bacosides,50.00,Bacopa Monnieri 50% Bacosides 300mg Capsules,false,active

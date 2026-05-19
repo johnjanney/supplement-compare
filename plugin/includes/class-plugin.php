@@ -2,9 +2,12 @@
 /**
  * Plugin bootstrap.
  *
- * Loaded on the `plugins_loaded` action. Wires admin classes when in admin
- * context. Public-facing classes (shortcode, /out/ redirect, JSON exporter)
- * load later as their phases arrive.
+ * Loaded on the `plugins_loaded` action. Always loads domain classes (repos +
+ * shared importer). Loads admin classes only when in admin context, and lets
+ * each admin screen register its own admin_post_* hooks.
+ *
+ * Public-facing classes (shortcode, /out/ redirect, JSON exporter) load later
+ * as their phases arrive.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -24,9 +27,25 @@ class Supcomp_Plugin {
 		// reactivate cycle. Idempotent when up to date.
 		Supcomp_Installer::maybe_upgrade();
 
+		self::load_domain();
+
 		if ( is_admin() ) {
 			self::load_admin();
 		}
+	}
+
+	/**
+	 * Domain classes (data access + import). Always loaded; admin-post.php is
+	 * technically an admin endpoint, but its hooks need these classes by name
+	 * before is_admin() context fully sets up.
+	 */
+	private static function load_domain() {
+		$inc = SUPPLEMENT_COMPARE_PLUGIN_DIR . 'includes/';
+
+		require_once $inc . 'db/class-ingredients-repo.php';
+		require_once $inc . 'db/class-canonical-products-repo.php';
+
+		require_once $inc . 'import/class-canonical-csv-importer.php';
 	}
 
 	private static function load_admin() {
@@ -44,5 +63,10 @@ class Supcomp_Plugin {
 
 		add_action( 'admin_menu', array( 'Supcomp_Admin', 'register_menu' ) );
 		add_action( 'admin_init', array( 'Supcomp_Settings', 'register' ) );
+
+		// Each screen that handles form submissions registers its own
+		// admin_post_* hooks. Screens without POST handlers omit register_hooks().
+		Supcomp_Ingredients_Screen::register_hooks();
+		Supcomp_Canonical_Products_Screen::register_hooks();
 	}
 }
