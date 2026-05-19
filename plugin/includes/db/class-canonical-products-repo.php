@@ -112,6 +112,25 @@ class Supcomp_Canonical_Products_Repo {
 		return $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
 	}
 
+	/**
+	 * Lightweight list for the offer-form canonical picker. Returns active +
+	 * draft products with ingredient name attached, ordered by ingredient
+	 * then display name so options can be <optgroup>'d.
+	 */
+	public static function for_picker() {
+		global $wpdb;
+		$cp = self::table();
+		$ci = $wpdb->prefix . 'supcomp_canonical_ingredients';
+		return $wpdb->get_results(
+			"SELECT cp.id, cp.display_name, cp.slug, cp.ingredient_form, cp.strength_per_serving,
+					ci.id AS ingredient_id, ci.name AS ingredient_name, ci.default_unit AS ingredient_unit
+			 FROM {$cp} cp
+			 LEFT JOIN {$ci} ci ON ci.id = cp.ingredient_id
+			 WHERE cp.status <> 'retired'
+			 ORDER BY ci.name ASC, cp.display_name ASC"
+		);
+	}
+
 	public static function upsert( $data ) {
 		global $wpdb;
 		$clean = self::sanitize( $data );

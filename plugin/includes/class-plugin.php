@@ -71,6 +71,7 @@ class Supcomp_Plugin {
 
 		require_once $admin_dir . 'class-admin.php';
 		require_once $admin_dir . 'class-settings.php';
+		require_once $admin_dir . 'class-offer-form.php';
 		require_once $admin_dir . 'class-merchants-screen.php';
 		require_once $admin_dir . 'class-ingredients-screen.php';
 		require_once $admin_dir . 'class-canonical-products-screen.php';
@@ -89,5 +90,7 @@ class Supcomp_Plugin {
 		Supcomp_Ingredients_Screen::register_hooks();
 		Supcomp_Canonical_Products_Screen::register_hooks();
 		Supcomp_Import_Screen::register_hooks();
+		Supcomp_Pending_Queue_Screen::register_hooks();
+		Supcomp_Offer_Form::register_hooks();
 	}
 }

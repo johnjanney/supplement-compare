@@ -310,17 +310,80 @@ an existing canonical ingredient — import ingredients first.
 
 ## 9. Working the pending queue
 
-TBD — lands with Phase 6 (pending queue and approval workflow). Will cover:
-review, edit, approve, reject, pause, defer; bulk approval of high-confidence
-matches; marking trust signals (third-party tested, COA URL, certifications).
+**WP Admin → Supplement Compare → Pending Queue.** This is the operator's main
+daily workflow. Every imported offer arrives here; nothing publishes until
+you approve it.
+
+**The 10-second clean-case workflow.** For offers the matcher is confident
+about:
+
+1. Sort by confidence (click the column header or set "≥ 0.95" in the filter).
+2. Scan the suggested matches. The badge is colour-coded: green ≥ 0.95
+   (barcode / brand+SKU), blue ≥ 0.85 (direct canonical lookup), yellow
+   0.65–0.85 (weaker peers), gray < 0.65 / no match.
+3. Either click the **Approve** button on each row, OR check several rows
+   and pick "Approve" from the bulk-action dropdown and click Apply.
+
+**For offers that need a closer look:**
+
+1. Click the title (or "Edit"). The detail view shows raw source data on
+   the left, editable normalized fields on the right. Below the source
+   panel, expand "Raw CSV row" to see exactly what came in from the
+   Python extractor.
+2. The most important fields:
+   - **Canonical product** — operator-confirmed match. Defaults to the
+     matcher's suggestion. Pick a different one from the grouped dropdown
+     if it got it wrong, or "— No canonical match —" if no canonical is
+     right (you can revisit later).
+   - **Ingredient / Form / Strength / Servings / Standardization** — the
+     normalized fact set. When you set Canonical product, the canonical's
+     values become authoritative (the form makes the offer's values
+     match it on save).
+3. Trust signals — `Third-party tested`, `COA available`, `COA URL`, and
+   `Certifications`. These are operator-set; the CSV never carries them.
+   Set them when you've personally verified the brand publishes their
+   test results.
+4. Click **Save & Approve**. The offer goes active.
+
+**Other workflow states:**
+- **Reject** — operator decided this offer doesn't belong (e.g. not actually
+  a single-ingredient product). Removed from the public site permanently.
+  Re-imports do NOT revive a rejected offer.
+- **Pause** — operator wants this offer hidden temporarily without
+  rejecting (out-of-stock that's expected to return, brand issue under
+  investigation).
+- **Defer** — marks `needs_review`. Operator wants to think about this one.
+  Stays in the pending queue under the "Needs review" visibility.
 
 ## 10. Editing an active offer
 
-TBD — lands with Phase 6.
+**WP Admin → Supplement Compare → Active Offers** lists everything currently
+visible on the public site (well, will be once Phase 9 lands). Same edit
+form as the pending queue.
+
+Same operator-curated fields are editable. Same trust-signal controls.
+Re-imports never overwrite your edits — once you've set a canonical match
+or a strength override, that value is sticky.
 
 ## 11. Pausing or deactivating an offer
 
-TBD — lands with Phase 6.
+From either the **Pending Queue** or **Active Offers** screen:
+- Inline **Pause** button on each row → flips visibility to `paused`.
+  Hidden from public site. Re-imports cannot un-pause it; the operator
+  must explicitly resume.
+- Inline **Reject** button → flips visibility to `rejected`. Same effect
+  but signals operator intent ("this should never have been here").
+- Bulk action dropdown → same options at scale.
+
+**Resume / undelete.** A paused or rejected offer stays in the database
+forever. From the edit form's footer the operator can flip it back to
+`active` (Save & Approve) or `needs_review` (Save & Defer) at any time.
+
+**Stale offers.** Auto-set by the import pipeline (see §5) when an offer
+disappears from a recent CSV. They appear in the pending queue under
+`needs_review` semantically — handle them the same way (re-approve,
+reject, or pause). When the same offer reappears in a later import the
+importer auto-restores it to active.
 
 ## 12. Reading the clicks dashboard
 

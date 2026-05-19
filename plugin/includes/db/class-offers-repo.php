@@ -34,6 +34,316 @@ class Supcomp_Offers_Repo {
 	}
 
 	/**
+	 * Same as get() but also joins merchant / canonical_product / ingredient
+	 * names. Use for admin views.
+	 */
+	public static function get_with_joins( $id ) {
+		global $wpdb;
+		$no = self::table();
+		$m  = $wpdb->prefix . 'supcomp_merchants';
+		$cp = $wpdb->prefix . 'supcomp_canonical_products';
+		$ci = $wpdb->prefix . 'supcomp_canonical_ingredients';
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT o.*,
+						m.name AS merchant_name, m.slug AS merchant_slug, m.affiliate_url_template AS merchant_affiliate_url_template,
+						cp.display_name AS canonical_display_name, cp.slug AS canonical_slug,
+						ci.name AS ingredient_name, ci.default_unit AS ingredient_unit
+				 FROM {$no} o
+				 LEFT JOIN {$m} m ON m.id = o.merchant_id
+				 LEFT JOIN {$cp} cp ON cp.id = o.canonical_product_id
+				 LEFT JOIN {$ci} ci ON ci.id = o.ingredient_id
+				 WHERE o.id = %d",
+				absint( $id )
+			)
+		);
+	}
+
+	/**
+	 * Pending/active queue query. Joins for display.
+	 *
+	 * @param array $args Recognized keys:
+	 *   visibility       string|string[] — filter to these visibility_status values
+	 *   merchant_id      int
+	 *   ingredient_id    int
+	 *   min_confidence   float (0–1)
+	 *   has_canonical    'yes'|'no'|''
+	 *   search           string — searches product_title, variant_title, brand, sku
+	 *   orderby          allowed: id, brand, product_title, current_price,
+	 *                    match_confidence, cost_per_active_unit, updated_at
+	 *   order            ASC|DESC
+	 *   limit            int (default 20)
+	 *   offset           int (default 0)
+	 */
+	public static function query_for_admin( $args = array() ) {
+		global $wpdb;
+		list( $sql, $params ) = self::build_admin_query( $args, false );
+		if ( empty( $params ) ) {
+			return $wpdb->get_results( $sql );
+		}
+		return $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
+	}
+
+	public static function count_for_admin( $args = array() ) {
+		global $wpdb;
+		list( $sql, $params ) = self::build_admin_query( $args, true );
+		if ( empty( $params ) ) {
+			return (int) $wpdb->get_var( $sql );
+		}
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
+	}
+
+	private static function build_admin_query( $args, $count_only ) {
+		global $wpdb;
+		$defaults = array(
+			'visibility'     => array(),
+			'merchant_id'    => 0,
+			'ingredient_id'  => 0,
+			'min_confidence' => 0,
+			'has_canonical'  => '',
+			'search'         => '',
+			'orderby'        => 'updated_at',
+			'order'          => 'DESC',
+			'limit'          => 20,
+			'offset'         => 0,
+		);
+		$args = wp_parse_args( $args, $defaults );
+
+		$no = self::table();
+		$m  = $wpdb->prefix . 'supcomp_merchants';
+		$cp = $wpdb->prefix . 'supcomp_canonical_products';
+		$ci = $wpdb->prefix . 'supcomp_canonical_ingredients';
+
+		$where  = array();
+		$params = array();
+
+		$visibility = is_array( $args['visibility'] ) ? $args['visibility'] : array_filter( array( $args['visibility'] ) );
+		if ( ! empty( $visibility ) ) {
+			$placeholders = implode( ',', array_fill( 0, count( $visibility ), '%s' ) );
+			$where[]      = "o.visibility_status IN ({$placeholders})";
+			$params       = array_merge( $params, $visibility );
+		}
+		if ( $args['merchant_id'] > 0 ) {
+			$where[]  = 'o.merchant_id = %d';
+			$params[] = (int) $args['merchant_id'];
+		}
+		if ( $args['ingredient_id'] > 0 ) {
+			$where[]  = 'o.ingredient_id = %d';
+			$params[] = (int) $args['ingredient_id'];
+		}
+		if ( $args['min_confidence'] > 0 ) {
+			$where[]  = 'o.match_confidence >= %f';
+			$params[] = (float) $args['min_confidence'];
+		}
+		if ( $args['has_canonical'] === 'yes' ) {
+			$where[] = 'o.canonical_product_id IS NOT NULL';
+		} elseif ( $args['has_canonical'] === 'no' ) {
+			$where[] = 'o.canonical_product_id IS NULL';
+		}
+		if ( $args['search'] !== '' ) {
+			$like     = '%' . $wpdb->esc_like( $args['search'] ) . '%';
+			$where[]  = '(o.product_title LIKE %s OR o.variant_title LIKE %s OR o.brand LIKE %s OR o.sku LIKE %s)';
+			$params[] = $like;
+			$params[] = $like;
+			$params[] = $like;
+			$params[] = $like;
+		}
+
+		$where_sql = empty( $where ) ? '1=1' : implode( ' AND ', $where );
+
+		if ( $count_only ) {
+			$sql = "SELECT COUNT(*) FROM {$no} o WHERE {$where_sql}";
+			return array( $sql, $params );
+		}
+
+		$allowed_orderby = array(
+			'id'                   => 'o.id',
+			'brand'                => 'o.brand',
+			'product_title'        => 'o.product_title',
+			'current_price'        => 'o.current_price',
+			'match_confidence'     => 'o.match_confidence',
+			'cost_per_active_unit' => 'o.cost_per_active_unit',
+			'updated_at'           => 'o.updated_at',
+		);
+		$orderby_sql = isset( $allowed_orderby[ $args['orderby'] ] ) ? $allowed_orderby[ $args['orderby'] ] : 'o.updated_at';
+		$order       = strtoupper( $args['order'] ) === 'ASC' ? 'ASC' : 'DESC';
+
+		$sql      = "SELECT o.*,
+							m.name AS merchant_name, m.slug AS merchant_slug,
+							cp.display_name AS canonical_display_name, cp.slug AS canonical_slug,
+							ci.name AS ingredient_name, ci.default_unit AS ingredient_unit
+					 FROM {$no} o
+					 LEFT JOIN {$m} m ON m.id = o.merchant_id
+					 LEFT JOIN {$cp} cp ON cp.id = o.canonical_product_id
+					 LEFT JOIN {$ci} ci ON ci.id = o.ingredient_id
+					 WHERE {$where_sql}
+					 ORDER BY {$orderby_sql} {$order}
+					 LIMIT %d OFFSET %d";
+		$params[] = max( 1, (int) $args['limit'] );
+		$params[] = max( 0, (int) $args['offset'] );
+
+		return array( $sql, $params );
+	}
+
+	/**
+	 * Operator-edit: writes operator-curated fields from the offer detail
+	 * form. Sanitizes against enums and the canonical/ingredient tables.
+	 * Caller is responsible for recomputing derivations afterwards.
+	 *
+	 * @return array{updated:bool, written:array} The cleaned data actually written.
+	 */
+	public static function manual_update( $id, $data ) {
+		global $wpdb;
+		$clean = self::sanitize_operator_edit( $data );
+		$clean['updated_at'] = current_time( 'mysql', true );
+		$result = $wpdb->update( self::table(), $clean, array( 'id' => (int) $id ) );
+		return array(
+			'updated' => $result !== false,
+			'written' => $clean,
+		);
+	}
+
+	private static function sanitize_operator_edit( $data ) {
+		$clean = array();
+
+		if ( array_key_exists( 'canonical_product_id', $data ) ) {
+			$val = $data['canonical_product_id'];
+			$clean['canonical_product_id'] = ( $val === '' || $val === null ) ? null : absint( $val );
+		}
+		if ( array_key_exists( 'ingredient_id', $data ) ) {
+			$val = $data['ingredient_id'];
+			$clean['ingredient_id'] = ( $val === '' || $val === null ) ? null : absint( $val );
+		}
+		if ( isset( $data['ingredient_form'] ) ) {
+			$f                       = sanitize_key( $data['ingredient_form'] );
+			$clean['ingredient_form'] = in_array( $f, Supcomp_Installer::PRODUCT_FORMS, true ) ? $f : null;
+		}
+		if ( array_key_exists( 'strength_per_serving', $data ) ) {
+			$v                              = trim( (string) $data['strength_per_serving'] );
+			$clean['strength_per_serving'] = $v === '' ? null : (float) $v;
+		}
+		if ( isset( $data['strength_unit'] ) ) {
+			$u                      = trim( (string) $data['strength_unit'] );
+			$clean['strength_unit'] = in_array( $u, Supcomp_Installer::INGREDIENT_UNITS, true ) ? $u : null;
+		}
+		if ( array_key_exists( 'servings_per_container', $data ) ) {
+			$v                                = trim( (string) $data['servings_per_container'] );
+			$clean['servings_per_container'] = $v === '' ? null : (int) $v;
+		}
+		if ( array_key_exists( 'standardization_percentage', $data ) ) {
+			$v                                    = trim( (string) $data['standardization_percentage'] );
+			$clean['standardization_percentage'] = $v === '' ? null : (float) $v;
+		}
+		if ( array_key_exists( 'third_party_tested', $data ) ) {
+			$clean['third_party_tested'] = self::truthy( $data['third_party_tested'] ) ? 1 : 0;
+		}
+		if ( array_key_exists( 'coa_available', $data ) ) {
+			$clean['coa_available'] = self::truthy( $data['coa_available'] ) ? 1 : 0;
+		}
+		if ( array_key_exists( 'coa_url', $data ) ) {
+			$v                = trim( (string) $data['coa_url'] );
+			$clean['coa_url'] = $v === '' ? null : esc_url_raw( $v );
+		}
+		if ( array_key_exists( 'certifications', $data ) || array_key_exists( 'certifications_json', $data ) ) {
+			$raw = array_key_exists( 'certifications', $data ) ? $data['certifications'] : $data['certifications_json'];
+			if ( is_array( $raw ) ) {
+				$list = $raw;
+			} elseif ( is_string( $raw ) && $raw !== '' ) {
+				$decoded = json_decode( $raw, true );
+				$list    = is_array( $decoded ) ? $decoded : preg_split( '/\s*[|;,]\s*/', $raw, -1, PREG_SPLIT_NO_EMPTY );
+			} else {
+				$list = array();
+			}
+			$list                          = array_values( array_filter( array_map( 'sanitize_text_field', (array) $list ), 'strlen' ) );
+			$clean['certifications_json'] = wp_json_encode( $list );
+		}
+		if ( isset( $data['operator_notes'] ) ) {
+			$clean['operator_notes'] = sanitize_textarea_field( $data['operator_notes'] );
+		}
+		if ( isset( $data['match_confidence'] ) && $data['match_confidence'] !== '' ) {
+			$mc                       = (float) $data['match_confidence'];
+			$clean['match_confidence'] = max( 0, min( 1, $mc ) );
+		}
+
+		return $clean;
+	}
+
+	private static function truthy( $val ) {
+		if ( is_bool( $val ) ) {
+			return $val;
+		}
+		$v = strtolower( trim( (string) $val ) );
+		return in_array( $v, array( '1', 'true', 'yes', 'y', 't', 'on' ), true );
+	}
+
+	public static function set_visibility( $id, $visibility ) {
+		global $wpdb;
+		if ( ! in_array( $visibility, Supcomp_Installer::VISIBILITY_STATUSES, true ) ) {
+			return false;
+		}
+		return false !== $wpdb->update(
+			self::table(),
+			array(
+				'visibility_status' => $visibility,
+				'updated_at'        => current_time( 'mysql', true ),
+			),
+			array( 'id' => (int) $id )
+		);
+	}
+
+	public static function bulk_set_visibility( $ids, $visibility ) {
+		global $wpdb;
+		if ( ! in_array( $visibility, Supcomp_Installer::VISIBILITY_STATUSES, true ) ) {
+			return 0;
+		}
+		$ids = array_values( array_filter( array_map( 'absint', (array) $ids ) ) );
+		if ( empty( $ids ) ) {
+			return 0;
+		}
+		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+		$table        = self::table();
+		$sql          = "UPDATE {$table}
+						 SET visibility_status = %s, updated_at = %s
+						 WHERE id IN ({$placeholders})";
+		$params       = array_merge(
+			array( $visibility, current_time( 'mysql', true ) ),
+			$ids
+		);
+		$affected = $wpdb->query( $wpdb->prepare( $sql, $params ) );
+		return is_numeric( $affected ) ? (int) $affected : 0;
+	}
+
+	/**
+	 * Latest raw_source_offers row for an offer's natural key. Used by the
+	 * detail view's side-by-side display.
+	 */
+	public static function latest_raw_for( $offer ) {
+		if ( ! $offer ) {
+			return null;
+		}
+		global $wpdb;
+		$raw = $wpdb->prefix . 'supcomp_raw_source_offers';
+		return $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$raw}
+				 WHERE merchant_id = %d AND source_product_id = %s AND source_variant_id = %s
+				 ORDER BY id DESC LIMIT 1",
+				(int) $offer->merchant_id,
+				(string) $offer->source_product_id,
+				(string) $offer->source_variant_id
+			)
+		);
+	}
+
+	public static function decode_certifications( $json ) {
+		if ( empty( $json ) ) {
+			return array();
+		}
+		$decoded = json_decode( (string) $json, true );
+		return is_array( $decoded ) ? $decoded : array();
+	}
+
+	/**
 	 * Match the natural key from the CSV contract (§3.5).
 	 */
 	public static function find_by_natural_key( $merchant_id, $source_product_id, $source_variant_id ) {

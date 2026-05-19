@@ -17,6 +17,31 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [0.7.0] — 2026-05-19
+
+### Added
+- Pending Queue admin screen — full rebuild from the Phase 1 placeholder. Lists offers with visibility in `{pending, needs_review}`, filterable by merchant / ingredient / confidence threshold / has-canonical-toggle / text search. Per-row Approve / Reject / Edit buttons with form-level nonces. Bulk-action dropdown (Approve / Reject / Pause / Defer) over checkboxed rows. Color-coded confidence badge: green ≥ 0.95, blue ≥ 0.85, yellow 0.65–0.85, gray below.
+- Active Offers admin screen — same shape, filtered to `visibility=active`. Per-row Pause / Re-review (defer). Default sort by `cost_per_active_unit` so the operator sees the cheap-per-mg leaders first.
+- `Supcomp_Offer_Form` shared helper (`plugin/includes/admin/class-offer-form.php`) — side-by-side raw-vs-normalized detail view used by both queue screens. All operator-curated fields editable: canonical_product_id (optgrouped picker), ingredient_id, ingredient_form, strength/unit, servings, standardization_percentage, third_party_tested, coa_available, coa_url, certifications, operator_notes. Action buttons: Save (stay on form), Save & Approve, Save & Pause, Save & Reject, Save & Defer. Recomputes derivations after save.
+- Repo extensions: `Supcomp_Offers_Repo::get_with_joins`, `query_for_admin`, `count_for_admin`, `manual_update` (sanitization at the boundary against enum lists and PRODUCT_FORMS), `set_visibility`, `bulk_set_visibility`, `latest_raw_for`, `decode_certifications`. `Supcomp_Canonical_Products_Repo::for_picker` (active+draft list with ingredient joined, optgroup-ready).
+- `INSTRUCTIONS.md` §9 (work the pending queue — 10-second clean-case workflow and detail edit), §10 (edit active offer), §11 (pause / reject / resume).
+
+### Changed
+- `class-plugin.php` `load_admin()` requires the new `class-offer-form.php` and registers the queue screen's `admin_post_supcomp_offer_row_action` / `_bulk_action` + the offer form's `admin_post_supcomp_save_offer` hooks.
+- `class-pending-queue-screen.php` and `class-active-offers-screen.php` replaced — were Phase 1 placeholders.
+
+### Deprecated
+### Removed
+### Fixed
+### Security
+- All admin_post handlers run `current_user_can('manage_options')` and `check_admin_referer()`. Row actions use per-id nonces (`supcomp_offer_row_action_{id}`) so a stale link can't pop an action on a different offer. Bulk action uses `$wpdb->prepare()` with `%d` placeholders for every id.
+- `manual_update` validates canonical_product_id / ingredient_id by absint, enum-like fields against `Supcomp_Installer` constants, COA URL through `esc_url_raw`.
+
+### Notes
+- The 10-second pending-queue workflow target depends on real-world matcher hit rates. Built-in rules + the §7 matcher gave the right answer on 20/20 synthetic test offers at v0.6.0, but the live numbers won't be known until John runs his first real merchant CSV through. Watch the confidence-bucket histogram on the queue after the first import — if too many rows land in the gray (no-match) tier, the manual override workflow gets exercised more than the bulk-approve flow, and we revisit operator-editable rules.
+
+---
+
 ## [0.6.0] — 2026-05-19
 
 ### Added
