@@ -53,14 +53,22 @@ STOCK_BACKORDER = "backorder"
 STOCK_UNKNOWN = "unknown"
 
 
+# CSV contract version. Bump whenever a column is added, removed, or its
+# semantics change. The plugin's MIN_CSV_SCHEMA_VERSION must move in lockstep
+# — see PROJECTBRIEF.md §4.
+CSV_SCHEMA_VERSION = "1.0"
+
+
 @dataclass
 class Offer:
+    # Fields are listed in the PROJECTBRIEF.md §4 canonical order so the CSV
+    # is reviewable. store_name is a script-only extra (operator debug aid);
+    # the plugin's validator ignores it.
     export_run_id: str = ""
     exported_at: str = ""
 
     source: str = ""
     site: str = ""
-    store_name: str = ""
     source_product_id: str = ""
     source_variant_id: str = ""
 
@@ -79,17 +87,25 @@ class Offer:
     on_sale: str = ""
     currency: str = ""
     currency_minor_unit: str = ""
+    price_source: str = ""
 
     stock_status: str = ""
     purchasable: str = ""
 
-    product_url: str = ""
+    source_product_url: str = ""
+    source_variant_url: str = ""
 
     source_created_at: str = ""
-    source_modified_at: str = ""
+    source_updated_at: str = ""
+
+    is_variable_parent: str = ""
+    variation_retrieval_status: str = ""
 
     description: str = ""
     raw_attributes_json: str = ""
+
+    # Script-only extras, not part of the §4 contract.
+    store_name: str = ""
 
     @staticmethod
     def fieldnames() -> list[str]:
@@ -259,8 +275,8 @@ def _shopify_product_to_offers(p: dict, site: str, store_name: str, run_id: str,
     tags = p.get("tags") or []
     options = p.get("options") or []
     source_created_at = p.get("created_at", "") or ""
-    source_modified_at = p.get("updated_at", "") or ""
-    product_url = f"{site}/products/{handle}" if handle else ""
+    source_updated_at = p.get("updated_at", "") or ""
+    source_product_url = f"{site}/products/{handle}" if handle else ""
 
     raw = {
         "tags": tags if isinstance(tags, list) else [tags],
@@ -284,10 +300,12 @@ def _shopify_product_to_offers(p: dict, site: str, store_name: str, run_id: str,
             on_sale="false",
             currency=currency,
             currency_minor_unit="2",
+            price_source="shopify_variant",
             stock_status=STOCK_UNKNOWN,
-            product_url=product_url,
+            source_product_url=source_product_url,
             source_created_at=source_created_at,
-            source_modified_at=source_modified_at,
+            source_updated_at=source_updated_at,
+            variation_retrieval_status="not_applicable",
             description=description,
             raw_attributes_json=json_dump(raw),
         )]
@@ -301,7 +319,10 @@ def _shopify_product_to_offers(p: dict, site: str, store_name: str, run_id: str,
         stock_status = _shopify_stock_status(v)
 
         variant_title = v.get("title", "") or ""
-        if variant_title == "Default Title":
+        # Default-variant Shopify products report "Default Title" — surface as
+        # "" so the row looks like a single-variant product downstream.
+        is_default_variant = variant_title == "Default Title"
+        if is_default_variant:
             variant_title = ""
 
         variant_raw = dict(raw)
@@ -315,6 +336,13 @@ def _shopify_product_to_offers(p: dict, site: str, store_name: str, run_id: str,
             "available": v.get("available"),
         }
 
+        variant_id = str(v.get("id", ""))
+        source_variant_url = (
+            f"{source_product_url}?variant={variant_id}"
+            if source_product_url and variant_id and not is_default_variant
+            else ""
+        )
+
         offers.append(Offer(
             export_run_id=run_id,
             exported_at=exported_at,
@@ -322,7 +350,7 @@ def _shopify_product_to_offers(p: dict, site: str, store_name: str, run_id: str,
             site=site,
             store_name=store_name,
             source_product_id=str(p.get("id", "")),
-            source_variant_id=str(v.get("id", "")),
+            source_variant_id=variant_id,
             product_title=product_title,
             variant_title=variant_title,
             handle=handle,
@@ -336,11 +364,14 @@ def _shopify_product_to_offers(p: dict, site: str, store_name: str, run_id: str,
             on_sale=on_sale,
             currency=currency,
             currency_minor_unit="2",
+            price_source="shopify_variant",
             stock_status=stock_status,
             purchasable=bool_str(v.get("available")),
-            product_url=product_url,
+            source_product_url=source_product_url,
+            source_variant_url=source_variant_url,
             source_created_at=source_created_at,
-            source_modified_at=source_modified_at,
+            source_updated_at=source_updated_at,
+            variation_retrieval_status="retrieved" if not is_default_variant else "not_applicable",
             description=description,
             raw_attributes_json=json_dump(variant_raw),
         ))
@@ -493,9 +524,11 @@ def _woo_product_to_offers(p: dict, session: requests.Session, site: str, store_
             on_sale="true" if on_sale_bool else "false",
             currency=currency_code,
             currency_minor_unit="" if minor_unit is None else str(minor_unit),
+            price_source="woo_store_api",
             stock_status=_woo_stock_status(p),
             purchasable=bool_str(p.get("is_purchasable", None)),
-            product_url=permalink,
+            source_product_url=permalink,
+            variation_retrieval_status="not_applicable",
             description=description,
             raw_attributes_json=json_dump(raw_base),
         )]
@@ -533,9 +566,12 @@ def _woo_product_to_offers(p: dict, session: requests.Session, site: str, store_
         on_sale=bool_str(p.get("on_sale", False)),
         currency=currency_code,
         currency_minor_unit="" if minor_unit is None else str(minor_unit),
+        price_source="woo_store_api",
         stock_status=_woo_stock_status(p),
         purchasable=bool_str(p.get("is_purchasable", None)),
-        product_url=permalink,
+        source_product_url=permalink,
+        is_variable_parent="true",
+        variation_retrieval_status="fallback_parent_only",
         description=description,
         raw_attributes_json=json_dump(raw_with_range),
     )]
@@ -589,6 +625,7 @@ def _woo_fetch_variations(session: requests.Session, site: str, store_name: str,
         variant_raw = dict(raw_base)
         variant_raw["variation_attributes"] = v_attrs
 
+        variant_url = _woo_variation_url(permalink, parent, v)
         offers.append(Offer(
             export_run_id=run_id,
             exported_at=exported_at,
@@ -609,9 +646,12 @@ def _woo_fetch_variations(session: requests.Session, site: str, store_name: str,
             on_sale="true" if on_sale_bool else "false",
             currency=v_prices.get("currency_code", currency_code) or currency_code,
             currency_minor_unit="" if v_minor is None else str(v_minor),
+            price_source="woo_variation_api",
             stock_status=_woo_stock_status(v),
             purchasable=bool_str(v.get("is_purchasable", None)),
-            product_url=_woo_variation_url(permalink, parent, v),
+            source_product_url=permalink,
+            source_variant_url=variant_url if variant_url != permalink else "",
+            variation_retrieval_status="retrieved",
             description=description,
             raw_attributes_json=json_dump(variant_raw),
         ))
@@ -943,8 +983,10 @@ def _jsonld_to_offers(item: dict, site: str, store_name: str, url: str, run_id: 
             current_price=price,
             on_sale="false",
             currency=currency,
+            price_source="jsonld",
             stock_status=stock,
-            product_url=url,
+            source_product_url=url,
+            variation_retrieval_status="not_applicable",
             description=description,
             raw_attributes_json=json_dump(raw),
         ))

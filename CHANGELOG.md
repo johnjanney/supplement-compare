@@ -17,6 +17,33 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [0.5.0] — 2026-05-19
+
+### Added
+- `Supcomp_Offers_Repo`, `Supcomp_Import_Runs_Repo`, `Supcomp_Price_History_Repo` (under `plugin/includes/db/`). The offers repo has an explicit allow-list of CSV-touchable columns and a `diff_for_price_history()` helper — operator-curated columns are never overwritten by re-imports.
+- `Supcomp_CSV_Validator` — pre-import gate. Checks required columns from PROJECTBRIEF.md §4, per-row enum/decimal/format validity, duplicate natural-key detection within the file, and merchant resolution (unknown merchants surface to the operator with a remediation hint). One row-level error fails the whole file; no partial writes.
+- `Supcomp_CSV_Importer` — pipeline orchestrator. Creates the `import_runs` row, snapshots every CSV row into `raw_source_offers` (audit table), then upserts each row into `normalized_offers` by natural key. New offers land in `pending` for Phase 6 operator review. Existing offers update CSV-direct fields and log price/stock diffs to `price_history`. `stale` offers that reappear in a fresh import are restored to `active`.
+- `Supcomp_Stale_Detector::mark_stale()` — runs after each import. For merchants in the run, offers with `last_seen_import_run_id` ≠ current and visibility in `{pending, active, needs_review}` flip to `stale`. Operator-set states (paused, rejected, dead) are left alone.
+- CSV Imports admin screen: recent-runs history table (counts, status), upload form with dry-run checkbox and max-upload-size hint, per-run detail view with metadata, counts, and error log.
+- `INSTRUCTIONS.md` §3 (upload CSV), §4 (interpret errors — three categories: fatal/validation/runtime), §5 (rollback — partial recovery only at v1), §15 (troubleshooting common failure modes).
+- `CSV_SCHEMA_VERSION = "1.0"` constant in `aggregate_products.py` for future contract-bump tracking.
+
+### Changed
+- **`extractor/aggregate_products.py` brought into alignment with the PROJECTBRIEF.md §4 CSV contract.** Renamed `product_url` → `source_product_url` and `source_modified_at` → `source_updated_at`. Added required column `variation_retrieval_status` (emitted as `not_applicable` for default-variant Shopify and Woo simple products, `retrieved` for actual variant rows, `fallback_parent_only` for the Woo-variations-couldn\'t-be-fetched parent fallback). Added optional columns `source_variant_url` (Shopify variant deeplink, Woo variation permalink with attribute query args), `is_variable_parent` (the Woo fallback row), `price_source` (one of `shopify_variant` / `woo_store_api` / `woo_variation_api` / `jsonld`). Column order in the dataclass now matches the §4 canonical order; the script-only `store_name` extra trails the contract columns and the validator ignores it.
+- `class-plugin.php` `load_domain()` now also requires the three new repos and the three new import classes. `class-import-screen.php` registers its `admin_post_supcomp_run_csv_import` handler.
+- `class-import-screen.php` replaced — was a Phase 1 placeholder, now has the full import workflow.
+
+### Deprecated
+### Removed
+### Fixed
+- Validator strips a UTF-8 BOM from the first header cell before checking required columns (Excel CSV exports often include one).
+
+### Security
+- Upload handler checks `current_user_can( 'manage_options' )` and the nonce, uses `is_uploaded_file()` to verify the file came through a real POST upload, runs `wp_unslash` + `sanitize_file_name` on the filename, and reads the CSV via `fgetcsv` only — never executes file content.
+- Stale-detection UPDATE uses `$wpdb->prepare()` with placeholders for every value including the IN-list members.
+
+---
+
 ## [0.4.0] — 2026-05-19
 
 ### Added

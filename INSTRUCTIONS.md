@@ -56,15 +56,102 @@ merchants to run against, on what cadence, how to verify output).
 
 ## 3. Uploading a CSV to WordPress
 
-TBD — lands with Phase 4 (CSV import pipeline).
+**Prerequisite:** every `site` URL in the CSV must already exist as an active
+merchant (see §6). Imports for merchants that don't exist or are paused will
+be rejected before any rows are written.
+
+**WP Admin → Supplement Compare → CSV Imports → Upload CSV.**
+
+1. Pick the CSV produced by `aggregate_products.py`.
+2. Optionally tick **Dry run** to validate the file without writing anything.
+   The dry-run reports how many rows would insert (new offers) vs. update
+   (existing offers) and lists per-row validation errors and unknown
+   merchants. No `import_runs` row is created for a dry-run.
+3. Click **Run Import**.
+
+A live import does the following, in order:
+1. Validates the whole file. Any row-level error fails the whole import —
+   nothing is written. Fix the CSV and re-upload.
+2. Creates an `import_runs` row (status=`importing`) tagged with the CSV
+   `export_run_id` and `exported_at` metadata.
+3. For each row: snapshots the raw CSV row into `raw_source_offers` (audit
+   trail, never modified), then either inserts a new `normalized_offer`
+   (status=`pending`, waiting for operator review) or updates the existing
+   one's CSV-direct fields (titles, prices, stock, URLs). Operator-curated
+   fields (canonical match, normalized strength, trust signals, notes) are
+   never overwritten.
+4. Logs any price or stock change to `price_history`.
+5. Runs stale detection across the merchants that participated: offers from
+   those merchants that weren't seen in this run, with visibility in
+   `pending`/`active`/`needs_review`, get flipped to `stale`. Operator-set
+   states (paused, rejected, dead) are left alone.
+6. Re-appearing offers that were `stale` are restored to `active`.
+7. Updates the `import_runs` row with counts and `status=complete`.
+
+After import, the screen redirects to the run detail view: per-run metadata,
+counts, and any per-row errors that occurred during the write pass.
 
 ## 4. Interpreting import errors
 
-TBD — lands with Phase 4.
+There are three categories.
+
+**Fatal — file rejected before parsing.**
+- "CSV is empty or has no header row" — file is empty or unreadable.
+- "CSV is missing required column(s): X, Y" — the CSV does not match the
+  contract in `PROJECTBRIEF.md` §4. Update the Python script's
+  `CSV_SCHEMA_VERSION` and regenerate.
+
+**Validation — per-row errors, whole file rejected.**
+
+The validation gate prints each error keyed by 1-indexed spreadsheet row
+number (header = row 1):
+- `Required column "X" is empty` — the row is missing a value for a
+  required field.
+- `source must be one of shopify, woocommerce, generic` — the script
+  emitted an unknown platform. Bug in the script.
+- `on_sale must be true or false` — likewise a script bug; check the
+  emit site.
+- `stock_status must be one of ...` — script emitted an unknown enum value.
+- `regular_price is not a parseable decimal` — non-numeric or malformed
+  value in a price column.
+- `currency must be a 3-letter ISO 4217 code` — bad currency value.
+- `Duplicate (merchant, product_id, variant_id) — first seen at row N` —
+  the same natural key appears twice within the same CSV. Likely the
+  extractor double-emitted; check that merchant's source pages.
+- `No merchant exists with site_url matching "X"` — create the merchant
+  first (see §6).
+- `Merchant "X" is paused/dead` — the merchant exists but isn't active.
+  Resume it (or change status on the merchant edit form) and re-import.
+
+Fix the listed issues in your CSV (or your merchant data), re-upload.
+
+**Runtime — per-row errors during the write pass.**
+
+These appear on the run detail page if any rows errored during DB writes.
+Almost always indicates a transient issue (DB connection blip, lock
+contention). Re-import the same CSV: the upsert-by-natural-key behavior
+makes the operation idempotent, so the already-written rows update
+harmlessly and the errored rows insert or update fresh.
 
 ## 5. Rolling back a bad import
 
-TBD — lands with Phase 4.
+True transactional rollback is **not** implemented. The price_history table
+captures every pricing/stock change, but new-offer creations and stale
+flips are not snapshotted, so a wholesale "undo" of an import is not
+possible at v1.
+
+Practical recovery options:
+- **Wrong merchants in the file:** if the bad rows all belong to one
+  merchant, pausing that merchant hides their offers from the public site
+  immediately (Phase 8). Re-import a corrected CSV to update them.
+- **Bad prices:** the price_history table has each `(old, new)` per change;
+  manually `UPDATE` affected `normalized_offers` rows back to their old
+  prices. SQL access required.
+- **Bad new-offer inserts:** delete the offending rows from
+  `normalized_offers`. The raw `raw_source_offers` table preserves the
+  imported snapshot for audit.
+
+Full rollback support is in scope for post-1.0.
 
 ## 6. Adding a new merchant
 
@@ -249,8 +336,41 @@ TBD — lands with Phase 10 (SEO and per-canonical pages).
 
 ## 15. Troubleshooting
 
-TBD — populated as failure modes are encountered. Each entry: symptom,
-likely cause, fix.
+**"CSV is missing required column(s)" on upload.** The Python extractor
+output doesn't match the §4 contract. Most common cause: someone has an
+older copy of `aggregate_products.py`. Pull the latest from this repo and
+regenerate the CSV.
+
+**"No merchant exists with site_url matching X".** The CSV references a
+site that has no merchant row, or whose site_url doesn't match what was
+typed on the merchant edit form. Check that the merchant's Site URL field
+matches the host the script crawled (trailing-slash and case differences
+are tolerated; query strings and paths in the merchant URL are not).
+
+**Upload fails silently, returns to upload page.** Usually a PHP
+post_max_size or upload_max_filesize limit. The form shows the active max
+upload size; if your CSV is larger, increase those limits in php.ini or
+contact your host.
+
+**Import says 0 inserted, 0 updated, N stale.** A merchant was previously
+active, has offers, but no rows appeared in this run. Stale detection
+flipped them. Either the extractor's CSV is missing that merchant or the
+merchant's products genuinely vanished.
+
+**Same offer keeps getting `match_confidence` reset to NULL on re-import.**
+Expected at v0.5.0 — Phase 5 (normalization + matching) hasn't been built
+yet. Matching scores arrive with Phase 5.
+
+**Prices look off after import.** Check the `price_source` column on the
+raw row — Woo "fallback_parent_only" rows have a price range, not a
+specific price. Variations with `variation_retrieval_status=failed` may
+have the parent's price. Phase 5's normalization will surface these
+better; for v0.5.0, the operator has to spot them in the pending queue.
+
+**Operator-edited fields got wiped by re-import.** Should not happen by
+design — only CSV-direct fields update on re-import. If a curated field
+was overwritten, file a bug; `Supcomp_Offers_Repo::update_csv_columns()`
+is the responsible code path and it has an explicit allow-list.
 
 ---
 

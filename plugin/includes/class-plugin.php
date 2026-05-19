@@ -47,8 +47,14 @@ class Supcomp_Plugin {
 		require_once $inc . 'db/class-merchants-repo.php';
 		require_once $inc . 'db/class-ingredients-repo.php';
 		require_once $inc . 'db/class-canonical-products-repo.php';
+		require_once $inc . 'db/class-offers-repo.php';
+		require_once $inc . 'db/class-import-runs-repo.php';
+		require_once $inc . 'db/class-price-history-repo.php';
 
 		require_once $inc . 'import/class-canonical-csv-importer.php';
+		require_once $inc . 'import/class-csv-validator.php';
+		require_once $inc . 'import/class-stale-detector.php';
+		require_once $inc . 'import/class-csv-importer.php';
 	}
 
 	private static function load_admin() {
@@ -73,5 +79,6 @@ class Supcomp_Plugin {
 		Supcomp_Merchants_Screen::register_hooks();
 		Supcomp_Ingredients_Screen::register_hooks();
 		Supcomp_Canonical_Products_Screen::register_hooks();
+		Supcomp_Import_Screen::register_hooks();
 	}
 }
