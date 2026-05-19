@@ -281,6 +281,8 @@ class Supcomp_Offer_Form {
 			Supcomp_Offers_Repo::apply_derivations( $id, $derived );
 		}
 
+		do_action( 'supcomp_data_changed', array( 'source' => 'offer_form', 'offer_id' => $id ) );
+
 		// Visibility flip if the operator clicked one of the workflow buttons.
 		$visibility_map = array(
 			'approve' => 'active',

@@ -17,6 +17,35 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [0.9.0] — 2026-05-19
+
+### Added
+- `Supcomp_JSON_Exporter` (`plugin/includes/public/class-json-exporter.php`) — generates the public payload from PROJECTBRIEF.md §9 to `wp-content/uploads/supplement-compare/public.json`. Atomic write via `.tmp` + `rename` so consumers never see a partial file. `mark_dirty()` registers a shutdown hook so multiple state changes within one request coalesce into one regenerate.
+- `Supcomp_Offers_Repo::for_export()` — joined query returning active canonical-matched offers within the hide threshold, with merchant + canonical_product + ingredient fields attached. Ordered by canonical id then ascending cost-per-active-unit so per-canonical rollups (`lowest_cost_per_active_unit`, `offer_count`) accumulate in order.
+- Staleness handling per PROJECTBRIEF.md §6: offers older than `supcomp_staleness_warn_hours` (default 48) get `is_stale: true`; offers older than `supcomp_staleness_hide_hours` (default 168) are excluded from the payload entirely.
+- `do_action('supcomp_data_changed', $context)` fired from every state-change site: offer form save, queue row action, queue bulk action, CSV import end, canonical product save / status / CSV import, ingredient save / status / CSV import. Exporter listens once and calls `mark_dirty()`.
+- Hourly cron `supcomp_export_cron` scheduled on activation, unscheduled on deactivation. Backup path when an in-process invalidation misses.
+- Public JSON export status section on the Settings page: file path, public URL (clickable when the file exists), size + last write time, last recorded regenerate, next cron tick. "Regenerate now" button.
+- `INSTRUCTIONS.md` §13 — how the auto-regenerate works, what the manual button is for, what's in / out of the file, troubleshooting.
+
+### Changed
+- `class-activator.php` schedules the cron + leaves initial generation for the first real state change (no offers to publish on a fresh install).
+- `class-deactivator.php` unschedules the cron in addition to flushing rewrite rules.
+- `plugin/supplement-compare.php` requires `Supcomp_JSON_Exporter` up front so the activator can schedule the cron before plugins_loaded fires.
+- `class-plugin.php` `boot()` calls `Supcomp_JSON_Exporter::register_hooks()` which wires the data-changed listener and the cron-hook callback.
+
+### Deprecated
+### Removed
+### Fixed
+### Security
+- Payload deliberately excludes raw affiliate URLs, merchant URL templates, source URLs, descriptions, raw_attributes_json, and operator notes (PROJECTBRIEF.md §9 honesty rules). The frontend gets `buy_url: /out/{id}` and never sees the merchant's affiliate redirect target.
+- Atomic write prevents a fetcher from reading a half-written file during regenerate.
+
+### Notes
+- Cron registration relies on WP's pseudo-cron, which only fires on incoming requests. Low-traffic sites should configure a system cron pointing at `wp-cron.php` to ensure the hourly regenerate actually runs. The in-process invalidation listener is the primary path; cron is the safety net.
+
+---
+
 ## [0.8.0] — 2026-05-19
 
 ### Added

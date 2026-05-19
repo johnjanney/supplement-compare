@@ -151,6 +151,17 @@ class Supcomp_CSV_Importer {
 			self::truncate_error_log( $row_errors )
 		);
 
+		do_action(
+			'supcomp_data_changed',
+			array(
+				'source'   => 'csv_import',
+				'run_id'   => $run_id,
+				'inserted' => $inserted,
+				'updated'  => $updated,
+				'stale'    => $stale,
+			)
+		);
+
 		return array(
 			'run_id'     => $run_id,
 			'inserted'   => $inserted,

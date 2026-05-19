@@ -17,5 +17,7 @@ class Supcomp_Deactivator {
 		// Drop our rewrite rules so URL routing returns to defaults
 		// without leaving stale entries in .htaccess / permalink state.
 		flush_rewrite_rules();
+
+		Supcomp_JSON_Exporter::unschedule_cron();
 	}
 }

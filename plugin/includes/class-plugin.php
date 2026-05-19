@@ -35,6 +35,9 @@ class Supcomp_Plugin {
 		add_filter( 'query_vars', array( 'Supcomp_Redirect', 'add_query_vars' ) );
 		add_action( 'template_redirect', array( 'Supcomp_Redirect', 'maybe_handle' ) );
 
+		// Phase 8: public JSON cache invalidation listener + hourly cron.
+		Supcomp_JSON_Exporter::register_hooks();
+
 		if ( is_admin() ) {
 			self::load_admin();
 		}
@@ -99,5 +102,6 @@ class Supcomp_Plugin {
 		Supcomp_Import_Screen::register_hooks();
 		Supcomp_Pending_Queue_Screen::register_hooks();
 		Supcomp_Offer_Form::register_hooks();
+		Supcomp_Settings::register_hooks();
 	}
 }

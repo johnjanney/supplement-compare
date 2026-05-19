@@ -452,7 +452,64 @@ disabled, or an Nginx config that doesn't pass everything through `index.php`).
 
 ## 13. Regenerating the public JSON manually
 
-TBD — lands with Phase 8 (static JSON export).
+The public site (Phase 9, not yet built) will load a single
+`public.json` file written to
+`wp-content/uploads/supplement-compare/public.json`. The file is
+regenerated automatically:
+- After **any offer state change** — save, approve, reject, pause,
+  defer, bulk action.
+- After **every CSV import**.
+- After **ingredient or canonical product edits** (display fields
+  appear in the JSON).
+- On an **hourly cron** as a backup, in case any of the above paths
+  fail silently.
+
+Multiple changes within one request coalesce — the regenerate runs once
+on PHP shutdown, after the redirect.
+
+**WP Admin → Supplement Compare → Settings → Public JSON export** shows:
+- The file path on disk
+- The public URL (clickable when the file exists)
+- File size + last write time
+- Last recorded auto-regenerate timestamp
+- Next scheduled cron run
+
+Click **Regenerate now** to force a regenerate immediately. Useful when:
+- You edited a canonical product display name and want the JSON to reflect
+  it right now (auto-regenerate handles this, but a manual button is
+  useful for "did it work?" verification).
+- The cron is wedged for any reason and you want to confirm the exporter
+  itself still works.
+- You changed a staleness threshold in Settings and want the new filter
+  applied immediately rather than waiting for the next change.
+
+**What's in the file (PROJECTBRIEF.md §9):**
+- `canonical_products[]` — one per canonical that has at least one
+  active offer. Includes ingredient summary, form, strength, and rollups
+  (lowest_cost_per_active_unit, offer_count).
+- `offers[]` — one per active, canonical-matched offer within the hide
+  threshold. Includes pricing, derived cost-per-active-unit, trust
+  signals, `buy_url: /out/{id}` (NOT a raw affiliate URL),
+  `is_stale: true|false` per the warn threshold.
+
+**What's NOT in the file:**
+- Raw affiliate URLs or merchant URL templates (only `buy_url: /out/{id}`).
+- Source product URLs (the redirect handles the off-site jump).
+- Product descriptions, raw_attributes_json, operator notes — internal only.
+- Pending, rejected, paused, or unmatched offers.
+- Offers older than the hide threshold (default 168h since last_synced_at).
+
+**Troubleshooting:**
+- "(no file written yet)" after activating the plugin → expected on a
+  fresh install with no approved offers. Approve at least one or run a
+  CSV import.
+- File exists but the public URL 404s → web server isn't serving
+  wp-content/uploads paths. Almost never a problem on standard WP hosting;
+  check Apache/Nginx config if it happens.
+- "Next scheduled cron" stays blank → wp-cron isn't firing. Add a real
+  system cron pointing at `wp-cron.php?doing_wp_cron` and disable
+  WordPress's pseudo-cron via `define('DISABLE_WP_CRON', true)` if the
+  site has low traffic.
 
 ## 14. Editing per-canonical-product page content (SEO)
 

@@ -153,6 +153,12 @@ class Supcomp_Settings {
 		);
 	}
 
+	const NONCE_REGEN = 'supcomp_regenerate_json';
+
+	public static function register_hooks() {
+		add_action( 'admin_post_supcomp_regenerate_json', array( __CLASS__, 'handle_regenerate' ) );
+	}
+
 	public static function render() {
 		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'supplement-compare' ) );
@@ -160,6 +166,9 @@ class Supcomp_Settings {
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Supplement Compare — Settings', 'supplement-compare' ); ?></h1>
+
+			<?php self::render_notice(); ?>
+
 			<form method="post" action="options.php">
 				<?php
 				settings_fields( self::OPTION_GROUP );
@@ -167,7 +176,87 @@ class Supcomp_Settings {
 				submit_button();
 				?>
 			</form>
+
+			<hr style="margin:2em 0">
+			<h2><?php esc_html_e( 'Public JSON export', 'supplement-compare' ); ?></h2>
+			<?php self::render_export_status(); ?>
 		</div>
 		<?php
+	}
+
+	private static function render_export_status() {
+		$path  = Supcomp_JSON_Exporter::output_path();
+		$url   = Supcomp_JSON_Exporter::output_url();
+		$exists = $path !== '' && file_exists( $path );
+		$size  = $exists ? size_format( filesize( $path ) ) : '—';
+		$mtime = $exists ? get_date_from_gmt( gmdate( 'Y-m-d H:i:s', filemtime( $path ) ), 'Y-m-d H:i' ) : '—';
+		$last  = Supcomp_JSON_Exporter::last_generated_at();
+		$last  = $last ? get_date_from_gmt( $last, 'Y-m-d H:i' ) : '—';
+		$next  = wp_next_scheduled( Supcomp_JSON_Exporter::CRON_HOOK );
+		$next  = $next ? get_date_from_gmt( gmdate( 'Y-m-d H:i:s', $next ), 'Y-m-d H:i' ) : '—';
+		?>
+		<table class="form-table" role="presentation">
+			<tr><th><?php esc_html_e( 'File path', 'supplement-compare' ); ?></th><td><code style="font-size:11px"><?php echo esc_html( $path ); ?></code></td></tr>
+			<tr><th><?php esc_html_e( 'Public URL', 'supplement-compare' ); ?></th><td><?php if ( $exists && $url ) : ?><a href="<?php echo esc_url( $url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $url ); ?></a><?php else : ?><span style="color:#888"><?php echo esc_html( $url ?: __( '(uploads dir not resolvable)', 'supplement-compare' ) ); ?></span><?php endif; ?></td></tr>
+			<tr><th><?php esc_html_e( 'File on disk', 'supplement-compare' ); ?></th><td><?php echo $exists ? esc_html( $size . ' — last written ' . $mtime ) : '<span style="color:#888">' . esc_html__( '(no file written yet)', 'supplement-compare' ) . '</span>'; ?></td></tr>
+			<tr><th><?php esc_html_e( 'Last recorded regenerate', 'supplement-compare' ); ?></th><td><?php echo esc_html( $last ); ?></td></tr>
+			<tr><th><?php esc_html_e( 'Next scheduled cron', 'supplement-compare' ); ?></th><td><?php echo esc_html( $next ); ?></td></tr>
+		</table>
+
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="supcomp_regenerate_json">
+			<?php wp_nonce_field( self::NONCE_REGEN ); ?>
+			<?php submit_button( __( 'Regenerate now', 'supplement-compare' ), 'primary', '', false ); ?>
+		</form>
+
+		<p class="description"><?php esc_html_e( 'The JSON regenerates automatically after any offer state change (save / approve / pause / etc.), after each CSV import, and once an hour as a backup. Use this button to force a regenerate (e.g. after editing canonical product display names you want reflected immediately).', 'supplement-compare' ); ?></p>
+		<?php
+	}
+
+	public static function handle_regenerate() {
+		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission.', 'supplement-compare' ) );
+		}
+		check_admin_referer( self::NONCE_REGEN );
+
+		$result = Supcomp_JSON_Exporter::generate();
+		if ( is_wp_error( $result ) ) {
+			$msg = $result->get_error_message();
+			wp_safe_redirect( add_query_arg( array( 'page' => self::PAGE_SLUG, 'supcomp_notice' => 'regen_error', 'msg' => rawurlencode( $msg ) ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'           => self::PAGE_SLUG,
+					'supcomp_notice' => 'regen_ok',
+					'canonicals'     => (int) $result['canonical_products'],
+					'offers'         => (int) $result['offers'],
+				),
+				admin_url( 'admin.php' )
+			)
+		);
+		exit;
+	}
+
+	private static function render_notice() {
+		if ( empty( $_GET['supcomp_notice'] ) ) {
+			return;
+		}
+		$type       = sanitize_key( wp_unslash( $_GET['supcomp_notice'] ) );
+		$msg        = isset( $_GET['msg'] ) ? wp_unslash( $_GET['msg'] ) : '';
+		$canonicals = isset( $_GET['canonicals'] ) ? (int) wp_unslash( $_GET['canonicals'] ) : 0;
+		$offers     = isset( $_GET['offers'] ) ? (int) wp_unslash( $_GET['offers'] ) : 0;
+		if ( $type === 'regen_ok' ) {
+			printf(
+				'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+				esc_html( sprintf( __( 'Public JSON regenerated: %1$d canonical products, %2$d offers.', 'supplement-compare' ), $canonicals, $offers ) )
+			);
+		} elseif ( $type === 'regen_error' ) {
+			printf(
+				'<div class="notice notice-error is-dismissible"><p>%s</p></div>',
+				esc_html( $msg !== '' ? $msg : __( 'Regeneration failed.', 'supplement-compare' ) )
+			);
+		}
 	}
 }

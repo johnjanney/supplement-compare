@@ -314,6 +314,43 @@ class Supcomp_Offers_Repo {
 	}
 
 	/**
+	 * Joined query for the public JSON exporter (Phase 8). Returns active,
+	 * canonical-matched offers within the hide threshold, with merchant +
+	 * canonical_product + ingredient fields attached. Ordered by canonical
+	 * then ascending cost-per-active-unit so the exporter can walk the
+	 * result set once and accumulate per-canonical rollups in order.
+	 */
+	public static function for_export( $hide_threshold_mysql ) {
+		global $wpdb;
+		$o  = self::table();
+		$m  = $wpdb->prefix . 'supcomp_merchants';
+		$cp = $wpdb->prefix . 'supcomp_canonical_products';
+		$ci = $wpdb->prefix . 'supcomp_canonical_ingredients';
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT o.*,
+						m.slug AS merchant_slug, m.name AS merchant_name,
+						cp.slug AS canonical_slug, cp.display_name AS canonical_display_name,
+						cp.ingredient_form AS canonical_form,
+						cp.strength_per_serving AS canonical_strength,
+						cp.standardization_compound AS canonical_std_compound,
+						cp.standardization_percentage AS canonical_std_pct,
+						ci.id AS ingredient_id_join, ci.name AS ingredient_name,
+						ci.category AS ingredient_category, ci.default_unit AS ingredient_unit
+				 FROM {$o} o
+				 INNER JOIN {$m} m ON m.id = o.merchant_id AND m.status = 'active'
+				 INNER JOIN {$cp} cp ON cp.id = o.canonical_product_id AND cp.status <> 'retired'
+				 INNER JOIN {$ci} ci ON ci.id = cp.ingredient_id AND ci.status <> 'retired'
+				 WHERE o.visibility_status = 'active'
+				   AND o.canonical_product_id IS NOT NULL
+				   AND o.last_synced_at >= %s
+				 ORDER BY cp.id ASC, o.cost_per_active_unit ASC, o.id ASC",
+				$hide_threshold_mysql
+			)
+		);
+	}
+
+	/**
 	 * Latest raw_source_offers row for an offer's natural key. Used by the
 	 * detail view's side-by-side display.
 	 */

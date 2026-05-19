@@ -389,6 +389,7 @@ class Supcomp_Canonical_Products_Screen {
 			exit;
 		}
 
+		do_action( 'supcomp_data_changed', array( 'source' => 'canonical_save', 'id' => $result['id'] ) );
 		wp_safe_redirect( self::url( array( 'action' => 'edit', 'id' => $result['id'], 'supcomp_notice' => $result['created'] ? 'created' : 'updated' ) ) );
 		exit;
 	}
@@ -403,6 +404,7 @@ class Supcomp_Canonical_Products_Screen {
 		$status = isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : '';
 		if ( $id && Supcomp_Canonical_Products_Repo::set_status( $id, $status ) ) {
 			$notice = ( $status === 'retired' ) ? 'retired' : 'restored';
+			do_action( 'supcomp_data_changed', array( 'source' => 'canonical_status', 'id' => $id, 'status' => $status ) );
 		} else {
 			$notice = 'error';
 		}
@@ -429,6 +431,7 @@ class Supcomp_Canonical_Products_Screen {
 		}
 
 		set_transient( 'supcomp_import_report_canonical_' . get_current_user_id(), $report, MINUTE_IN_SECONDS * 10 );
+		do_action( 'supcomp_data_changed', array( 'source' => 'canonical_csv_import', 'inserted' => $report['inserted'], 'updated' => $report['updated'] ) );
 		wp_safe_redirect( self::url( array( 'action' => 'import', 'supcomp_notice' => 'imported' ) ) );
 		exit;
 	}

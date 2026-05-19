@@ -274,6 +274,9 @@ class Supcomp_Pending_Queue_Screen {
 			if ( $action === 'defer' || $action === 'review' ) {
 				$notice = 'deferred';
 			}
+			if ( $ok ) {
+				do_action( 'supcomp_data_changed', array( 'source' => 'offer_row_action', 'offer_id' => $id, 'action' => $action ) );
+			}
 		}
 		wp_safe_redirect( add_query_arg( 'supcomp_notice', $notice, $return ) );
 		exit;
@@ -300,6 +303,9 @@ class Supcomp_Pending_Queue_Screen {
 			exit;
 		}
 		$n = Supcomp_Offers_Repo::bulk_set_visibility( $ids, $map[ $bulk ] );
+		if ( $n > 0 ) {
+			do_action( 'supcomp_data_changed', array( 'source' => 'offer_bulk_action', 'count' => $n, 'action' => $bulk ) );
+		}
 		wp_safe_redirect( add_query_arg( array( 'supcomp_notice' => 'bulk_' . $bulk, 'n' => $n ), $return ) );
 		exit;
 	}

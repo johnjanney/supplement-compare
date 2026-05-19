@@ -343,6 +343,7 @@ class Supcomp_Ingredients_Screen {
 			exit;
 		}
 
+		do_action( 'supcomp_data_changed', array( 'source' => 'ingredient_save', 'id' => $result['id'] ) );
 		wp_safe_redirect( self::url( array( 'action' => 'edit', 'id' => $result['id'], 'supcomp_notice' => $result['created'] ? 'created' : 'updated' ) ) );
 		exit;
 	}
@@ -357,6 +358,7 @@ class Supcomp_Ingredients_Screen {
 		$status = isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : '';
 		if ( $id && Supcomp_Ingredients_Repo::set_status( $id, $status ) ) {
 			$notice = ( $status === 'retired' ) ? 'retired' : 'restored';
+			do_action( 'supcomp_data_changed', array( 'source' => 'ingredient_status', 'id' => $id, 'status' => $status ) );
 		} else {
 			$notice = 'error';
 		}
@@ -383,6 +385,7 @@ class Supcomp_Ingredients_Screen {
 		}
 
 		set_transient( 'supcomp_import_report_ingredients_' . get_current_user_id(), $report, MINUTE_IN_SECONDS * 10 );
+		do_action( 'supcomp_data_changed', array( 'source' => 'ingredient_csv_import', 'inserted' => $report['inserted'], 'updated' => $report['updated'] ) );
 
 		wp_safe_redirect( self::url( array( 'action' => 'import', 'supcomp_notice' => 'imported' ) ) );
 		exit;
