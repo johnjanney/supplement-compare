@@ -17,6 +17,47 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.0.0] — 2026-05-19
+
+### Added
+- **Production milestone — 1.0.0.** All 10 phases from PROJECTBRIEF.md §8 are now implemented.
+- `Supcomp_Canonical_Page` (`plugin/includes/public/class-canonical-page.php`) — registers the `^compare/([^/]+)/?$` rewrite rule and renders a per-canonical landing page inside the active theme. Page body: H1 = display_name, optional operator-written SEO content (wp_kses_post on output), schema.org Product + AggregateOffer JSON-LD in `<head>`, and the [supplement_compare canonical=slug] shortcode for the live comparison table. Operator-only "Edit canonical" + indexability-status link when `current_user_can('manage_options')`.
+- Indexability rule (PROJECTBRIEF.md §10): a canonical page emits `<meta name="robots" content="noindex,follow">` unless BOTH `seo_indexable=true` AND active offer count ≥ 3 (where "active" excludes offers older than the hide threshold). The page still renders for not-indexable canonicals so the operator can link to it internally.
+- `Supcomp_Sitemap` (`plugin/includes/public/class-sitemap.php`) — serves `/supcomp-sitemap.xml`. Lists exactly the canonicals that satisfy the indexability rule, with `<lastmod>` from `canonical_products.updated_at` and `<changefreq>daily</changefreq>`.
+- Schema bump: `SCHEMA_VERSION` `'1'` → `'2'` with a new `seo_content LONGTEXT NULL` column on `canonical_products`. `maybe_upgrade()` picks it up via dbDelta on the next page load after a plugin update.
+- Canonical Products edit form: a `wp_editor()`-backed "SEO content" field below the SEO indexable checkbox. Helper copy: factual chemistry / composition only, no therapeutic claims (PROJECTBRIEF.md §7 load-bearing). Live indexability preview ("Active offers: N · Indexes: yes/no") with the gating reason and a "View page →" link to the rendered `/compare/{slug}/`.
+- `Supcomp_Offers_Repo::count_active_for_canonical($id, $hide_threshold)` and `Supcomp_Offers_Repo::aggregate_for_canonical($id, $hide_threshold)` — the SEO threshold check + the schema.org AggregateOffer's `lowPrice` / `highPrice` / `offerCount` / `availability` numbers.
+- `INSTRUCTIONS.md` §15 — editing per-canonical SEO content, indexability rule, schema markup, sitemap consumption.
+
+### Changed
+- `class-plugin.php` `boot()` registers init / query_vars / template_redirect / template_include hooks for the new canonical page + sitemap routes.
+- `class-activator.php` registers all three rewrite rules (out, compare, sitemap) before `flush_rewrite_rules()`.
+- `plugin/supplement-compare.php` requires `Supcomp_Canonical_Products_Repo`, `Supcomp_Ingredients_Repo`, `Supcomp_Canonical_Page`, and `Supcomp_Sitemap` up front (the activator needs them for rewrite registration before plugins_loaded fires).
+- `Supcomp_Canonical_Products_Repo::sanitize()` accepts `seo_content` and runs it through `wp_kses_post` to strip JS / tracking / unsafe tags while keeping basic HTML.
+- `INSTRUCTIONS.md` Troubleshooting renumbered §15 → §16 to make room for the new SEO section.
+
+### Deprecated
+### Removed
+### Fixed
+### Security
+- `seo_content` sanitized via `wp_kses_post` on save AND on output (defense in depth) — operator-written rich text can't smuggle `<script>` even if a future bug skipped the input sanitization.
+- Schema.org JSON-LD goes through `wp_json_encode` (well-formed) and the description field is `wp_strip_all_tags`'d + truncated to 500 chars so it can't smuggle markup into the JSON-LD block.
+
+### Production-readiness milestone (PROJECTBRIEF.md §16)
+All 10 phases complete and demonstrable at the code level. The §16 "Definition of done" checklist:
+- ✅ All 10 phases complete and demonstrable
+- ☐ Three real merchants integrated end-to-end (operator workstream)
+- ☐ At least 50 canonical products with at least one active offer each (operator workstream)
+- ☐ Public frontend renders comparison correctly on desktop and mobile (needs live test)
+- ☐ Click tracking confirmed working with real affiliate URLs (needs live test)
+- ✅ `README.md`, `INSTRUCTIONS.md`, `CHANGELOG.md`, `PROJECTBRIEF.md`, `OPEN_QUESTIONS.md` all current
+- ☐ Plugin installs cleanly from a freshly-built `.zip` on a fresh WordPress install (needs live test)
+- ☐ Operator has run a complete cycle (script → CSV → import → curate → publish → click) without developer intervention (needs operator workstream)
+
+After 1.0, version bumps follow stricter SemVer per PROJECTBRIEF.md §11 — breaking changes require MAJOR.
+
+---
+
 ## [0.10.0] — 2026-05-19
 
 ### Added

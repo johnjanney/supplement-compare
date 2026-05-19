@@ -281,6 +281,12 @@ class Supcomp_Canonical_Products_Repo {
 		if ( array_key_exists( 'seo_indexable', $data ) ) {
 			$clean['seo_indexable'] = self::truthy( $data['seo_indexable'] ) ? 1 : 0;
 		}
+		if ( array_key_exists( 'seo_content', $data ) ) {
+			$raw                    = (string) $data['seo_content'];
+			// wp_kses_post strips JS / tracking / unsafe tags but keeps basic
+			// HTML so the operator can write paragraphs, lists, links.
+			$clean['seo_content']  = $raw === '' ? null : wp_kses_post( $raw );
+		}
 		if ( isset( $data['status'] ) ) {
 			$s              = sanitize_key( $data['status'] );
 			$clean['status'] = in_array( $s, Supcomp_Installer::PRODUCT_STATUSES, true ) ? $s : 'draft';

@@ -553,7 +553,56 @@ the manual Regenerate button in Settings).
 
 ## 15. Editing per-canonical-product page content (SEO)
 
-TBD — lands with Phase 10 (SEO and per-canonical pages).
+The plugin generates a per-canonical landing page at `/compare/{slug}/`
+for every canonical product. The page shows the canonical's display name,
+operator-written "SEO content" body, schema.org Product + AggregateOffer
+markup, and embeds the [supplement_compare] shortcode for the comparison
+table itself.
+
+**Indexability rule.** Per PROJECTBRIEF.md §10, a canonical page indexes
+only when BOTH:
+- `seo_indexable` is on (operator opt-in on the canonical product form)
+- Active offer count ≥ 3 (within the hide-staleness threshold)
+
+When either fails, the page still renders (so visitors can reach it via
+internal links) but emits `<meta name="robots" content="noindex,follow">`
+and is excluded from `/supcomp-sitemap.xml`.
+
+**Editing the body.**
+
+WP Admin → Supplement Compare → Canonical Products → Edit. Below the
+"SEO indexable" checkbox there's an "SEO content" rich-text editor.
+
+**Important — no therapeutic claims.** PROJECTBRIEF.md §7 forbids
+therapeutic or comparative health claims in operator-facing copy. Stick
+to factual chemistry / composition / form / standardization / unit
+discussion. Don't describe a compound as treating, preventing, or
+improving any condition. The editor's helper text repeats this.
+
+Indexability status is shown live on the edit form: active offer count,
+"Indexes: yes/no" with the reason, and a "View page →" link to preview.
+
+**Schema.org markup.** Every canonical page emits a JSON-LD block with:
+- `@type: Product` (name, optional description from seo_content, category)
+- `offers: AggregateOffer` (priceCurrency, lowPrice, highPrice,
+  offerCount, availability)
+
+The aggregate is computed from active, non-hide-stale offers — same set
+the visible comparison table uses.
+
+**Sitemap.**
+
+`https://your-site.com/supcomp-sitemap.xml` lists every canonical
+page that satisfies the indexability rule. One `<url>` per canonical
+with `<lastmod>` derived from the canonical's `updated_at` and
+`<changefreq>daily</changefreq>`.
+
+If your site already has a primary sitemap (Yoast, Rank Math, WordPress
+core, etc.), reference `/supcomp-sitemap.xml` from your sitemap index or
+submit it directly to Google Search Console — both work.
+
+If `/supcomp-sitemap.xml` returns 404 immediately after activating the
+plugin, deactivate/reactivate to re-flush WordPress's rewrite cache.
 
 ## 16. Troubleshooting
 

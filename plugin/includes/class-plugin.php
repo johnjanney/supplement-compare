@@ -29,11 +29,19 @@ class Supcomp_Plugin {
 
 		self::load_domain();
 
-		// /out/{id} redirect lives on both front-end and back-end; register
-		// the rewrite rule + query var early so WP_Rewrite knows about it.
+		// /out/{id} redirect + /compare/{slug}/ canonical page + sitemap
+		// rewrite rules. Register on init so WP_Rewrite knows about them
+		// even after a transient flush.
 		add_action( 'init', array( 'Supcomp_Redirect', 'register_rewrite_rules' ) );
+		add_action( 'init', array( 'Supcomp_Canonical_Page', 'register_rewrite_rules' ) );
+		add_action( 'init', array( 'Supcomp_Sitemap', 'register_rewrite_rules' ) );
 		add_filter( 'query_vars', array( 'Supcomp_Redirect', 'add_query_vars' ) );
+		add_filter( 'query_vars', array( 'Supcomp_Canonical_Page', 'add_query_vars' ) );
+		add_filter( 'query_vars', array( 'Supcomp_Sitemap', 'add_query_vars' ) );
+
 		add_action( 'template_redirect', array( 'Supcomp_Redirect', 'maybe_handle' ) );
+		add_action( 'template_redirect', array( 'Supcomp_Sitemap', 'maybe_handle' ) );
+		add_filter( 'template_include', array( 'Supcomp_Canonical_Page', 'maybe_render' ), 99 );
 
 		// Phase 8: public JSON cache invalidation listener + hourly cron.
 		Supcomp_JSON_Exporter::register_hooks();

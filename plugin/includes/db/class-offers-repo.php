@@ -314,6 +314,51 @@ class Supcomp_Offers_Repo {
 	}
 
 	/**
+	 * Count active, non-stale offers for one canonical. Used by the SEO
+	 * threshold check (Phase 10) and the canonical-products edit screen's
+	 * indexability preview.
+	 */
+	public static function count_active_for_canonical( $canonical_id, $hide_threshold_mysql ) {
+		global $wpdb;
+		$table = self::table();
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT(*) FROM {$table}
+				 WHERE canonical_product_id = %d
+				   AND visibility_status = 'active'
+				   AND last_synced_at >= %s",
+				absint( $canonical_id ),
+				$hide_threshold_mysql
+			)
+		);
+	}
+
+	/**
+	 * Aggregate price stats per canonical for schema.org AggregateOffer
+	 * markup. Returns lowest_price / highest_price / offer_count / any_in_stock.
+	 */
+	public static function aggregate_for_canonical( $canonical_id, $hide_threshold_mysql ) {
+		global $wpdb;
+		$table = self::table();
+		$row   = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT MIN(current_price) AS low,
+						MAX(current_price) AS high,
+						COUNT(*) AS cnt,
+						MAX(CASE WHEN stock_status = 'in_stock' THEN 1 ELSE 0 END) AS any_in_stock,
+						MAX(currency) AS currency
+				 FROM {$table}
+				 WHERE canonical_product_id = %d
+				   AND visibility_status = 'active'
+				   AND last_synced_at >= %s",
+				absint( $canonical_id ),
+				$hide_threshold_mysql
+			)
+		);
+		return $row ? $row : (object) array( 'low' => null, 'high' => null, 'cnt' => 0, 'any_in_stock' => 0, 'currency' => 'USD' );
+	}
+
+	/**
 	 * Joined query for the public JSON exporter (Phase 8). Returns active,
 	 * canonical-matched offers within the hide threshold, with merchant +
 	 * canonical_product + ingredient fields attached. Ordered by canonical

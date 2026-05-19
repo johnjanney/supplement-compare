@@ -184,6 +184,7 @@ class Supcomp_Canonical_Products_Screen {
 		$standardization_percentage = $row && $row->standardization_percentage !== null ? self::trim_decimal( $row->standardization_percentage ) : '';
 		$display_name               = $row ? $row->display_name : '';
 		$seo_indexable              = $row ? (int) $row->seo_indexable : 0;
+		$seo_content                = $row && isset( $row->seo_content ) ? (string) $row->seo_content : '';
 		$status                     = $row ? $row->status : 'draft';
 
 		$ingredients = Supcomp_Ingredients_Repo::active_for_select();
@@ -267,8 +268,60 @@ class Supcomp_Canonical_Products_Screen {
 					<tr>
 						<th><label for="supcomp-seo"><?php esc_html_e( 'SEO indexable', 'supplement-compare' ); ?></label></th>
 						<td>
-							<label><input type="checkbox" id="supcomp-seo" name="seo_indexable" value="1" <?php checked( $seo_indexable, 1 ); ?>> <?php esc_html_e( 'Allow per-product SEO page to be indexed (Phase 10)', 'supplement-compare' ); ?></label>
-							<p class="description"><?php esc_html_e( 'Per PROJECTBRIEF.md §10, the per-canonical SEO page also requires at least 3 active offers before it indexes; this flag is the operator\'s explicit opt-in.', 'supplement-compare' ); ?></p>
+							<label><input type="checkbox" id="supcomp-seo" name="seo_indexable" value="1" <?php checked( $seo_indexable, 1 ); ?>> <?php esc_html_e( 'Allow per-product SEO page to be indexed', 'supplement-compare' ); ?></label>
+							<p class="description"><?php esc_html_e( 'Per PROJECTBRIEF.md §10, the per-canonical SEO page also requires at least 3 active offers before it actually indexes; this flag is the operator\'s explicit opt-in.', 'supplement-compare' ); ?></p>
+							<?php if ( $row ) : ?>
+								<?php
+								$hide_hours = (int) get_option( 'supcomp_staleness_hide_hours', 168 );
+								$hide_ts    = gmdate( 'Y-m-d H:i:s', time() - max( 1, $hide_hours ) * HOUR_IN_SECONDS );
+								$active_n   = Supcomp_Offers_Repo::count_active_for_canonical( (int) $row->id, $hide_ts );
+								$will_index = $seo_indexable && $active_n >= 3;
+								$page_url   = home_url( '/compare/' . rawurlencode( $row->slug ) . '/' );
+								?>
+								<p class="description">
+									<strong><?php esc_html_e( 'Active offers:', 'supplement-compare' ); ?></strong>
+									<?php echo (int) $active_n; ?>
+									&nbsp;|&nbsp;
+									<strong><?php esc_html_e( 'Indexes:', 'supplement-compare' ); ?></strong>
+									<?php
+									if ( $will_index ) {
+										echo '<span style="color:#155724">' . esc_html__( 'yes', 'supplement-compare' ) . '</span>';
+									} else {
+										$reason = ! $seo_indexable
+											? __( 'SEO indexable is off', 'supplement-compare' )
+											: sprintf( __( 'needs %d more active offers', 'supplement-compare' ), max( 0, 3 - $active_n ) );
+										echo '<span style="color:#856404">' . esc_html__( 'no', 'supplement-compare' ) . ' (' . esc_html( $reason ) . ')</span>';
+									}
+									?>
+									&nbsp;|&nbsp;
+									<a href="<?php echo esc_url( $page_url ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'View page →', 'supplement-compare' ); ?></a>
+								</p>
+							<?php endif; ?>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="supcomp-seo-content"><?php esc_html_e( 'SEO content', 'supplement-compare' ); ?></label></th>
+						<td>
+							<?php
+							wp_editor(
+								$seo_content,
+								'supcomp-seo-content',
+								array(
+									'textarea_name' => 'seo_content',
+									'media_buttons' => false,
+									'teeny'         => true,
+									'textarea_rows' => 8,
+									'tinymce'       => array( 'toolbar1' => 'bold,italic,link,unlink,bullist,numlist,undo,redo' ),
+								)
+							);
+							?>
+							<p class="description">
+								<?php esc_html_e( 'Factual reference content shown above the comparison table on /compare/{slug}/. Suggested: ingredient identity, form, standardization concept, bioavailability notes, units. Keep the language factual.', 'supplement-compare' ); ?>
+							</p>
+							<p class="description" style="color:#856404">
+								<strong><?php esc_html_e( 'No therapeutic claims.', 'supplement-compare' ); ?></strong>
+								<?php esc_html_e( 'PROJECTBRIEF.md §7 forbids therapeutic or comparative health claims in operator-facing copy. Don\'t describe a compound as treating, preventing, or improving any condition. Stick to chemistry and composition.', 'supplement-compare' ); ?>
+							</p>
 						</td>
 					</tr>
 					<tr>
