@@ -14,6 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Supcomp_Deactivator {
 
 	public static function deactivate() {
-		// Intentionally empty.
+		// Drop our rewrite rules so URL routing returns to defaults
+		// without leaving stale entries in .htaccess / permalink state.
+		flush_rewrite_rules();
 	}
 }

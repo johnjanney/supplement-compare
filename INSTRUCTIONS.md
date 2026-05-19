@@ -387,7 +387,68 @@ importer auto-restores it to active.
 
 ## 12. Reading the clicks dashboard
 
-TBD — lands with Phase 7 (click-out redirect).
+**WP Admin → Supplement Compare → Clicks.**
+
+Every Buy Now click on the public site goes through `/out/{offer_id}`,
+which logs the click and 302-redirects to the merchant via the affiliate
+URL template. The dashboard summarizes that log.
+
+**Time window:** today / last 7 days / last 30 days / all time. The default
+is 7 days. Pick the window from the dropdown and click Apply.
+
+**Summary tiles:**
+- **Total clicks** — every recorded /out/ hit in the window, including
+  bot-suspected.
+- **Human clicks** — total minus bot-suspected. This is the number to
+  watch for affiliate-program reporting and revenue estimation.
+- **Bot-suspected** — clicks the redirect handler flagged as automated.
+  Detection rules: known crawler/scraper UA strings, rapid-fire
+  (≥ 10 clicks from the same hashed IP within 60s), or no UA at all.
+
+**Top-N tables:**
+- **Top offers** — which specific listed offers got the most clicks. Links
+  back to the offer edit form so you can spot-check normalized fields if a
+  surprising winner shows up.
+- **Top merchants** — which affiliate program got the most outbound
+  traffic. Useful for prioritizing which merchant relationships to nurture.
+- **Top canonical products** — clicks aggregated by the underlying canonical
+  (e.g. "L-Theanine 200mg Capsule" totals across every merchant). Tells
+  you which compounds visitors actually care about.
+
+**Recent clicks** at the bottom: most recent 50 with referrer, UTM tags,
+and bot flag. Useful for spotting bot waves and verifying that real
+clicks are landing.
+
+**By default, the top-N tables exclude bot-suspected clicks** so affiliate
+revenue projections aren't inflated. Tick "Include bot-suspected" to see
+the raw numbers — useful for spotting scraper patterns.
+
+### What's NOT tracked
+
+- **No raw IP addresses.** IPs are SHA-256-hashed with a site-stable salt
+  before storage. There's no way to map a hash back to an IP from the
+  database.
+- **No personally identifying user agent strings.** UAs are also hashed.
+  The rapid-fire detection works because the same IP+UA hashes consistently.
+- **No on-site analytics.** This dashboard is just outbound clicks. For
+  general site traffic use whatever analytics you have wired into the
+  WordPress theme.
+
+### Spot-checking a click
+
+From any offer's edit form (Pending Queue or Active Offers → Edit), there's
+a **Test Buy Now (/out/N)** button under the source panel. Click it →
+opens `/out/{id}` in a new tab → logs a click as you and 302s to the
+merchant. Useful for verifying:
+- the rewrite rule fires (you get redirected, not 404'd)
+- the affiliate URL template substitutes correctly (the destination URL
+  has your ref / utm tag)
+- the click shows up in the Clicks dashboard within a few seconds
+
+If `/out/{id}` returns a 404 right after plugin activation, deactivate and
+reactivate the plugin — that re-flushes the WordPress rewrite cache. If it
+keeps 404'ing, your server may be eating the URL before WP sees it (mod_rewrite
+disabled, or an Nginx config that doesn't pass everything through `index.php`).
 
 ## 13. Regenerating the public JSON manually
 

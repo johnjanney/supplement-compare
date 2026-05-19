@@ -87,6 +87,13 @@ class Supcomp_Offer_Form {
 							?>
 						</table>
 
+						<p style="margin-top:1em">
+							<a href="<?php echo esc_url( home_url( '/out/' . (int) $offer->id ) ); ?>" target="_blank" rel="noopener" class="button">
+								<?php esc_html_e( 'Test Buy Now (/out/N)', 'supplement-compare' ); ?>
+							</a>
+							<span class="description"><?php esc_html_e( 'Opens the live redirect in a new tab — logs a click and 302s to the merchant via the affiliate template.', 'supplement-compare' ); ?></span>
+						</p>
+
 						<?php if ( $raw && ! empty( $raw->raw_csv_row_json ) ) : ?>
 							<details>
 								<summary><?php esc_html_e( 'Raw CSV row', 'supplement-compare' ); ?></summary>

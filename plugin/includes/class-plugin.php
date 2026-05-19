@@ -29,6 +29,12 @@ class Supcomp_Plugin {
 
 		self::load_domain();
 
+		// /out/{id} redirect lives on both front-end and back-end; register
+		// the rewrite rule + query var early so WP_Rewrite knows about it.
+		add_action( 'init', array( 'Supcomp_Redirect', 'register_rewrite_rules' ) );
+		add_filter( 'query_vars', array( 'Supcomp_Redirect', 'add_query_vars' ) );
+		add_action( 'template_redirect', array( 'Supcomp_Redirect', 'maybe_handle' ) );
+
 		if ( is_admin() ) {
 			self::load_admin();
 		}
@@ -42,12 +48,13 @@ class Supcomp_Plugin {
 	private static function load_domain() {
 		$inc = SUPPLEMENT_COMPARE_PLUGIN_DIR . 'includes/';
 
-		require_once $inc . 'class-affiliate-url-template.php';
+		// class-affiliate-url-template, class-offers-repo, class-clicks-repo
+		// and class-redirect are already loaded by supplement-compare.php
+		// (activator needs them before plugins_loaded fires).
 
 		require_once $inc . 'db/class-merchants-repo.php';
 		require_once $inc . 'db/class-ingredients-repo.php';
 		require_once $inc . 'db/class-canonical-products-repo.php';
-		require_once $inc . 'db/class-offers-repo.php';
 		require_once $inc . 'db/class-import-runs-repo.php';
 		require_once $inc . 'db/class-price-history-repo.php';
 

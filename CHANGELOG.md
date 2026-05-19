@@ -17,6 +17,35 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [0.8.0] — 2026-05-19
+
+### Added
+- `Supcomp_Redirect` (`plugin/includes/public/class-redirect.php`) — registers `^out/(\d+)/?$` rewrite rule, query var `supcomp_out`, and a `template_redirect` handler. On hit: looks up the offer (joined with merchant + canonical), runs bot detection, hashes IP and UA with `wp_salt('auth')`, captures `utm_source/medium/campaign` + `Referer`, records a click_log row, generates the affiliate URL via `Supcomp_Affiliate_URL_Template` (falling back to bare `source_product_url` if no template), and 302-redirects. Raw IPs are never stored.
+- Bot detection: curated UA regex (bot/crawler/spider/scraper/wget/curl/libwww/python-requests/headless/puppeteer/playwright + named bots including googlebot/bingbot/facebookexternalhit/etc.) OR rapid-fire (≥ 10 clicks from same hashed IP in 60s).
+- `Supcomp_Clicks_Repo` — record_click, recent, count_within / count_bots_within, top_by_offer / top_by_merchant / top_by_canonical, is_rapid_fire. Aggregations exclude bot-suspected by default (operator-flippable). Bot-suspected rows still get stored so the operator can spot scraper patterns.
+- Click analytics admin screen — replaces the Phase 1 placeholder. Time-window filter (today / 7d / 30d / all). Three summary tiles. Three top-N tables. Recent-clicks audit at the bottom with referrer + UTM tags + bot flag.
+- "Test Buy Now (/out/N)" button on the offer detail/edit form — opens the live redirect in a new tab so the operator can verify the rewrite + template + logging chain without leaving the admin.
+- `INSTRUCTIONS.md` §12 — read clicks dashboard, what's tracked (and what isn't), how to spot-check a click, what to do if /out/{id} returns 404.
+
+### Changed
+- `Supcomp_Activator::activate` registers the /out/ rewrite rule then calls `flush_rewrite_rules()` so the URL works immediately after activation. `Supcomp_Deactivator::deactivate` flushes again to clean up.
+- `plugin/supplement-compare.php` requires `Supcomp_Affiliate_URL_Template`, `Supcomp_Offers_Repo`, `Supcomp_Clicks_Repo`, and `Supcomp_Redirect` up front (the activator needs the redirect class to register its rule before flush; chaining minimal deps from the main plugin file is the simplest way to make activation work on a fresh install before `plugins_loaded` fires). `class-plugin.php` `load_domain()` no longer re-requires those — comments note why.
+- `class-plugin.php` `boot()` registers `init` (rewrite rule), `query_vars` (add `supcomp_out`), and `template_redirect` (the click handler) hooks.
+- `class-clicks-screen.php` replaced — was a Phase 1 placeholder.
+
+### Deprecated
+### Removed
+### Fixed
+### Security
+- IP and UA are SHA-256-hashed with `wp_salt('auth')` as the salt before insert; raw values never reach the database.
+- The handler uses `wp_redirect` (not `wp_safe_redirect`) because affiliate URLs are off-site. `nocache_headers()` is sent so intermediate caches don't keep stale destinations. The template engine itself was already capability-checked at the merchant-edit time; click-time application has no user input that can affect routing beyond `offer_id` (clamped to int via query var).
+- Rejected offers return HTTP 410 (Gone) rather than 302-ing — an old link to a removed offer shouldn't silently bounce.
+
+### Notes
+- No rate limit on /out/. Rapid-fire detection logs bot suspicion but doesn't block, which means a determined scraper can still hit the redirect at whatever rate WordPress can serve it. The merchant's affiliate program would catch that side; for v1 we accept the trade-off and revisit if abuse shows up in the dashboard.
+
+---
+
 ## [0.7.0] — 2026-05-19
 
 ### Added
