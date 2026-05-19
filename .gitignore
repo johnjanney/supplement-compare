@@ -1,0 +1,25 @@
+# Composer (WordPress plugins often vendor third-party libs here)
+vendor/
+
+# Node
+node_modules/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets
+.env
+
+# Build artifacts — installable plugin zips at the repo root
+/*.zip
+
+# WSL / Windows NTFS alternate-data-stream cruft
+*:Zone.Identifier
