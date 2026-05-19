@@ -31,6 +31,31 @@ class Supcomp_Ingredients_Repo {
 	}
 
 	/**
+	 * Lightweight cache for the matcher. Called once per import row, hits
+	 * the DB once per request. Returns [id, name, aliases[]] arrays.
+	 */
+	public static function all_for_matching() {
+		static $cache = null;
+		if ( $cache !== null ) {
+			return $cache;
+		}
+		global $wpdb;
+		$table = self::table();
+		$rows  = $wpdb->get_results(
+			"SELECT id, name, aliases_json FROM {$table} WHERE status <> 'retired'"
+		);
+		$cache = array();
+		foreach ( (array) $rows as $r ) {
+			$cache[] = array(
+				'id'      => (int) $r->id,
+				'name'    => (string) $r->name,
+				'aliases' => self::decode_aliases( $r->aliases_json ),
+			);
+		}
+		return $cache;
+	}
+
+	/**
 	 * Active and draft ingredients, sorted for use in a <select> dropdown.
 	 * Retired ingredients are omitted.
 	 */

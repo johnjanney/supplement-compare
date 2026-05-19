@@ -119,9 +119,15 @@ class Supcomp_CSV_Importer {
 					if ( $diff !== null ) {
 						Supcomp_Price_History_Repo::record_change( (int) $existing->id, $diff, $run_id );
 					}
+					// Normalization + matching DO NOT re-run on updates — operator
+					// edits in the pending queue (Phase 6) are sticky. Derivations
+					// recompute every time so cost-per-active-unit tracks price.
+					self::run_derivations_for( (int) $existing->id );
 					++$updated;
 				} else {
-					Supcomp_Offers_Repo::insert_from_csv( $merchant_id, $row, $run_id, $now );
+					$new_id = Supcomp_Offers_Repo::insert_from_csv( $merchant_id, $row, $run_id, $now );
+					self::normalize_and_match( $new_id, $row );
+					self::run_derivations_for( $new_id );
 					++$inserted;
 				}
 			} catch ( Exception $e ) {
@@ -153,6 +159,32 @@ class Supcomp_CSV_Importer {
 			'errored'    => $errored,
 			'row_errors' => $row_errors,
 		);
+	}
+
+	/**
+	 * Run the normalizer + matcher for a freshly-inserted offer. Writes
+	 * ingredient, form, strength, count, standardization, canonical match,
+	 * and confidence onto the offer row.
+	 */
+	private static function normalize_and_match( $offer_id, $row ) {
+		$normalized = Supcomp_Normalizer::normalize( $row );
+		$match      = Supcomp_Matcher::match( $row, $normalized );
+		Supcomp_Offers_Repo::apply_normalization_and_match( $offer_id, $normalized, $match );
+	}
+
+	/**
+	 * Recompute the derived field set (total_strength, active_*, cost_*)
+	 * from the offer's current DB state — covers operator edits made
+	 * between imports.
+	 */
+	private static function run_derivations_for( $offer_id ) {
+		$offer = Supcomp_Offers_Repo::get( $offer_id );
+		if ( ! $offer ) {
+			return;
+		}
+		$ingredient = $offer->ingredient_id ? Supcomp_Ingredients_Repo::get( (int) $offer->ingredient_id ) : null;
+		$derived    = Supcomp_Offer_Derivations::compute( $offer, $ingredient );
+		Supcomp_Offers_Repo::apply_derivations( $offer_id, $derived );
 	}
 
 	private static function insert_raw( $merchant_id, $row, $run_id, $now ) {

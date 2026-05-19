@@ -17,6 +17,38 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [0.6.0] — 2026-05-19
+
+### Added
+- Four built-in extraction rules under `plugin/includes/normalization/rules/`:
+  - `Supcomp_Strength_Rule` — recognizes `N mg/mcg/g/IU/billion CFU`, spelled-out units, parenthesized strengths.
+  - `Supcomp_Count_Rule` — recognizes `N capsules/tablets/softgels/count/ct/servings`, hyphenated counts, `xN` shorthand.
+  - `Supcomp_Form_Rule` — keyword search for capsule/tablet/softgel/powder/liquid/sublingual/gummy with order-of-precedence so "softgel" doesn't match as a generic "gel" and "sublingual" wins over "tablet".
+  - `Supcomp_Standardization_Rule` — `N% compound` and `standardized to N%` patterns. Guards against "100% organic/vegan/natural" purity-claim false positives.
+- `Supcomp_Normalizer::normalize($offer)` — orchestrator. Concatenates variant_title + product_title + description + flattened raw_attributes_json, runs all four rules, matches text against canonical_ingredients (longest-name-first so "L-Theanine" beats "theanine"). Returns flat array of normalized fields.
+- `Supcomp_Matcher::match($offer, $normalized)` — implements PROJECTBRIEF.md §7 in confidence order: 1.00 barcode peer → 0.95 brand+SKU peer → 0.85 direct canonical_product lookup → 0.85 brand+normalized-title peer → 0.75 brand+title+strength+count peer → 0.65 title+strength+count peer. `normalize_title()` lowercase / strip punctuation / drop stop tokens (form words, unit words, counting words) per §7.
+- `Supcomp_Offer_Derivations::compute($offer, $ingredient)` — pure function computing total_strength / active_compound_per_serving / active_compound_total / cost_per_serving / cost_per_active_unit per PROJECTBRIEF.md §6. Precedence for the active-compound percentage: offer override → ingredient standardization default → ingredient elemental → no scaling.
+- `Supcomp_Ingredients_Repo::all_for_matching()` — returns id/name/aliases list, statically cached so the matcher hits the DB once per request regardless of CSV size.
+- `Supcomp_Offers_Repo::apply_normalization_and_match()` — writes the operator-curated fields on a fresh offer. When the matcher proposed a canonical_product_id, the canonical's (ingredient_id, form, strength, std%) override the normalizer's guesses.
+- `Supcomp_Offers_Repo::apply_derivations()` — writes the derived field set.
+
+### Changed
+- `Supcomp_CSV_Importer` now runs normalize+match on every fresh insert and derivations on every insert AND update. Normalize+match deliberately do NOT re-run on updates — operator edits in the (Phase 6) pending queue are sticky. Derivations recompute every time so cost-per-active-unit stays current with price changes.
+- `class-plugin.php` `load_domain()` requires the four rule files + the three normalization classes. Import classes are still required after normalization so the importer can name them.
+
+### Deprecated
+### Removed
+- `plugin/includes/normalization/rules/.gitkeep` — directory now has the four rule classes.
+
+### Fixed
+### Security
+- All matcher queries use `$wpdb->prepare()`. Title normalization happens in PHP so user-supplied text is never interpolated into SQL.
+
+### Scope cuts
+- The Phase 5 brief lists "Attribute-mapping admin UI" and "Per-merchant override rules". Both deferred. Built-in rules cover the common case at v0.6.0 (20/20 pass on a realistic offer harness covering ND, NOW Foods, alias matching, JSON-attribute scanning, false negatives). When a built-in rule misses, Phase 6's pending queue is where the operator corrects the offer's normalized fields manually. Operator-defined rules can come in a later sub-phase only if a real pattern emerges where the operator finds themselves correcting the same merchant's rows repeatedly.
+
+---
+
 ## [0.5.0] — 2026-05-19
 
 ### Added

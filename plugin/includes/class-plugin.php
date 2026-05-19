@@ -54,6 +54,15 @@ class Supcomp_Plugin {
 		require_once $inc . 'import/class-canonical-csv-importer.php';
 		require_once $inc . 'import/class-csv-validator.php';
 		require_once $inc . 'import/class-stale-detector.php';
+
+		require_once $inc . 'normalization/rules/class-strength-rule.php';
+		require_once $inc . 'normalization/rules/class-count-rule.php';
+		require_once $inc . 'normalization/rules/class-form-rule.php';
+		require_once $inc . 'normalization/rules/class-standardization-rule.php';
+		require_once $inc . 'normalization/class-normalizer.php';
+		require_once $inc . 'normalization/class-matcher.php';
+		require_once $inc . 'normalization/class-offer-derivations.php';
+
 		require_once $inc . 'import/class-csv-importer.php';
 	}
 

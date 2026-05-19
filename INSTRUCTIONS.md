@@ -352,6 +352,16 @@ post_max_size or upload_max_filesize limit. The form shows the active max
 upload size; if your CSV is larger, increase those limits in php.ini or
 contact your host.
 
+**Normalization landed in the wrong field after import.** As of v0.6.0,
+import auto-runs four extraction rules (strength, count, form,
+standardization) plus an ingredient name/alias matcher and the §7
+canonical-product matcher. Mistakes happen — Phase 6's pending queue is
+where you correct them. Once you edit a field, re-imports never overwrite
+your edit. The matcher learns: as soon as a few offers for a given product
+are canonical-matched, future imports of the same product (by barcode, by
+brand+SKU, by brand+normalized title) pick up the canonical automatically
+at high confidence.
+
 **Import says 0 inserted, 0 updated, N stale.** A merchant was previously
 active, has offers, but no rows appeared in this run. Stale detection
 flipped them. Either the extractor's CSV is missing that merchant or the

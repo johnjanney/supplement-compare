@@ -168,6 +168,64 @@ class Supcomp_Offers_Repo {
 	}
 
 	/**
+	 * Write the normalizer's output and the matcher's suggestion onto a
+	 * fresh offer. Called only on first import — operator edits in the
+	 * Phase 6 pending queue are sticky. When the matcher proposed a
+	 * canonical_product_id, the canonical's authoritative
+	 * (ingredient_id, form, strength, std%) override the normalizer's
+	 * guesses.
+	 */
+	public static function apply_normalization_and_match( $offer_id, $normalized, $match ) {
+		global $wpdb;
+
+		$data = array(
+			'ingredient_id'              => isset( $normalized['ingredient_id'] ) ? $normalized['ingredient_id'] : null,
+			'ingredient_form'            => isset( $normalized['ingredient_form'] ) ? $normalized['ingredient_form'] : null,
+			'strength_per_serving'       => isset( $normalized['strength_per_serving'] ) ? $normalized['strength_per_serving'] : null,
+			'strength_unit'              => isset( $normalized['strength_unit'] ) ? $normalized['strength_unit'] : null,
+			'servings_per_container'     => isset( $normalized['servings_per_container'] ) ? $normalized['servings_per_container'] : null,
+			'standardization_percentage' => isset( $normalized['standardization_percentage'] ) ? $normalized['standardization_percentage'] : null,
+			'canonical_product_id'       => isset( $match['canonical_product_id'] ) ? $match['canonical_product_id'] : null,
+			'match_confidence'           => isset( $match['confidence'] ) ? $match['confidence'] : null,
+			'updated_at'                 => current_time( 'mysql', true ),
+		);
+
+		if ( ! empty( $match['canonical_product_id'] ) ) {
+			$canonical = Supcomp_Canonical_Products_Repo::get( (int) $match['canonical_product_id'] );
+			if ( $canonical ) {
+				$data['ingredient_id']        = (int) $canonical->ingredient_id;
+				$data['ingredient_form']      = (string) $canonical->ingredient_form;
+				$data['strength_per_serving'] = (float) $canonical->strength_per_serving;
+				if ( $canonical->standardization_percentage !== null && $canonical->standardization_percentage !== '' ) {
+					$data['standardization_percentage'] = (float) $canonical->standardization_percentage;
+				}
+			}
+		}
+
+		$wpdb->update( self::table(), $data, array( 'id' => (int) $offer_id ) );
+	}
+
+	/**
+	 * Write the derived field set (total_strength, active_*, cost_*).
+	 * Run on every import — these depend on price which can change every run.
+	 */
+	public static function apply_derivations( $offer_id, $derivations ) {
+		global $wpdb;
+		$wpdb->update(
+			self::table(),
+			array(
+				'total_strength'              => $derivations['total_strength'],
+				'active_compound_per_serving' => $derivations['active_compound_per_serving'],
+				'active_compound_total'       => $derivations['active_compound_total'],
+				'cost_per_serving'            => $derivations['cost_per_serving'],
+				'cost_per_active_unit'        => $derivations['cost_per_active_unit'],
+				'updated_at'                  => current_time( 'mysql', true ),
+			),
+			array( 'id' => (int) $offer_id )
+		);
+	}
+
+	/**
 	 * Detect price/stock differences between an existing row (stdClass from
 	 * the DB) and the new CSV-derived data array. Returns the old/new fields
 	 * needed for a price_history row, or null if nothing changed.
