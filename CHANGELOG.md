@@ -17,6 +17,21 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.0.1] — 2026-05-20
+
+### Added
+- `scripts/package-plugin.sh` — produces an installable `supplement-compare-X.Y.Z.zip` at the repo root. Reads version from the plugin header, stages `plugin/` under a `supplement-compare/` top-level directory (matches the WP-expected install path `wp-content/plugins/supplement-compare/`), strips `.gitkeep` / `Zone.Identifier` / `.DS_Store`, and writes the zip. Cross-checks that the header version and `SUPPLEMENT_COMPARE_VERSION` constant agree — refuses to build on mismatch. Filed against PROJECTBRIEF.md §11 which explicitly named the script.
+
+### Changed
+- `INSTRUCTIONS.md` §1 install procedure now points at `scripts/package-plugin.sh` instead of the manual one-liner. The one-liner stays as a fallback (operator might not have zip installed) but the script is the documented path.
+
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
 ## [1.0.0] — 2026-05-19
 
 ### Added

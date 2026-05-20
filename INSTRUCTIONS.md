@@ -18,12 +18,20 @@ site:
 1. Package the plugin directory as a zip:
 
    ```bash
-   cd plugin && zip -r ../supplement-compare-$(grep -oE "'[0-9]+\.[0-9]+\.[0-9]+'" supplement-compare.php | head -1 | tr -d "'").zip . -x '*.gitkeep' && cd ..
+   scripts/package-plugin.sh
    ```
 
-   (A `scripts/package-plugin.sh` helper that does this with the version baked
-   in lands in a later phase per PROJECTBRIEF.md §11. Until then, use the
-   one-liner above or zip the directory manually.)
+   This reads the current version from the plugin header, stages
+   `plugin/` under a `supplement-compare/` top-level directory (which
+   WordPress expects — the slug, header text domain, and zip dir all
+   stay aligned), strips `.gitkeep` placeholders and WSL Zone.Identifier
+   cruft, and writes `supplement-compare-X.Y.Z.zip` at the repo root.
+
+   Requires `zip` (Ubuntu/WSL2: `sudo apt install zip`).
+
+   The script also cross-checks that the plugin header version matches
+   the `SUPPLEMENT_COMPARE_VERSION` constant — if they disagree, it
+   refuses to build until you fix them with `scripts/bump-version.sh`.
 
 2. In WordPress admin → Plugins → Add New → Upload Plugin, upload the `.zip`.
 
