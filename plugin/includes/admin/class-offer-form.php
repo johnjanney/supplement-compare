@@ -295,6 +295,9 @@ class Supcomp_Offer_Form {
 						<button type="submit" name="post_action" value="defer" class="button"><?php esc_html_e( 'Save & Defer', 'supplement-compare' ); ?></button>
 					<?php endif; ?>
 					<a href="<?php echo esc_url( $return_url ); ?>" class="button"><?php esc_html_e( 'Cancel', 'supplement-compare' ); ?></a>
+					<?php if ( Supcomp_Deletion_Service::offer_is_deletable( $offer ) ) : ?>
+						<a href="<?php echo esc_url( Supcomp_Deletion_Admin::confirm_url( 'offer', (int) $offer->id, $return_url ) ); ?>" class="button" style="background:#fcecec;color:#a00;border-color:#a00;margin-left:1em"><?php esc_html_e( 'Delete permanently…', 'supplement-compare' ); ?></a>
+					<?php endif; ?>
 				</p>
 			</form>
 		</div>

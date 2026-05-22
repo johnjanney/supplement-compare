@@ -154,6 +154,10 @@ class Supcomp_Canonical_Products_Screen {
 									<?php wp_nonce_field( self::NONCE_STAT . '_' . $r->id ); ?>
 									<?php submit_button( $next_label, 'link-delete', 'submit', false ); ?>
 								</form>
+								<?php if ( Supcomp_Deletion_Service::canonical_is_deletable( $r ) ) : ?>
+									&nbsp;|&nbsp;
+									<a href="<?php echo esc_url( Supcomp_Deletion_Admin::confirm_url( 'canonical_product', (int) $r->id ) ); ?>" style="color:#a00"><?php esc_html_e( 'Delete', 'supplement-compare' ); ?></a>
+								<?php endif; ?>
 							</td>
 						</tr>
 					<?php endforeach; ?>

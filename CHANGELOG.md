@@ -17,6 +17,22 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.5.0] — 2026-05-22
+
+### Added
+- **Hard-delete + cleanup tools.** The database accumulated rejected offers, retired ingredients, and dead merchants over time with no way to actually purge them — this release adds two complementary cleanup surfaces.
+  - **Per-row "Delete permanently"** links on the Merchants, Ingredients, Canonical Products, and Offer-edit screens. Visible only when the row is in its soft-trash state (offer: `visibility ∈ {rejected, dead}`; merchant: `status=dead`; ingredient/canonical: `status=retired`). Clicking opens a shared confirmation page showing the exact cascade impact (counts of price-history rows, raw CSV snapshots, click-log rows that will be affected) before the operator commits.
+  - **Cleanup admin sub-page** at WP Admin → Supplement Compare → Cleanup. Five bulk operations, each showing the current eligible-row count up-front: delete rejected offers, delete dead offers, delete empty dead merchants, delete empty retired canonicals, delete empty retired ingredients ("empty" = no offers/canonicals reference the row). Confirmation dialog before running.
+  - **Hybrid cascade model** (operator-chosen): `price_history` and `raw_source_offers` are deleted alongside the offer (per-offer audit trail — useless once the offer is gone). `click_log` is **preserved**: the relevant FK (`offer_id`, `merchant_id`, `canonical_product_id`) is set to `NULL` instead of cascade-delete, so historical click totals stay intact in the dashboard.
+  - **State gates enforced in `Supcomp_Deletion_Service`**, not just the UI. Direct calls (e.g. from WP-CLI or REST handlers) get the same refusal. Ingredient deletion specifically refuses while any canonical product still references it — the operator must retire+delete those first so cascades are explicit and visible.
+  - **`Supcomp_Deletion_Admin`** shared confirmation screen routes all four entity types through one POST handler. Returns the operator to the source list with `supcomp_notice=deleted_hard` or `delete_refused` (with the service's error message). Global `admin_notices` hook surfaces these uniformly across all admin pages.
+
+### Notes
+- v1.5.0 reorders the extractor phase plan: Phase D (generic JSON-LD fallback) shifts to v1.6.0, Phase E to v1.7.0, Phase F cutover to v2.0.0.
+- This is hard-delete only — no soft-trash recovery. Operators who reject + immediately purge cannot un-reject. The two-step workflow (soft-trash first → review the cleanup screen counts → purge) is the safety net.
+
+---
+
 ## [1.4.0] — 2026-05-22
 
 ### Added

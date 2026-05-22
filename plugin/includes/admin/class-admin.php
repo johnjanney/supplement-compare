@@ -36,6 +36,7 @@ class Supcomp_Admin {
 			array( 'supcomp-ingredients',    __( 'Ingredients', 'supplement-compare' ),         array( 'Supcomp_Ingredients_Screen', 'render' ) ),
 			array( 'supcomp-canonical',      __( 'Canonical Products', 'supplement-compare' ),  array( 'Supcomp_Canonical_Products_Screen', 'render' ) ),
 			array( 'supcomp-clicks',         __( 'Clicks', 'supplement-compare' ),              array( 'Supcomp_Clicks_Screen', 'render' ) ),
+			array( 'supcomp-cleanup',        __( 'Cleanup', 'supplement-compare' ),             array( 'Supcomp_Cleanup_Screen', 'render' ) ),
 			array( 'supcomp-settings',       __( 'Settings', 'supplement-compare' ),            array( 'Supcomp_Settings', 'render' ) ),
 		);
 
@@ -50,6 +51,17 @@ class Supcomp_Admin {
 				$callback
 			);
 		}
+
+		// Hidden submenu — registered so WP recognizes the page slug, but no
+		// menu entry. Reached via "Delete" links on entity admin screens.
+		add_submenu_page(
+			null,
+			__( 'Confirm deletion', 'supplement-compare' ),
+			__( 'Confirm deletion', 'supplement-compare' ),
+			self::CAPABILITY,
+			'supcomp-delete',
+			array( 'Supcomp_Deletion_Admin', 'render' )
+		);
 	}
 
 	/**

@@ -95,6 +95,8 @@ class Supcomp_Plugin {
 		require_once $inc . 'extractor/class-extractor-worker.php';
 		require_once $inc . 'extractor/class-extractor.php';
 
+		require_once $inc . 'deletion/class-deletion-service.php';
+
 		// AS dispatches on its own hook from a queue runner request — register
 		// the callback unconditionally (not gated on is_admin) so cron-fired
 		// pages can land regardless of where AS is run from.
@@ -115,6 +117,8 @@ class Supcomp_Plugin {
 		require_once $admin_dir . 'class-active-offers-screen.php';
 		require_once $admin_dir . 'class-clicks-screen.php';
 		require_once $admin_dir . 'class-extract-sites-screen.php';
+		require_once $admin_dir . 'class-deletion-admin.php';
+		require_once $admin_dir . 'class-cleanup-screen.php';
 
 		add_action( 'admin_menu', array( 'Supcomp_Admin', 'register_menu' ) );
 		add_action( 'admin_init', array( 'Supcomp_Settings', 'register' ) );
@@ -130,5 +134,7 @@ class Supcomp_Plugin {
 		Supcomp_Offer_Form::register_hooks();
 		Supcomp_Settings::register_hooks();
 		Supcomp_Extract_Sites_Screen::register_hooks();
+		Supcomp_Deletion_Admin::register_hooks();
+		Supcomp_Cleanup_Screen::register_hooks();
 	}
 }

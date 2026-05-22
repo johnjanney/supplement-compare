@@ -696,7 +696,66 @@ submit it directly to Google Search Console — both work.
 If `/supcomp-sitemap.xml` returns 404 immediately after activating the
 plugin, deactivate/reactivate to re-flush WordPress's rewrite cache.
 
-## 16. Troubleshooting
+## 16. Pruning the database (cleanup)
+
+The database accumulates cruft as you reject offers, retire ingredients,
+and decide a merchant is gone for good. v1.5.0 ships two complementary
+ways to clean up.
+
+**The two-step rule.** Hard-delete only works on rows that are already in
+their **soft-trash state**:
+
+| Entity | Soft-trash state | How to reach it |
+|---|---|---|
+| Offer | `visibility = rejected` or `dead` | Save & Reject in the offer edit form; or `dead` is auto-set by the stale detector |
+| Merchant | `status = dead` | Merchants → edit → Status = dead → Save |
+| Ingredient | `status = retired` (AND no canonicals referencing it) | Ingredients list → Retire action |
+| Canonical Product | `status = retired` | Canonical Products list → Retire action |
+
+If you try to hard-delete a row that isn't in soft-trash state, the
+confirmation screen refuses with a clear message. Active and paused rows
+are never touched by cleanup tools.
+
+**Per-row delete.** On each entity's list view (and the offer edit
+form), rows in soft-trash state get a red **Delete** link. Clicking
+opens a confirmation screen showing the exact cascade impact (how many
+price-history rows, raw CSV snapshots, click-log rows are affected)
+before you commit.
+
+**Bulk cleanup.** WP Admin → Supplement Compare → **Cleanup**. Five
+one-shot operations:
+
+- **Rejected offers** — operator said "this should never have been here"
+- **Dead offers** — auto-marked stale and aged past the threshold
+- **Empty dead merchants** — `status=dead` AND no offers
+- **Empty retired canonicals** — `status=retired` AND no offers
+- **Empty retired ingredients** — `status=retired` AND no canonicals AND no offers
+
+Each row shows the current eligible count up-front; click **Delete all**
+to nuke them in one batch. Same cascade rules apply.
+
+**Cascade behavior** (the same for per-row and bulk):
+
+- `price_history` rows: deleted alongside the offer. Per-offer audit
+  data is useless once the offer is gone.
+- `raw_source_offers` snapshots: deleted alongside the offer.
+- `click_log` rows: **preserved**. The relevant FK (`offer_id`,
+  `merchant_id`, or `canonical_product_id`) is set to `NULL` so the
+  click stays in your dashboard totals — you just won't be able to
+  attribute it back to the specific row that's gone.
+
+**Ingredient deletion has one extra gate**: an ingredient with any
+canonical products referencing it cannot be deleted. Retire and delete
+those canonicals first. The cleanup screen's "Empty retired ingredients"
+count reflects this — only truly-orphan ingredients are listed.
+
+**This is permanent.** No undo. No soft-trash backup. The two-step
+workflow (soft-trash → review → purge) is the safety net; once you
+press Delete the row is gone. Practical tip: glance at the cleanup
+counts on the screen before clicking "Delete all" to make sure the
+number matches what you expect.
+
+## 17. Troubleshooting
 
 **"CSV is missing required column(s)" on upload.** The Python extractor
 output doesn't match the §4 contract. Most common cause: someone has an
