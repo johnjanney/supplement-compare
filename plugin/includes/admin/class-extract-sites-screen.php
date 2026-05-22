@@ -69,7 +69,7 @@ class Supcomp_Extract_Sites_Screen {
 			<p class="description">
 				<?php
 				echo wp_kses(
-					__( 'Sites the in-plugin extractor will scrape. <strong>Phase C (v1.4.0): Shopify and WooCommerce are supported.</strong> Generic JSON-LD lands in Phase D. Each "Refresh" enqueues an Action Scheduler job that runs out-of-request, so the admin returns immediately.', 'supplement-compare' ),
+					__( 'Sites the in-plugin extractor will scrape. <strong>Phase D (v1.6.0): Shopify, WooCommerce, and generic JSON-LD (sitemap-discovered product pages) are all supported.</strong> Each "Refresh" enqueues an Action Scheduler job that runs out-of-request, so the admin returns immediately.', 'supplement-compare' ),
 					array( 'strong' => array() )
 				);
 				?>

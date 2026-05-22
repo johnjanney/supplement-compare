@@ -92,6 +92,7 @@ class Supcomp_Plugin {
 		require_once $inc . 'extractor/class-extractor-offer.php';
 		require_once $inc . 'extractor/class-extractor-shopify.php';
 		require_once $inc . 'extractor/class-extractor-woo.php';
+		require_once $inc . 'extractor/class-extractor-generic.php';
 		require_once $inc . 'extractor/class-extractor-worker.php';
 		require_once $inc . 'extractor/class-extractor.php';
 

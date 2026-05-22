@@ -59,8 +59,10 @@ curation work. See `plugin/uninstall.php` for the deferred decision.
 ## 2. Refreshing products from inside WordPress (the new way, v1.3.0+)
 
 As of v1.3.0 you can extract products directly from WP Admin — no Python,
-no SSH, no CLI. **v1.4.0** adds WooCommerce alongside Shopify; Phase D
-will add the generic JSON-LD fallback.
+no SSH, no CLI. **v1.4.0** added WooCommerce; **v1.6.0** adds the generic
+JSON-LD fallback for sites that publish schema.org Product schema in
+their HTML (typical of Magento, BigCommerce, Squarespace Commerce, and
+any site running an SEO plugin like Yoast or Rank Math).
 
 **One-time setup per site:**
 
@@ -76,9 +78,11 @@ will add the generic JSON-LD fallback.
      The extractor probes `/products.json` (Shopify) and
      `/wp-json/wc/store/v1/products` (Woo) under this base.
    - **Platform hint** — leave on `auto` to let the extractor cascade
-     Shopify → Woo (and eventually generic JSON-LD in Phase D). Pin to
-     a specific platform if a site supports multiple endpoints or you
-     want to skip the probe overhead.
+     Shopify → Woo → generic JSON-LD. Pin to a specific platform if a
+     site supports multiple endpoints or you want to skip the probe
+     overhead. `generic` is the broadest match (any site with schema.org
+     Product JSON-LD in their HTML and a discoverable XML sitemap) but
+     also the slowest — each product is a separate HTML fetch and parse.
    - **Merchant** — pick the linked Merchants row. Required for
      `/out/{id}` to fire downstream.
    - **Enabled** — leave checked.
@@ -105,10 +109,16 @@ for web-only WP installs.
 
 - *"Site has no merchant linked"* on the row → link a Merchants row in
   the site edit form and re-run.
-- *"Auto-detect failed: neither Shopify nor WooCommerce endpoints
-  responded with a product list"* → the site doesn't expose either
-  public API. Wait for Phase D (generic JSON-LD) or use the legacy
-  Python extractor against the site and upload its CSV via §3.
+- *"Auto-detect failed: Shopify, WooCommerce, and generic JSON-LD
+  sitemap discovery all failed"* → the site doesn't expose Shopify or
+  Woo public APIs AND doesn't publish a discoverable XML sitemap with
+  product URLs. Fall back to the legacy Python extractor against the
+  site and upload its CSV via §3.
+- *"PHP \"dom\" / \"simplexml\" extension is not loaded"* (generic only)
+  → your host's PHP is missing the standard XML/DOM extensions. Ask
+  the host to enable `php-xml`. WordPress itself doesn't require these
+  for core functionality, but the generic handler does because it
+  parses HTML and XML sitemaps.
 - *"Woo probe: not_woo (HTTP 404)"* on a site you know runs Woo →
   the merchant has the **Cart and Checkout Blocks** disabled, which
   also disables the Store API. There's nothing the plugin can do; ask

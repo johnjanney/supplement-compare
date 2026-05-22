@@ -17,6 +17,23 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.6.0] — 2026-05-22
+
+### Added
+- **In-plugin extractor — generic JSON-LD fallback (Phase D, the third and final platform handler).** Sites that don't expose Shopify or Woo APIs but DO publish schema.org Product JSON-LD in their pages are now scrape-able directly from WP Admin.
+  - **`Supcomp_Extractor_Generic`** — port of `try_generic` + helpers (`extractor/aggregate_products.py:797-994`). Two-step model: discover product URLs from one of four sitemap candidates (`/sitemap_products_1.xml`, `/product-sitemap.xml`, `/wp-sitemap-posts-product-1.xml`, `/sitemap.xml`, in order), then fetch each URL and extract every `<script type="application/ld+json">` containing an `@type=Product` node (including descents into `@graph` arrays).
+  - **Chunked execution**: each Action Scheduler tick processes 10 product URLs. The full URL list (capped at 500 per attempt) is discovered once on page 1 and persisted in a transient (`supcomp_extract_urls_{attempt_id}`, 6-hour TTL) so follow-on pages slice into it without re-discovering. Transient is cleaned up on attempt complete / failed / canceled.
+  - **JSON-LD heterogeneity**: handled. `@type` can be a string or a list of strings; `offers` can be a single Offer, an AggregateOffer with nested `offers[]`, or a bare list. GTIN priority: `gtin13` → `gtin12` → `gtin14` → `gtin8` → `gtin`. `availability` parsed as substring match against `instock` / `outofstock` / `backorder` (case-insensitive, ignoring the schema.org URL prefix).
+  - **HTML parsing via `DOMDocument` + `DOMXPath`**. BeautifulSoup permissiveness replaced with `libxml_use_internal_errors(true)`. UTF-8 forced via prepended `<?xml encoding="utf-8"?>` so non-ASCII characters survive. Sitemap parsing uses `SimpleXMLElement` with explicit namespace registration. Both `dom` and `simplexml` extensions are now soft requirements; the handler refuses with a clear operator message if either is missing instead of crashing with "Class DOMDocument not found".
+  - **Worker cascade extended**: `auto` now tries Shopify → Woo → generic in order. `generic` as a pinned hint also supported. The detect-and-fetch-first-page logic discovers URLs, fetches store meta (og:site_name → JSON-LD Organization/WebSite name → `<title>` fallback), and ingests the first chunk in one call. Follow-on pages dispatch via `state['platform_used']`.
+  - **`dependencies_ok()`** static check on the handler. The worker calls it before attempting generic; if the host doesn't have the `dom` or `simplexml` extension, the cascade skips generic with a soft failure rather than throwing.
+
+### Notes
+- Smoke testing this round was limited to fixture-based parser tests (real-world JSON-LD HTML structures: single Offer, AggregateOffer with nested offers, `@graph` wrapping, `@type` as list, no JSON-LD, JSON-LD with no Product). Live-site probing was attempted against major retailers (Best Buy, Target, B&H) but those sites either block automated traffic or have sitemaps too large to probe inside a sensible timeout. The handler will get its real workout when an operator points it at an actual merchant target.
+- Three platform handlers are now in place. Phase E (admin UX polish — per-run history screen, scheduling controls, "Run now" per site with progress indicators) is next at v1.7.0. Phase F (PROJECTBRIEF cutover + extractor/ directory archival) lands the v2.0.0 milestone.
+
+---
+
 ## [1.5.0] — 2026-05-22
 
 ### Added

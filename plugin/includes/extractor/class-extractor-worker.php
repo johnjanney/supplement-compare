@@ -48,6 +48,7 @@ class Supcomp_Extractor_Worker {
 			'exported_at'    => '',
 			'store_name'     => '',
 			'currency'       => '',
+			'url_count'      => 0, // only used by the generic handler
 			'totals'         => array(
 				'inserted'          => 0,
 				'updated'           => 0,
@@ -94,15 +95,14 @@ class Supcomp_Extractor_Worker {
 			return;
 		}
 
-		// Resolve handler. Phase C ships Shopify and Woo; 'auto' tries Shopify
-		// first, then Woo. 'generic' lands in Phase D.
+		// Resolve handler. 'auto' tries Shopify → Woo → generic in order.
 		$hint = $state['platform_hint'] !== '' ? $state['platform_hint'] : 'auto';
-		if ( ! in_array( $hint, array( 'shopify', 'woocommerce', 'auto' ), true ) ) {
+		if ( ! in_array( $hint, array( 'shopify', 'woocommerce', 'generic', 'auto' ), true ) ) {
 			self::fail_attempt(
 				$state,
 				sprintf(
 					/* translators: %s = platform name */
-					__( 'Platform "%s" is not yet supported. Generic JSON-LD lands in Phase D.', 'supplement-compare' ),
+					__( 'Platform "%s" is not supported.', 'supplement-compare' ),
 					$hint
 				)
 			);
@@ -222,6 +222,9 @@ class Supcomp_Extractor_Worker {
 			(int) $state['totals']['inserted'] + (int) $state['totals']['updated'],
 			null
 		);
+
+		// Drop the generic-handler URL transient if one was set for this attempt.
+		delete_transient( self::generic_url_transient_key( (int) $state['attempt_id'] ) );
 	}
 
 	/**
@@ -251,6 +254,7 @@ class Supcomp_Extractor_Worker {
 			(int) $state['totals']['inserted'] + (int) $state['totals']['updated'],
 			(string) $message
 		);
+		delete_transient( self::generic_url_transient_key( (int) $state['attempt_id'] ) );
 	}
 
 	private static function fail_attempt( array $state, $message ) {
@@ -261,6 +265,7 @@ class Supcomp_Extractor_Worker {
 			0,
 			(string) $message
 		);
+		delete_transient( self::generic_url_transient_key( (int) $state['attempt_id'] ) );
 	}
 
 	/**
@@ -284,6 +289,7 @@ class Supcomp_Extractor_Worker {
 	private static function detect_and_fetch_first_page( array &$state, $hint ) {
 		$try_shopify = ( $hint === 'shopify' || $hint === 'auto' );
 		$try_woo     = ( $hint === 'woocommerce' || $hint === 'auto' );
+		$try_generic = ( $hint === 'generic' || $hint === 'auto' );
 
 		$last_failure = '';
 
@@ -334,9 +340,43 @@ class Supcomp_Extractor_Worker {
 			$last_failure = $last_failure !== '' ? ( $last_failure . ' ' . $woo_msg ) : $woo_msg;
 		}
 
+		if ( $try_generic ) {
+			$deps_ok = Supcomp_Extractor_Generic::dependencies_ok();
+			if ( $deps_ok !== true ) {
+				$last_failure = $last_failure !== '' ? ( $last_failure . ' ' . (string) $deps_ok ) : (string) $deps_ok;
+				$try_generic  = false;
+			}
+		}
+		if ( $try_generic ) {
+			$urls = Supcomp_Extractor_Generic::discover_product_urls( $state['site_url'] );
+			if ( ! empty( $urls ) ) {
+				$meta  = Supcomp_Extractor_Generic::fetch_store_meta( $state['site_url'] );
+				$slice = array_slice( $urls, 0, Supcomp_Extractor_Generic::CHUNK_SIZE );
+				$page  = Supcomp_Extractor_Generic::fetch_chunk(
+					$state['site_url'],
+					$slice,
+					$state['export_run_id'],
+					$state['exported_at'],
+					$meta['store_name']
+				);
+				// Persist the full URL list so follow-on pages can slice into
+				// it without re-discovering from scratch.
+				set_transient( self::generic_url_transient_key( (int) $state['attempt_id'] ), $urls, 6 * HOUR_IN_SECONDS );
+				$state['url_count'] = count( $urls );
+				return array(
+					'platform_used' => 'generic',
+					'store_name'    => $meta['store_name'],
+					'currency'      => $meta['currency'],
+					'page_result'   => $page,
+				);
+			}
+			$gen_msg = __( 'Generic probe: no product URLs discovered from sitemap candidates.', 'supplement-compare' );
+			$last_failure = $last_failure !== '' ? ( $last_failure . ' ' . $gen_msg ) : $gen_msg;
+		}
+
 		$msg = $hint === 'auto'
 			? sprintf(
-				__( 'Auto-detect failed: neither Shopify nor WooCommerce endpoints responded with a product list. %s Generic JSON-LD lands in Phase D.', 'supplement-compare' ),
+				__( 'Auto-detect failed: Shopify, WooCommerce, and generic JSON-LD sitemap discovery all failed. %s', 'supplement-compare' ),
 				$last_failure
 			)
 			: sprintf(
@@ -364,6 +404,22 @@ class Supcomp_Extractor_Worker {
 				$state['store_name']
 			);
 		}
+		if ( $state['platform_used'] === 'generic' ) {
+			$urls = get_transient( self::generic_url_transient_key( (int) $state['attempt_id'] ) );
+			if ( ! is_array( $urls ) ) {
+				// Transient expired or evicted — gracefully end the run.
+				return array( 'rows' => array(), 'batch_size' => 0, 'status' => 'transient_lost', 'http_status' => 0 );
+			}
+			$offset = ( (int) $state['page'] - 1 ) * Supcomp_Extractor_Generic::CHUNK_SIZE;
+			$slice  = array_slice( $urls, $offset, Supcomp_Extractor_Generic::CHUNK_SIZE );
+			return Supcomp_Extractor_Generic::fetch_chunk(
+				$state['site_url'],
+				$slice,
+				$state['export_run_id'],
+				$state['exported_at'],
+				$state['store_name']
+			);
+		}
 		// Default to Shopify (covers 'shopify' and legacy state without the field).
 		return Supcomp_Extractor_Shopify::fetch_page(
 			$state['site_url'],
@@ -382,6 +438,13 @@ class Supcomp_Extractor_Worker {
 		if ( $platform_used === 'woocommerce' ) {
 			return array( Supcomp_Extractor_Woo::PAGE_SIZE, Supcomp_Extractor_Woo::MAX_PAGES );
 		}
+		if ( $platform_used === 'generic' ) {
+			return array( Supcomp_Extractor_Generic::CHUNK_SIZE, Supcomp_Extractor_Generic::MAX_PAGES );
+		}
 		return array( Supcomp_Extractor_Shopify::PAGE_SIZE, Supcomp_Extractor_Shopify::MAX_PAGES );
+	}
+
+	private static function generic_url_transient_key( $attempt_id ) {
+		return 'supcomp_extract_urls_' . (int) $attempt_id;
 	}
 }
