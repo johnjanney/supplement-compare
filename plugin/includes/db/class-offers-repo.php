@@ -585,9 +585,14 @@ class Supcomp_Offers_Repo {
 		if ( ! empty( $match['canonical_product_id'] ) ) {
 			$canonical = Supcomp_Canonical_Products_Repo::get( (int) $match['canonical_product_id'] );
 			if ( $canonical ) {
-				$data['ingredient_id']        = (int) $canonical->ingredient_id;
-				$data['ingredient_form']      = (string) $canonical->ingredient_form;
-				$data['strength_per_serving'] = (float) $canonical->strength_per_serving;
+				$data['ingredient_id']   = (int) $canonical->ingredient_id;
+				$data['ingredient_form'] = (string) $canonical->ingredient_form;
+				// Only inherit canonical strength when the canonical actually
+				// pins one — otherwise the offer keeps its normalizer-derived
+				// strength so cost-per-active-unit math stays accurate.
+				if ( $canonical->strength_per_serving !== null && $canonical->strength_per_serving !== '' ) {
+					$data['strength_per_serving'] = (float) $canonical->strength_per_serving;
+				}
 				if ( $canonical->standardization_percentage !== null && $canonical->standardization_percentage !== '' ) {
 					$data['standardization_percentage'] = (float) $canonical->standardization_percentage;
 				}

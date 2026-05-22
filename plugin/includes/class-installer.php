@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '2';
+	const SCHEMA_VERSION = '4';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -164,8 +164,8 @@ class Supcomp_Installer {
 			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
 			slug VARCHAR(128) NOT NULL,
 			ingredient_id BIGINT(20) UNSIGNED NOT NULL,
-			ingredient_form VARCHAR(32) NOT NULL DEFAULT 'capsule',
-			strength_per_serving DECIMAL(12,4) NOT NULL DEFAULT 0,
+			ingredient_form VARCHAR(32) NULL,
+			strength_per_serving DECIMAL(12,4) NULL,
 			servings_per_container INT NULL,
 			total_strength DECIMAL(14,4) NULL,
 			standardization_compound VARCHAR(255) NULL,

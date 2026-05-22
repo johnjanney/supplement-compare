@@ -215,18 +215,27 @@
 		var html = '';
 		html += '<p><a class="supcomp-back" href="#/">' + escapeHtml(i18n.backToAll || 'Back') + '</a></p>';
 		html += '<h2 class="supcomp-title">' + escapeHtml(cp.display_name) + '</h2>';
-		html += '<p class="supcomp-meta">';
+		// Build the subtitle as an array of bits so empty fields don't leave
+		// dangling separators. When the canonical doesn't pin a strength
+		// (the v1.1.x default), show just the active unit instead of "0mg".
+		var metaBits = [];
 		if (cp.ingredient && cp.ingredient.name) {
-			html += escapeHtml(cp.ingredient.name);
-			if (cp.ingredient.category) html += ' · ' + escapeHtml(cp.ingredient.category);
-			html += ' · ';
+			metaBits.push(escapeHtml(cp.ingredient.name));
+			if (cp.ingredient.category) metaBits.push(escapeHtml(cp.ingredient.category));
 		}
-		if (cp.form) html += escapeHtml(cp.form) + ' · ';
-		html += escapeHtml(formatNumber(cp.strength_per_serving) + (cp.strength_unit || ''));
-		if (cp.standardization_compound) {
-			html += ' · ' + escapeHtml(formatNumber(cp.standardization_percentage) + '% ' + cp.standardization_compound);
+		if (cp.form) metaBits.push(escapeHtml(cp.form));
+		var unit = cp.strength_unit || cp.active_unit_label || '';
+		var strengthNum = Number(cp.strength_per_serving);
+		var hasStrength = cp.strength_per_serving != null && cp.strength_per_serving !== '' && strengthNum > 0;
+		if (hasStrength) {
+			metaBits.push(escapeHtml(formatNumber(cp.strength_per_serving) + unit));
+		} else if (unit) {
+			metaBits.push(escapeHtml(unit));
 		}
-		html += '</p>';
+		if (cp.standardization_compound && cp.standardization_percentage) {
+			metaBits.push(escapeHtml(formatNumber(cp.standardization_percentage) + '% ' + cp.standardization_compound));
+		}
+		html += '<p class="supcomp-meta">' + metaBits.join(' · ') + '</p>';
 
 		html += detailFilterBar();
 
@@ -236,10 +245,12 @@
 			html += '<table class="supcomp-table supcomp-detail">';
 			html += '<thead><tr>';
 			html += '<th>' + escapeHtml(i18n.merchantColumn || 'Merchant') + '</th>';
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.priceColumn || 'Price') + '</th>';
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.servingsColumn || 'Servings') + '</th>';
+			html += '<th class="supcomp-num">' + escapeHtml(i18n.totalActiveColumn || 'Total active') + '</th>';
+			html += '<th class="supcomp-num">' + escapeHtml(i18n.servingSizeColumn || 'Serving size') + '</th>';
+			html += '<th class="supcomp-num">' + escapeHtml(i18n.numServingsColumn || '# Servings') + '</th>';
+			html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerServingColumn || 'Cost / serving') + '</th>';
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerActiveColumn || 'Cost / active unit') + '</th>';
-			html += '<th>' + escapeHtml(i18n.stockColumn || 'Stock') + '</th>';
+			html += '<th class="supcomp-num">' + escapeHtml(i18n.priceColumn || 'Price') + '</th>';
 			html += '<th>' + escapeHtml(i18n.buyColumn || 'Buy') + '</th>';
 			html += '</tr></thead><tbody>';
 			offers.forEach(function (o) {
@@ -254,21 +265,23 @@
 				}
 				html += badges(o);
 				html += '</td>';
+				html += '<td class="supcomp-num">' + formatAmount(o.active_compound_total, cp) + '</td>';
+				html += '<td class="supcomp-num">' + formatAmount(o.strength_per_serving, cp) + '</td>';
+				html += '<td class="supcomp-num">' + (o.servings_per_container != null ? o.servings_per_container : '—') + '</td>';
+				html += '<td class="supcomp-num">' + formatCostPerServing(o) + '</td>';
+				html += '<td class="supcomp-num">' + formatCostPerActive(o, cp) + '</td>';
 				html += '<td class="supcomp-num">';
 				html += formatPrice(o.current_price, o.currency);
 				if (o.on_sale && o.regular_price && o.regular_price > o.current_price) {
 					html += '<br><span class="supcomp-was">' + escapeHtml(formatPrice(o.regular_price, o.currency)) + '</span>';
 				}
 				html += '</td>';
-				html += '<td class="supcomp-num">' + (o.servings_per_container || '—') + '</td>';
-				html += '<td class="supcomp-num">' + formatCostPerActive(o, cp) + '</td>';
-				html += '<td>' + escapeHtml(stockLabel(o.stock_status)) + '</td>';
 				html += '<td>';
 				if (o.stock_status === 'in_stock' || o.stock_status === 'backorder') {
 					html += '<a class="supcomp-buy" href="' + escapeAttr(o.buy_url) + '" target="_blank" rel="nofollow sponsored noopener">' +
 						escapeHtml(i18n.buyNow || 'Buy Now →') + '</a>';
 				} else {
-					html += '<span class="supcomp-meta">—</span>';
+					html += '<span class="supcomp-meta">' + escapeHtml(stockLabel(o.stock_status)) + '</span>';
 				}
 				html += '</td>';
 				html += '</tr>';
@@ -476,6 +489,17 @@
 		var unit = (canonical && canonical.active_unit_label) || (canonical && canonical.strength_unit) || '';
 		var fmt = formatPrice(offer.cost_per_active_unit, offer.currency) + (unit ? ' / ' + escapeHtml(unit) : '');
 		return fmt;
+	}
+
+	function formatCostPerServing(offer) {
+		if (!offer || offer.cost_per_serving == null) return '<span class="supcomp-meta">—</span>';
+		return formatPrice(offer.cost_per_serving, offer.currency);
+	}
+
+	function formatAmount(value, canonical) {
+		if (value == null) return '<span class="supcomp-meta">—</span>';
+		var unit = (canonical && canonical.active_unit_label) || (canonical && canonical.strength_unit) || '';
+		return escapeHtml(formatNumber(value)) + (unit ? ' ' + escapeHtml(unit) : '');
 	}
 
 	function formatNumber(value) {

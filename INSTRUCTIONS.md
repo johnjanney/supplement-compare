@@ -278,9 +278,15 @@ retired ingredient to bring it back.
 
 ## 8. Adding a canonical product
 
-The canonical product is the specific shape of product (e.g. "L-Theanine 200mg
-Capsules") — independent of which merchant sells it. Each canonical product
-is what multiple merchant offers cluster around for comparison.
+The canonical product is the comparable concept that merchant offers cluster
+around. As of v1.1.0 the default is **ingredient + active unit** — one
+canonical for "Creatine" (unit g), one for "L-Theanine" (unit mg), etc. —
+and form / strength / standardization live on each offer. The comparison
+table shows the per-offer total active mass, serving size, # servings,
+cost / serving, and cost / active unit, so readers can judge form-specific
+tradeoffs directly. Operators can still pin a form or a strength on a
+canonical (e.g. "L-Theanine 200mg Capsules") when they want a tighter
+landing-page concept; leaving both blank gives one canonical per ingredient.
 
 **Single product:** WP Admin → Supplement Compare → Canonical Products →
 **Add New**.
@@ -288,18 +294,24 @@ is what multiple merchant offers cluster around for comparison.
 Required fields:
 - **Slug** — e.g. `l-theanine-200mg-capsule`.
 - **Ingredient** — picker shows only active (non-retired) ingredients.
-- **Strength per serving** — in the ingredient's default unit.
 
 Optional:
 - **Form** — capsule, tablet, softgel, powder, liquid, sublingual, gummy,
-  other. Within-form comparison only is load-bearing: capsules are never
-  compared to powder.
-- **Servings per container** — leave blank if servings vary across merchant
-  variants (then per-container math is computed per-offer instead).
+  other. Leave blank (the `— Any form —` option) to let one canonical span
+  every form for the ingredient. The form of each offer is still recorded
+  at the offer level and surfaced on the comparison table.
 - **Standardization compound / %** — overrides the ingredient defaults. Useful
-  when a specific product uses a non-standard percentage of the same compound.
-- **Display name** — shown publicly. If blank, the system derives one as
-  `{ingredient name} {strength}{unit} {form-plural}`.
+  when a canonical pins a non-standard percentage of the same compound for
+  all of its offers.
+- **Display name** — shown publicly. If blank, the system derives one from
+  the ingredient (and form, when set).
+
+Active mass per serving and servings per container are **not** entered on
+the canonical screen as of v1.1.1 — those are per-offer values, set in the
+pending queue / offer edit form, and they drive the per-offer
+`cost_per_serving` and `cost_per_active_unit`. CSV import still accepts
+`strength_per_serving` / `servings_per_container` columns for legacy data;
+existing rows keep whatever values they already have.
 - **SEO indexable** — operator's explicit opt-in for the per-canonical SEO
   page (Phase 10). Phase 10 also requires ≥3 active offers before actually
   indexing.
@@ -313,8 +325,12 @@ override on this product.
 
 **Bulk import:** Canonical Products screen → **Import CSV**. Template at
 `seed-data/canonical-products.example.csv`. Required columns: `slug`,
-`ingredient_slug`, `strength_per_serving`. The `ingredient_slug` must match
-an existing canonical ingredient — import ingredients first.
+`ingredient_slug`. Optional: `strength_per_serving` (leave the cell blank
+when the canonical groups varying brand strengths), `ingredient_form`,
+`servings_per_container`, `standardization_compound`,
+`standardization_percentage`, `display_name`, `seo_indexable`, `status`.
+The `ingredient_slug` must match an existing canonical ingredient — import
+ingredients first.
 
 ## 9. Working the pending queue
 
@@ -343,8 +359,14 @@ about:
      matcher's suggestion. Pick a different one from the grouped dropdown
      if it got it wrong, or "— No canonical match —" if no canonical is
      right (you can revisit later).
-   - **Ingredient / Form / Strength / Servings / Standardization** — the
-     normalized fact set. When you set Canonical product, the canonical's
+   - **Ingredient / Form / Active mass per serving / Servings / Total
+     active per container / Standardization** — the normalized fact set.
+     **Active mass per serving** and **Total active per container** are
+     tied to **Servings per container** by a live calculator: fill any
+     two and the third auto-fills. Use whichever pair the merchant's
+     supplement-facts panel makes easy — e.g. enter the container total
+     printed on the label plus servings/container, and let the form
+     derive per-serving. When you set Canonical product, the canonical's
      values become authoritative (the form makes the offer's values
      match it on save).
 3. Trust signals — `Third-party tested`, `COA available`, `COA URL`, and

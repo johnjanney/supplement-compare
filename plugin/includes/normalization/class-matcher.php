@@ -114,10 +114,44 @@ class Supcomp_Matcher {
 			}
 		}
 
+		// 0.55: ingredient-only canonical fallback. When the canonical model
+		// is "ingredient (+unit)" — i.e. the canonical pins neither form nor
+		// strength — a single canonical per ingredient is the right answer
+		// and we should suggest it. Only fires when exactly one such canonical
+		// exists for the identified ingredient.
+		if ( ! empty( $normalized['ingredient_id'] ) ) {
+			$cp = self::canonical_by_ingredient_unpinned( (int) $normalized['ingredient_id'] );
+			if ( $cp ) {
+				return self::pack( (int) $cp->id, 0.55 );
+			}
+		}
+
 		return array(
 			'canonical_product_id' => null,
 			'confidence'           => null,
 		);
+	}
+
+	/**
+	 * Find a single canonical_product for an ingredient where the canonical
+	 * pins neither form nor strength (i.e. it spans all offers of that
+	 * ingredient). Returns null when zero or >1 candidates exist.
+	 */
+	private static function canonical_by_ingredient_unpinned( $ingredient_id ) {
+		global $wpdb;
+		$table = Supcomp_Canonical_Products_Repo::table();
+		$rows  = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT id FROM {$table}
+				 WHERE ingredient_id = %d
+				   AND status <> 'retired'
+				   AND ingredient_form IS NULL
+				   AND strength_per_serving IS NULL
+				 LIMIT 2",
+				(int) $ingredient_id
+			)
+		);
+		return count( $rows ) === 1 ? $rows[0] : null;
 	}
 
 	/**

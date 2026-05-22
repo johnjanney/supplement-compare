@@ -107,23 +107,25 @@ notes                       TEXT
 
 ### 3.3 `canonical_products`
 
-The comparable SKU concepts. Each row is a "shape" of product (e.g. "L-Theanine 200mg Capsule"), independent of which merchant sells it.
+The comparable concept. As of v1.1.0 the canonical is **the ingredient (and its active unit)** — e.g. one canonical for "Creatine" (unit: g), one for "L-Theanine" (unit: mg). Form, strength, and standardization are all *optional* and live alongside the offer-level fields that drive the actual cost-per-active-unit math. Operators may still pin a form or a specific strength on a canonical when they want a tighter comparison concept (e.g. "L-Theanine 200mg Capsules"), but the default is the ingredient-level canonical.
 
 ```
 id                          BIGINT, PK
 slug                        VARCHAR(128), UNIQUE
 ingredient_id               BIGINT, FK → canonical_ingredients
-ingredient_form             ENUM('capsule','tablet','softgel','powder','liquid','sublingual','gummy','other')
-strength_per_serving        DECIMAL(12,4)            in the ingredient's default_unit
+ingredient_form             VARCHAR(32) NULL         optional; NULL = canonical spans all forms
+strength_per_serving        DECIMAL(12,4) NULL       optional; NULL = canonical spans varying brand strengths
 servings_per_container      INT NULL                 NULL if highly variable across offers
-total_strength              DECIMAL(14,4) NULL       derived: strength × servings (NULL if servings_per_container is NULL)
+total_strength              DECIMAL(14,4) NULL       derived: strength × servings (NULL when either input is NULL)
 standardization_compound    VARCHAR(255) NULL        override of ingredient default
 standardization_percentage  DECIMAL(5,2) NULL        override of ingredient default
-active_compound_per_serving DECIMAL(12,4) NULL       derived; the field used for cost-per-mg comparison
-display_name                VARCHAR(255)             e.g. "L-Theanine 200mg Capsules"
+active_compound_per_serving DECIMAL(12,4) NULL       derived (NULL when canonical strength is NULL)
+display_name                VARCHAR(255)             e.g. "Creatine" or "L-Theanine 200mg Capsules"
 seo_indexable               BOOLEAN                  controlled by offer count rules, see section 5
 status                      ENUM('active','draft','retired')
 ```
+
+The comparison page renders one row per offer with: Merchant, Total Active Unit (`active_compound_total`), Serving Size (`strength_per_serving`), # Servings (`servings_per_container`), Cost / Serving (`cost_per_serving`), Cost / Active Unit (`cost_per_active_unit`), Price (`current_price`), and Buy. Stock status no longer occupies a column; out-of-stock / unknown offers render `—` in the Buy column instead of a Buy button.
 
 ### 3.4 `raw_source_offers`
 
@@ -374,16 +376,15 @@ cost_per_active_unit = current_price / active_compound_total
 ### Display rules
 
 - `cost_per_active_unit` is displayed as "Cost per mg [of compound]" — labeled with the active compound name
-- Comparison is restricted to **same canonical_product** (which means same ingredient + form + standardization context)
-- The site does **not** compare across forms (capsule vs powder) or across standardizations (50% bacosides vs 20% bacosides) by default; these are separate canonical products
+- Comparison is restricted to **same canonical_product**. As of v1.1.0 a canonical defaults to ingredient + active unit, so by default a single canonical groups all forms and brand strengths of one ingredient. Operators may still create tighter canonicals (e.g. capsule-only, or 200mg-only) when they want a form- or strength-specific landing page
 - Sort order on the comparison page is `cost_per_active_unit` ascending by default
-- If `active_compound_per_serving` is NULL (insufficient data), the offer is excluded from cost-per-mg sort and labeled "data incomplete"
+- If `cost_per_active_unit` is NULL (insufficient data), the offer is excluded from the cost-per-mg sort and the cell renders `—`
 
 ### Honesty rules
 
-- Never compute a "best price" across forms with different bioavailability
+- When a canonical groups multiple forms, surface the form for each offer in the table so readers can see what they're comparing. The cost-per-active-unit metric is mathematically comparable across forms of the same compound, but bioavailability differences are real — UI copy should not present a powder and a capsule as identical buys
 - Never present elemental-based and compound-based pricing as directly comparable
-- Always show the source numbers (strength, servings, price) alongside the derived per-mg figure
+- Always show the source numbers (Total Active Unit, Serving Size, # Servings, Price) alongside the derived per-mg figure
 - Stale offers (`last_synced_at` > 48 hours) are visually downgraded; offers > 7 days old are hidden from public site
 
 ---

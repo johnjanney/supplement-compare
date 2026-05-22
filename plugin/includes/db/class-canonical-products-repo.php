@@ -133,6 +133,12 @@ class Supcomp_Canonical_Products_Repo {
 
 	public static function upsert( $data ) {
 		global $wpdb;
+		// `id` is passed in by the admin edit handler; CSV imports omit it and
+		// rely on slug-based upsert. Pull it out before sanitize so it doesn't
+		// land in the column array as a stray field.
+		$edit_id = isset( $data['id'] ) ? absint( $data['id'] ) : 0;
+		unset( $data['id'] );
+
 		$clean = self::sanitize( $data );
 
 		if ( empty( $clean['slug'] ) ) {
@@ -147,18 +153,59 @@ class Supcomp_Canonical_Products_Repo {
 			return new WP_Error( 'supcomp_bad_ingredient', __( 'Ingredient not found.', 'supplement-compare' ) );
 		}
 
-		// Default display_name if blank: "{ingredient name} {strength}{unit} {form}"
-		if ( empty( $clean['display_name'] ) ) {
-			$clean['display_name'] = self::derive_display_name( $ingredient, $clean );
+		// Editing an existing row: locate by id, not slug, so a slug change
+		// updates the row in place instead of orphaning the original.
+		$existing = null;
+		if ( $edit_id > 0 ) {
+			$existing = self::get( $edit_id );
+			if ( ! $existing ) {
+				return new WP_Error( 'supcomp_missing_row', __( 'Canonical product not found.', 'supplement-compare' ) );
+			}
+			// Guard against renaming a slug onto another row's slug.
+			if ( $clean['slug'] !== $existing->slug ) {
+				$conflict = self::get_by_slug( $clean['slug'] );
+				if ( $conflict && (int) $conflict->id !== (int) $existing->id ) {
+					return new WP_Error( 'supcomp_slug_conflict', __( 'Another canonical product already uses that slug.', 'supplement-compare' ) );
+				}
+			}
 		}
 
-		// Compute total_strength and active_compound_per_serving.
-		$derived = self::compute_derived( $clean, $ingredient );
+		// Build derivation inputs by falling back to stored values for any
+		// fields the caller didn't submit. The admin form intentionally omits
+		// strength_per_serving / servings_per_container as of v1.1.1, but
+		// existing rows may still have those values — don't wipe their
+		// derived columns just because the form didn't repeat them.
+		$derivation_inputs = $clean;
+		if ( $existing ) {
+			foreach ( array( 'strength_per_serving', 'servings_per_container', 'standardization_percentage' ) as $field ) {
+				if ( ! array_key_exists( $field, $derivation_inputs ) ) {
+					$derivation_inputs[ $field ] = $existing->$field;
+				}
+			}
+		}
+
+		// Default display_name if blank.
+		if ( empty( $clean['display_name'] ) ) {
+			$clean['display_name'] = self::derive_display_name( $ingredient, $derivation_inputs );
+		}
+
+		// Compute total_strength and active_compound_per_serving from the
+		// merged input set.
+		$derived = self::compute_derived( $derivation_inputs, $ingredient );
 		$clean   = array_merge( $clean, $derived );
 
 		$now                 = current_time( 'mysql', true );
 		$clean['updated_at'] = $now;
 
+		if ( $existing ) {
+			$wpdb->update( self::table(), $clean, array( 'id' => (int) $existing->id ) );
+			return array(
+				'id'      => (int) $existing->id,
+				'created' => false,
+			);
+		}
+
+		// New-row path (also the CSV-import path): upsert by slug.
 		$existing = self::get_by_slug( $clean['slug'] );
 		if ( $existing ) {
 			$wpdb->update( self::table(), $clean, array( 'id' => (int) $existing->id ) );
@@ -199,13 +246,23 @@ class Supcomp_Canonical_Products_Repo {
 	 * @return array{total_strength: float|null, active_compound_per_serving: float|null}
 	 */
 	public static function compute_derived( $product, $ingredient ) {
-		$strength = isset( $product['strength_per_serving'] ) ? (float) $product['strength_per_serving'] : 0.0;
+		$has_strength = array_key_exists( 'strength_per_serving', $product )
+			&& $product['strength_per_serving'] !== null
+			&& $product['strength_per_serving'] !== '';
+		$strength = $has_strength ? (float) $product['strength_per_serving'] : null;
 		$servings = array_key_exists( 'servings_per_container', $product ) && $product['servings_per_container'] !== null && $product['servings_per_container'] !== ''
 			? (int) $product['servings_per_container']
 			: null;
 
 		$derived                   = array();
-		$derived['total_strength'] = ( $servings && $strength > 0 ) ? round( $strength * $servings, 4 ) : null;
+		$derived['total_strength'] = ( $servings && $strength !== null && $strength > 0 ) ? round( $strength * $servings, 4 ) : null;
+
+		// When the canonical has no strength, downstream per-serving math
+		// belongs at the offer level — leave the derived column NULL.
+		if ( $strength === null ) {
+			$derived['active_compound_per_serving'] = null;
+			return $derived;
+		}
 
 		// standardization_percentage: product override → ingredient default → none.
 		$std_pct = null;
@@ -231,19 +288,36 @@ class Supcomp_Canonical_Products_Repo {
 	}
 
 	public static function derive_display_name( $ingredient, $product ) {
-		$strength = isset( $product['strength_per_serving'] ) ? (float) $product['strength_per_serving'] : 0.0;
+		$has_strength = array_key_exists( 'strength_per_serving', $product )
+			&& $product['strength_per_serving'] !== null
+			&& $product['strength_per_serving'] !== '';
+		$strength = $has_strength ? (float) $product['strength_per_serving'] : null;
 		$unit     = $ingredient->default_unit;
-		$form     = isset( $product['ingredient_form'] ) ? $product['ingredient_form'] : 'capsule';
+		$form     = ! empty( $product['ingredient_form'] ) ? (string) $product['ingredient_form'] : '';
 
-		$strength_fmt = ( $strength == (int) $strength ) ? (string) (int) $strength : rtrim( rtrim( number_format( $strength, 4, '.', '' ), '0' ), '.' );
-
-		// Pluralize-ish form for display.
-		$form_label = ucfirst( $form );
-		if ( in_array( $form, array( 'capsule', 'tablet', 'softgel', 'gummy' ), true ) ) {
-			$form_label .= 's';
+		$form_label = '';
+		if ( $form !== '' ) {
+			$form_label = ucfirst( $form );
+			if ( in_array( $form, array( 'capsule', 'tablet', 'softgel', 'gummy' ), true ) ) {
+				$form_label .= 's';
+			}
 		}
 
-		return trim( $ingredient->name . ' ' . $strength_fmt . $unit . ' ' . $form_label );
+		// Without pinned strength or form the canonical is the ingredient
+		// itself — display name is just the ingredient name.
+		if ( $strength === null && $form === '' ) {
+			return trim( $ingredient->name );
+		}
+		if ( $strength === null ) {
+			return trim( $ingredient->name . ' ' . $form_label );
+		}
+
+		$strength_fmt = ( $strength == (int) $strength ) ? (string) (int) $strength : rtrim( rtrim( number_format( $strength, 4, '.', '' ), '0' ), '.' );
+		$pieces       = array( $ingredient->name, $strength_fmt . $unit );
+		if ( $form_label !== '' ) {
+			$pieces[] = $form_label;
+		}
+		return trim( implode( ' ', $pieces ) );
 	}
 
 	public static function sanitize( $data ) {
@@ -255,13 +329,22 @@ class Supcomp_Canonical_Products_Repo {
 		if ( array_key_exists( 'ingredient_id', $data ) ) {
 			$clean['ingredient_id'] = absint( $data['ingredient_id'] );
 		}
-		if ( isset( $data['ingredient_form'] ) ) {
-			$form                       = sanitize_key( $data['ingredient_form'] );
-			$clean['ingredient_form'] = in_array( $form, Supcomp_Installer::PRODUCT_FORMS, true ) ? $form : 'capsule';
+		if ( array_key_exists( 'ingredient_form', $data ) ) {
+			$form = sanitize_key( (string) $data['ingredient_form'] );
+			// Blank → NULL — a canonical without a pinned form spans capsules,
+			// powders, etc. for the same ingredient.
+			if ( $form === '' ) {
+				$clean['ingredient_form'] = null;
+			} else {
+				$clean['ingredient_form'] = in_array( $form, Supcomp_Installer::PRODUCT_FORMS, true ) ? $form : null;
+			}
 		}
 		if ( array_key_exists( 'strength_per_serving', $data ) ) {
 			$val                            = trim( (string) $data['strength_per_serving'] );
-			$clean['strength_per_serving'] = $val === '' ? 0 : (float) $val;
+			// NULL when blank — strength is optional at the canonical level so a
+			// single canonical can group offers with varying brand strengths.
+			// Per-offer strength drives the cost-per-active-unit math.
+			$clean['strength_per_serving'] = $val === '' ? null : (float) $val;
 		}
 		if ( array_key_exists( 'servings_per_container', $data ) ) {
 			$val                              = trim( (string) $data['servings_per_container'] );

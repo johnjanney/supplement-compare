@@ -125,8 +125,15 @@ class Supcomp_Canonical_Page {
 					$bits[] = esc_html( $canonical->ingredient_form );
 				}
 				$strength_unit = $ingredient ? $ingredient->default_unit : '';
-				if ( $canonical->strength_per_serving !== null && $canonical->strength_per_serving !== '' ) {
+				$has_strength  = $canonical->strength_per_serving !== null
+					&& $canonical->strength_per_serving !== ''
+					&& (float) $canonical->strength_per_serving > 0;
+				if ( $has_strength ) {
 					$bits[] = esc_html( self::format_decimal( $canonical->strength_per_serving ) . $strength_unit );
+				} elseif ( $strength_unit ) {
+					// No pinned strength on the canonical — surface the active
+					// unit by itself instead of "0mg" from legacy DEFAULT 0 rows.
+					$bits[] = esc_html( $strength_unit );
 				}
 				if ( $canonical->standardization_compound && $canonical->standardization_percentage ) {
 					$bits[] = esc_html( self::format_decimal( $canonical->standardization_percentage ) . '% ' . $canonical->standardization_compound );

@@ -5,13 +5,14 @@
  * Same URL routing pattern as the ingredients screen:
  *   admin.php?page=supcomp-canonical                       — list
  *   admin.php?page=supcomp-canonical&action=new            — create form
- *   admin.php?page=supcomp-canonical&action=edit&id=N      — edit form (shows derived fields)
+ *   admin.php?page=supcomp-canonical&action=edit&id=N      — edit form
  *   admin.php?page=supcomp-canonical&action=import         — CSV upload form
  *
- * Derived fields (`total_strength`, `active_compound_per_serving`) are
- * recomputed on every save per PROJECTBRIEF.md §6 and shown read-only in the
- * edit form so the operator can spot a misconfigured standardization or
- * elemental percentage immediately.
+ * As of v1.1.1, strength_per_serving and servings_per_container are no
+ * longer surfaced in this screen — those values live at the offer level
+ * and drive the per-offer cost-per-active-unit math. The schema columns
+ * remain (CSV import still accepts them, existing rows keep their values),
+ * but the admin form no longer reads or writes them.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -119,9 +120,7 @@ class Supcomp_Canonical_Products_Screen {
 						<th><?php esc_html_e( 'Slug', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'Ingredient', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'Form', 'supplement-compare' ); ?></th>
-						<th><?php esc_html_e( 'Strength', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'Std.', 'supplement-compare' ); ?></th>
-						<th><?php esc_html_e( 'Active/serving', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'SEO', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'Status', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'Actions', 'supplement-compare' ); ?></th>
@@ -129,7 +128,7 @@ class Supcomp_Canonical_Products_Screen {
 				</thead>
 				<tbody>
 					<?php if ( empty( $rows ) ) : ?>
-						<tr><td colspan="10"><?php esc_html_e( 'No canonical products match the current filter.', 'supplement-compare' ); ?></td></tr>
+						<tr><td colspan="8"><?php esc_html_e( 'No canonical products match the current filter.', 'supplement-compare' ); ?></td></tr>
 					<?php endif; ?>
 
 					<?php foreach ( $rows as $r ) : ?>
@@ -137,10 +136,8 @@ class Supcomp_Canonical_Products_Screen {
 							<td><strong><a href="<?php echo esc_url( self::url( array( 'action' => 'edit', 'id' => $r->id ) ) ); ?>"><?php echo esc_html( $r->display_name ); ?></a></strong></td>
 							<td><code><?php echo esc_html( $r->slug ); ?></code></td>
 							<td><?php echo esc_html( $r->ingredient_name ? $r->ingredient_name : '(missing)' ); ?></td>
-							<td><?php echo esc_html( $r->ingredient_form ); ?></td>
-							<td><?php echo esc_html( self::trim_decimal( $r->strength_per_serving ) ); ?><?php echo esc_html( $r->ingredient_unit ? ' ' . $r->ingredient_unit : '' ); ?></td>
+							<td><?php echo $r->ingredient_form ? esc_html( $r->ingredient_form ) : '—'; ?></td>
 							<td><?php echo $r->standardization_percentage !== null ? esc_html( self::trim_decimal( $r->standardization_percentage ) . '%' ) : '—'; ?></td>
-							<td><?php echo $r->active_compound_per_serving !== null ? esc_html( self::trim_decimal( $r->active_compound_per_serving ) ) : '—'; ?></td>
 							<td><?php echo (int) $r->seo_indexable ? '✓' : '—'; ?></td>
 							<td><?php echo esc_html( $r->status ); ?></td>
 							<td>
@@ -177,9 +174,7 @@ class Supcomp_Canonical_Products_Screen {
 
 		$slug                       = $row ? $row->slug : '';
 		$ingredient_id              = $row ? (int) $row->ingredient_id : 0;
-		$ingredient_form            = $row ? $row->ingredient_form : 'capsule';
-		$strength_per_serving       = $row ? self::trim_decimal( $row->strength_per_serving ) : '';
-		$servings_per_container     = $row && $row->servings_per_container !== null ? (int) $row->servings_per_container : '';
+		$ingredient_form            = $row ? (string) $row->ingredient_form : '';
 		$standardization_compound   = $row ? (string) $row->standardization_compound : '';
 		$standardization_percentage = $row && $row->standardization_percentage !== null ? self::trim_decimal( $row->standardization_percentage ) : '';
 		$display_name               = $row ? $row->display_name : '';
@@ -193,6 +188,13 @@ class Supcomp_Canonical_Products_Screen {
 		<div class="wrap">
 			<h1><?php echo esc_html( $heading ); ?></h1>
 			<?php self::render_notice(); ?>
+
+			<div class="notice notice-info inline" style="margin:12px 0;padding:8px 12px">
+				<p style="margin:0">
+					<strong><?php esc_html_e( 'Canonical = ingredient (+ active unit).', 'supplement-compare' ); ?></strong>
+					<?php esc_html_e( 'Leave Form and Strength blank to let one canonical span every form and brand-strength of an ingredient (e.g. one canonical for Creatine that groups powders and capsules at varying doses). The per-offer total active amount, serving size, servings/container, and price drive the comparison table.', 'supplement-compare' ); ?>
+				</p>
+			</div>
 
 			<?php if ( empty( $ingredients ) ) : ?>
 				<div class="notice notice-warning"><p>
@@ -234,22 +236,13 @@ class Supcomp_Canonical_Products_Screen {
 						<th><label for="supcomp-form"><?php esc_html_e( 'Form', 'supplement-compare' ); ?></label></th>
 						<td>
 							<select id="supcomp-form" name="ingredient_form">
+								<option value="" <?php selected( $ingredient_form, '' ); ?>><?php esc_html_e( '— Any form (canonical spans all forms) —', 'supplement-compare' ); ?></option>
 								<?php foreach ( Supcomp_Installer::PRODUCT_FORMS as $f ) : ?>
 									<option value="<?php echo esc_attr( $f ); ?>" <?php selected( $ingredient_form, $f ); ?>><?php echo esc_html( $f ); ?></option>
 								<?php endforeach; ?>
 							</select>
-							<p class="description"><?php esc_html_e( 'Within-form comparison only — capsules are never compared to powder. Pick the form carefully.', 'supplement-compare' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Optional. Leave blank when the canonical groups multiple forms (capsule, powder, etc.) for the same ingredient. The form of each offer is still recorded at the offer level.', 'supplement-compare' ); ?></p>
 						</td>
-					</tr>
-					<tr>
-						<th><label for="supcomp-strength"><?php esc_html_e( 'Strength per serving', 'supplement-compare' ); ?> <span class="description">*</span></label></th>
-						<td><input type="number" id="supcomp-strength" name="strength_per_serving" value="<?php echo esc_attr( $strength_per_serving ); ?>" step="0.0001" min="0" class="regular-text" required>
-							<p class="description"><?php esc_html_e( 'In the ingredient\'s default unit.', 'supplement-compare' ); ?></p></td>
-					</tr>
-					<tr>
-						<th><label for="supcomp-servings"><?php esc_html_e( 'Servings per container', 'supplement-compare' ); ?></label></th>
-						<td><input type="number" id="supcomp-servings" name="servings_per_container" value="<?php echo esc_attr( $servings_per_container ); ?>" min="1" step="1" class="small-text">
-							<p class="description"><?php esc_html_e( 'Leave blank if servings vary across merchant variants.', 'supplement-compare' ); ?></p></td>
 					</tr>
 					<tr>
 						<th><label for="supcomp-stdcompound"><?php esc_html_e( 'Standardization compound (override)', 'supplement-compare' ); ?></label></th>
@@ -335,21 +328,6 @@ class Supcomp_Canonical_Products_Screen {
 						</td>
 					</tr>
 
-					<?php if ( $row ) : ?>
-						<tr>
-							<th><?php esc_html_e( 'Derived fields', 'supplement-compare' ); ?></th>
-							<td>
-								<p>
-									<strong><?php esc_html_e( 'Total strength:', 'supplement-compare' ); ?></strong>
-									<?php echo $row->total_strength !== null ? esc_html( self::trim_decimal( $row->total_strength ) ) : '—'; ?>
-									&nbsp;&nbsp;
-									<strong><?php esc_html_e( 'Active compound / serving:', 'supplement-compare' ); ?></strong>
-									<?php echo $row->active_compound_per_serving !== null ? esc_html( self::trim_decimal( $row->active_compound_per_serving ) ) : '—'; ?>
-								</p>
-								<p class="description"><?php esc_html_e( 'Recomputed on every save per PROJECTBRIEF.md §6.', 'supplement-compare' ); ?></p>
-							</td>
-						</tr>
-					<?php endif; ?>
 				</table>
 
 				<?php submit_button( $id ? __( 'Save Canonical Product', 'supplement-compare' ) : __( 'Create Canonical Product', 'supplement-compare' ) ); ?>
@@ -370,8 +348,8 @@ class Supcomp_Canonical_Products_Screen {
 			<p><?php
 				printf(
 					/* translators: %s is a list of column names */
-					esc_html__( 'Upload a CSV with a header row. Required columns: %s. Optional: ingredient_form, servings_per_container, standardization_compound, standardization_percentage, display_name, seo_indexable, status.', 'supplement-compare' ),
-					'<code>slug</code>, <code>ingredient_slug</code>, <code>strength_per_serving</code>'
+					esc_html__( 'Upload a CSV with a header row. Required columns: %s. Optional: strength_per_serving, ingredient_form, servings_per_container, standardization_compound, standardization_percentage, display_name, seo_indexable, status.', 'supplement-compare' ),
+					'<code>slug</code>, <code>ingredient_slug</code>'
 				);
 			?></p>
 			<p><?php esc_html_e( 'Rows are upserted by slug. Each row\'s ingredient_slug must match an existing canonical ingredient — import ingredients first.', 'supplement-compare' ); ?></p>
@@ -428,6 +406,7 @@ class Supcomp_Canonical_Products_Screen {
 		}
 		check_admin_referer( self::NONCE_SAVE );
 
+		$id   = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
 		$data = wp_unslash( $_POST );
 		unset( $data['action'], $data['_wpnonce'], $data['_wp_http_referer'], $data['id'] );
 
@@ -436,6 +415,9 @@ class Supcomp_Canonical_Products_Screen {
 			$data['seo_indexable'] = 0;
 		}
 
+		if ( $id > 0 ) {
+			$data['id'] = $id;
+		}
 		$result = Supcomp_Canonical_Products_Repo::upsert( $data );
 		if ( is_wp_error( $result ) ) {
 			wp_safe_redirect( self::url( array( 'action' => 'new', 'supcomp_notice' => 'error', 'msg' => rawurlencode( $result->get_error_message() ) ) ) );

@@ -17,6 +17,59 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.2.0] — 2026-05-21
+
+### Added
+- **Total active / container** input on the offer edit form (pending queue + active offers). Live bidirectional calculator: fill any two of {active mass per serving, servings per container, total active per container} and the third auto-fills as you type. On save, if only the Total Active is filled along with one other field, the canonical stored fields (`strength_per_serving` / `servings_per_container`) are back-computed before derivations run. The Total Active value itself is never persisted as its own column — it remains the derived `total_strength` per PROJECTBRIEF §6 — but operators can now enter the per-container number when that's what's printed on the label and let the system derive per-serving.
+
+### Changed
+- **Strength-extraction regex now scores by context** (`plugin/includes/normalization/rules/class-strength-rule.php`). Previously the rule took the leftmost `(mg|mcg|g|iu)` match in `variant_title + product_title + description + raw_attributes_json`, which caused container-total figures like "12,000mg total per bottle" to land in `strength_per_serving` whenever they preceded the per-serving mention in the text. The cascading effect through `class-offer-derivations.php` made `cost_per_active_unit` roughly `servings`× too low and sorted bogus offers to the top of comparison pages. The new rule looks at a 25-character window around each candidate, +10 for nearby per-serving anchors ("per serving", "per capsule", "each tablet", "1 scoop", …) and −10 for container-total anchors ("total", "per bottle", "net wt", "bottle contains", …). Strongly-negative matches (score ≤ −5) are dropped outright so the operator-facing pending-queue value defaults to blank rather than to a wrong number; positive matches win over neutral ones; ties broken by leftmost. The "billion CFU" and "milligrams"/"micrograms"/"grams" word-form paths are unchanged. No data migration — re-imports do not re-run normalization on existing offers (`class-csv-importer.php:122-124`), so this only affects offers imported after the upgrade or operators who clear and re-process specific rows.
+- **Admin offer form label** "Strength / serving" renamed to **"Active mass / serving"**. The DB column (`strength_per_serving`) and POST field name are unchanged — display label only. Rationale: the previous label collided with the supplement-facts term "Serving Size" (which means *capsule count per serving*, not active mass), and the field name now matches the existing derived column `active_compound_per_serving` so operators reading the form see one coherent vocabulary. The public comparison table's "Serving Size" column (frontend i18n) is left unchanged for now — the public-side label is a separate decision and will be revisited in v1.3.0 alongside the CSV column-mapping work.
+
+### Fixed
+- **Container-total contamination of `cost_per_active_unit`** (root cause described under "Changed" above). Offers imported under v1.1.x whose `strength_per_serving` was populated from a "total per bottle" mention in the description need to be re-checked in the pending queue / active offers — they will still show the wrong values until an operator opens the row and saves (which reruns derivations off the corrected inputs). To find candidates: filter Active Offers by suspiciously low `cost_per_active_unit` (orders of magnitude below peer offers for the same canonical) or by `total_strength` that is implausibly large relative to typical doses for the ingredient.
+
+---
+
+## [1.1.2] — 2026-05-21
+
+### Fixed
+- **Comparison page subtitle no longer shows "0mg".** Legacy canonical rows created before v1.0.2 still carry `strength_per_serving = 0` (the old `NOT NULL DEFAULT 0` schema), and both the JS detail-view subtitle and the `/compare/{slug}/` PHP meta line were rendering that as e.g. "0mg". Both renderers now treat null / empty / zero as "no pinned strength" and surface just the active unit (e.g. "mg") instead. The JS renderer was also rewritten to build the subtitle as a list of bits joined by ` · ` so empty fields don't leave dangling separators. No data migration — the fix is display-only, so old `0` values stay in place for any future operator who wants to backfill them.
+
+---
+
+## [1.1.1] — 2026-05-21
+
+### Removed
+- **Canonical product admin screen** no longer surfaces `strength_per_serving` or `servings_per_container`. The two input rows are gone from the edit/add form, the "Strength" and "Active/serving" columns are gone from the list table, and the read-only "Derived fields" row is gone. The schema columns remain (CSV import still accepts them, existing rows keep their values), but the admin screen now treats those values as per-offer concerns — they drive `cost_per_serving` / `cost_per_active_unit` at the offer level.
+
+### Fixed
+- `Supcomp_Canonical_Products_Repo::upsert` now preserves the stored `strength_per_serving`, `servings_per_container`, and `standardization_percentage` when editing an existing canonical whose form payload omits them. Without this guard the new strength-less admin form would have zeroed-out `total_strength` and `active_compound_per_serving` on every save for legacy rows that still carry strength values.
+
+---
+
+## [1.1.0] — 2026-05-21
+
+### Changed
+- **Canonical product is now ingredient-level by default.** A canonical's `ingredient_form` is also optional (was `NOT NULL DEFAULT 'capsule'`, now `NULL`). When both form and strength are blank on a canonical, that canonical groups every offer for the ingredient — different forms, different brand strengths, different standardization contexts. Operators can still pin a form or a strength on the canonical when they want a tighter comparison concept (e.g. "L-Theanine 200mg Capsules"). Schema bump to `4`; dbDelta relaxes the column on next page load. PROJECTBRIEF.md §3.3, §6 display rules, and CLAUDE.md item 7 updated to match — the prior "within-form comparison only" rule is no longer load-bearing.
+- **Comparison table re-columned.** The detail-view table is now: Merchant · Total Active · Serving Size · # Servings · Cost / Serving · Cost / Active Unit · Price · Buy. The Stock column was removed; out-of-stock / unknown offers render `—` in the Buy column instead of a Buy button. New i18n keys: `totalActiveColumn`, `servingSizeColumn`, `numServingsColumn`, `costPerServingColumn`. The JSON exporter already emitted `active_compound_total` and `cost_per_serving`, so no exporter/schema changes were needed on the data side — only frontend rendering.
+- **Admin canonical form** gains a top-of-page note explaining the new ingredient-level model and a `— Any form (canonical spans all forms) —` option in the Form select. `derive_display_name` falls back to just the ingredient name when both form and strength are blank.
+- **Matcher** gains a 0.55-confidence ingredient-only fallback: when no higher-tier match succeeds and the ingredient is identified, the matcher suggests the ingredient's "unpinned" canonical (the one where both `ingredient_form` and `strength_per_serving` are NULL) if exactly one such canonical exists. This makes the new model work end-to-end with the existing pending-queue workflow.
+
+---
+
+## [1.0.2] — 2026-05-21
+
+### Changed
+- Canonical product `strength_per_serving` is now **optional**. The schema column moves from `NOT NULL DEFAULT 0` to `NULL`; the admin form drops the `required` attribute and re-labels the field to explain that brands shipping varying strengths can share one canonical. Per-offer `strength_per_serving` continues to drive the `cost_per_active_unit` math (PROJECTBRIEF.md §6 inputs are at the offer level), so leaving the canonical blank does not break cost-per-mg comparisons. Schema version bumped to `3`; dbDelta will relax the column on next activation / page load.
+- When the matcher links an offer to a canonical whose `strength_per_serving` is NULL, the offer's normalizer-derived strength is **kept** instead of being overwritten with NULL. Previously the canonical's strength always won; with optional canonical strength, only an explicit canonical strength overrides the offer.
+- Canonical-products list "Strength" column and the offer-form canonical picker label now render `—` / drop the strength fragment when the canonical has no strength set.
+
+### Fixed
+- **Editing a canonical product no longer creates a duplicate row.** The save handler previously dropped the `id` before calling `Supcomp_Canonical_Products_Repo::upsert`, and the repo decided insert-vs-update by looking up the row by `slug`. Changing the slug during edit (or any sanitize-time slug normalization mismatch) caused a new row to be inserted while the original was orphaned. The handler now passes `id` through; the repo prefers id-based update when editing and falls back to slug-based upsert only on the new-row / CSV-import path. A new-slug-conflict check returns an operator-facing error instead of silently merging into another row.
+
+---
+
 ## [1.0.1] — 2026-05-20
 
 ### Added

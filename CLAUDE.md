@@ -112,7 +112,7 @@ Some decisions look like preferences but are actually load-bearing. Surface a qu
 4. **No exact stock quantity.** Status only (`in_stock`/`out_of_stock`/etc.), never counts.
 5. **No raw affiliate URLs in the static JSON.** Buy buttons go through `/out/{offer_id}`.
 6. **No therapeutic or comparative health claims** in any operator-facing template, default copy, or example data. Only factual chemistry/composition language.
-7. **Within-form comparison only.** Different forms (capsule vs powder) are different canonical products. Different standardization percentages are different canonical products.
+7. **Canonical product = ingredient (+ active unit) by default.** As of v1.1.0 a canonical groups all forms and brand strengths of one ingredient unless the operator explicitly pins a form or strength on the canonical row. Cost-per-active-unit is the apples-to-apples metric across forms of the same compound; the table surfaces the per-offer form, total active unit, serving size, and # servings so readers can judge form-specific tradeoffs themselves. Standardization context still belongs at the offer level (or as an optional canonical override). Don't reintroduce "different forms = different canonicals" as a hard rule.
 8. **Cost-per-active-unit, not cost-per-mg-of-compound,** when standardization or elemental percentage matters. The math is in PROJECTBRIEF.md §6.
 
 If a feature request implies changing one of these, surface it before implementing.
