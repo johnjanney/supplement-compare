@@ -1,12 +1,24 @@
 # Extractor — `aggregate_products.py`
 
+> **Legacy as of v1.3.0.** The plugin now ships an in-plugin extractor
+> (currently Shopify-only; Phase C adds Woo, Phase D adds generic JSON-LD)
+> that runs inside WordPress via Action Scheduler. See
+> [`../INSTRUCTIONS.md` §2](../INSTRUCTIONS.md) for the new operator
+> workflow.
+>
+> This Python script is retained for **local-debug use** — running
+> extraction on your laptop without WordPress in the loop, to diagnose
+> what a merchant's endpoint is actually returning. The plugin's in-DB
+> path is the canonical one going forward.
+
 The Python half of Supplement Compare. Talks to merchant storefronts, emits the
 canonical-schema CSV that the WordPress plugin imports. See
 [../PROJECTBRIEF.md §4](../PROJECTBRIEF.md) for the full CSV contract.
 
-The script runs on the operator's local machine. **The WordPress plugin never
-talks to merchant sites directly** — everything goes through the CSV produced
-here.
+The script runs on the operator's local machine. When the in-plugin
+extractor (Phases B+) covers the merchant's platform, prefer it — the
+plugin's pipeline streams directly into the pending queue without the
+CSV intermediary.
 
 ---
 

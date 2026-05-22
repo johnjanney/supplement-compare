@@ -56,11 +56,66 @@ new columns or indexes without disturbing existing data.
 because we'd rather leave orphan tables than risk silently wiping operator
 curation work. See `plugin/uninstall.php` for the deferred decision.
 
-## 2. Running the Python extractor to produce a CSV
+## 2. Refreshing products from inside WordPress (the new way, v1.3.0+)
 
-TBD — refer to [`extractor/README.md`](extractor/README.md) for the script
-invocation; this section will cover the operator's actual workflow (which
-merchants to run against, on what cadence, how to verify output).
+As of v1.3.0 you can extract products directly from WP Admin — no Python,
+no SSH, no CLI. Phase B ships **Shopify** support; Phase C will add
+WooCommerce, Phase D the generic JSON-LD fallback.
+
+**One-time setup per site:**
+
+1. **Add the merchant** under **Supplement Compare → Merchants** if it's
+   not there yet. The merchant row carries the affiliate-URL template
+   that `/out/{id}` redirects use — without a merchant link, extracted
+   offers can be inserted but the Buy buttons won't fire.
+2. **Add the extractor site** under **Supplement Compare → Extractor
+   Sites → Add new**:
+   - **Slug** — short identifier (e.g. `examplestore`).
+   - **Label** — display name.
+   - **Site URL** — the public store URL (e.g. `https://examplestore.com`).
+     The extractor probes `/products.json` under this base for Shopify.
+   - **Platform hint** — leave on `auto` to let the extractor try
+     Shopify first. (Once Phase C ships, `auto` will cascade through
+     Woo and generic JSON-LD.) Pin to a specific platform if a site
+     supports multiple endpoints.
+   - **Merchant** — pick the linked Merchants row. Required for
+     `/out/{id}` to fire downstream.
+   - **Enabled** — leave checked.
+
+**Running an extract:**
+
+- **Per-site**: click **Run now** in the Actions column of the
+  Extractor Sites list. The button queues an Action Scheduler job and
+  returns immediately. Refresh the page after a minute to see the row's
+  Last run / Status / Offers count populate.
+- **All enabled sites**: click **Refresh all enabled** at the top.
+- New offers land in the **Pending Queue** for operator review, same as
+  CSV-uploaded offers. Existing offers update in place; operator edits
+  remain sticky (normalization does not re-run on updates).
+
+**WP-Cron caveat on low-traffic sites.** Action Scheduler ticks on
+visitor requests + WP-Cron. If your site sees hours between visits, a
+queued multi-page run will progress slowly. Fix: sign up for a free
+heartbeat service (cron-job.org or UptimeRobot) and have it hit
+`https://yoursite.com/wp-cron.php` every 5 minutes. Standard workaround
+for web-only WP installs.
+
+**What can go wrong:**
+
+- *"Site has no merchant linked"* on the row → link a Merchants row in
+  the site edit form and re-run.
+- *"Site did not respond to Shopify /products.json (HTTP 404)"* → the
+  site isn't Shopify. Phase B only handles Shopify; wait for Phase C
+  (Woo) or Phase D (generic JSON-LD).
+- *"Action Scheduler did not accept the enqueue"* → AS isn't loading.
+  Check that `plugin/vendor/action-scheduler/action-scheduler.php`
+  shipped with the zip.
+
+**The legacy Python script.** `extractor/aggregate_products.py` is
+retained for local-debug use (running extraction on your laptop without
+WordPress in the loop). It writes a CSV which you then upload via §3
+below. The in-plugin extractor is the canonical path going forward;
+Python is the fallback / debug tool.
 
 ## 3. Uploading a CSV to WordPress
 

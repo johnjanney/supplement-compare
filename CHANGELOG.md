@@ -9,20 +9,29 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 ## [Unreleased]
 
 ### Added
-- **In-plugin extractor — Phase A scaffolding (no user-visible behavior change).** Foundation for the planned port of `extractor/aggregate_products.py` into the WordPress plugin so John can refresh products from web-only WP Admin without needing local Python / SSH / WP-CLI. Phase A lands the plumbing; Phase B (v1.3.0) wires in the Shopify handler + Action Scheduler-driven chunked execution.
-  - Two new tables (`wp_supcomp_extract_sites`, `wp_supcomp_extract_runs`) created by `dbDelta` on schema bump 4 → 5. Sites table carries last-run telemetry (status, offer count, error) so the admin screen renders site health without joining the runs table.
-  - Two new repos (`Supcomp_Extract_Sites_Repo`, `Supcomp_Extract_Runs_Repo`) modelled on the existing `Supcomp_Import_Runs_Repo` pattern.
-  - `Supcomp_Extractor_Http` — `wp_remote_get` wrapper mirroring the Python `get()` helper at `aggregate_products.py:123-164` (retry on {408,429,500,502,503,504}, exponential backoff capped at 30s, 0.5s post-2xx politeness delay). Reusable by all platform handlers in Phase B+.
-  - `Supcomp_Extractor_Offer` value object — the 30-field PROJECTBRIEF §4 schema as a PHP class; `to_row_dict()` produces the same shape `fgetcsv` produces today so offers can be fed directly into the importer without translation.
-  - `Supcomp_CSV_Importer::ingest_rows( array $rows, array $source_meta )` — extracted from `import()`. Pure refactor: the existing admin CSV upload path is unchanged, and Phase B will call `ingest_rows()` directly without producing/parsing a CSV intermediary. `source_meta['source_kind']` flows through to the `supcomp_data_changed` action so cache invalidation listeners can differentiate `csv_import` vs `extractor`.
-  - `Supcomp_Extractor` skeleton orchestrator — `run( $site_ids )` generates a run_id, creates per-site attempt rows in `extract_runs` (status=pending), and returns the id set. Phase B replaces the "do nothing else" body with Action Scheduler enqueue + per-platform handler dispatch.
-  - New admin screen **WP Admin → Supplement Compare → Extractor Sites** for adding/editing/deleting target sites. No "Run now" or scheduling controls yet — those arrive with the actual scraper in Phase B / Phase E.
-
 ### Changed
 ### Deprecated
 ### Removed
 ### Fixed
 ### Security
+
+---
+
+## [1.3.0] — 2026-05-21
+
+### Added
+- **In-plugin extractor — Shopify scraping live (Phase B).** Operator can now refresh Shopify-store offers from WP Admin without needing local Python, SSH, or WP-CLI. Web-only WordPress install is sufficient. WooCommerce handler lands in Phase C; generic JSON-LD fallback in Phase D.
+  - **Vendored Action Scheduler 3.9.3** (GPLv3, github.com/woocommerce/action-scheduler) at `plugin/vendor/action-scheduler/`. AS uses its own version-arbitration shim, so co-existing with WooCommerce or other AS consumers is safe — highest version wins. Adds ~900KB to the plugin zip; AS creates its own tables on first load.
+  - **`Supcomp_Extractor_Shopify`** — direct PHP port of `try_shopify` (Python `aggregate_products.py:237-415`). Same pagination ceiling (50 pages × 250 products), same pricing semantics (`compare_at_price > price` = on sale), same stock derivation (available + qty≤0 + policy=continue = backorder), same Default-Title variant collapse.
+  - **`Supcomp_Extractor_Worker`** — Action Scheduler callback for the `supcomp_extract_page` hook. One AS action per platform page; the worker chains follow-on pages to itself rather than enqueueing all pages up front. Each action stays small enough to finish inside the host's PHP `max_execution_time` budget. State (page number, accumulated counts, store meta) passes through AS args.
+  - **Per-attempt lifecycle**: `extract_runs` rows transition pending → running → complete | failed | canceled. `extract_sites` rows update last_run_at, last_run_status, last_offer_count, last_error after each attempt so the admin screen renders health at a glance.
+  - **Importer refactor**: `Supcomp_CSV_Importer::ingest_rows()` decomposed into `begin_run()` + `ingest_rows_into_run()` + `finalize_run()`, plus a `record_batch_counts()` helper. Multi-page imports now produce one `import_run` row across all pages (instead of one per page), and stale detection is correctly deferred to the final page. CSV admin upload path unchanged — it still calls the convenience `ingest_rows()` wrapper which composes the three primitives.
+  - **Admin: "Run now" + "Refresh all enabled" buttons** on the Extractor Sites screen. "Run now" queues a single AS action for one site; "Refresh all enabled" fans out one per enabled site. Both return immediately — the actual scraping happens out-of-request via AS's queue runner.
+  - **Failure surface**: any site without a linked Merchant fails the attempt immediately with a clear operator-facing error ("link a merchant before re-running") rather than producing offers whose /out/{id} redirect can't fire. Sites whose Shopify probe returns 4xx fail with a "Phase B only supports Shopify; Woo lands in Phase C" message so the operator knows what to expect.
+
+### Notes
+- WP-Cron reliability on low-traffic sites: Action Scheduler ticks on every visitor request (and also via WP-Cron). A personal hobby site with hours between visits will see slow run completion. Mitigation: an external heartbeat service (cron-job.org, UptimeRobot) hitting `yoursite.com/wp-cron.php` every 5 minutes keeps the queue moving. This is the standard workaround for web-only WP installs.
+- The legacy `extractor/aggregate_products.py` is retained for local-debug use; the new in-plugin path is the canonical one going forward. Phase F (v2.0.0) will document the cutover formally.
 
 ---
 

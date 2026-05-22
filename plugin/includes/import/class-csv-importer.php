@@ -67,11 +67,15 @@ class Supcomp_CSV_Importer {
 	}
 
 	/**
-	 * Lower-level entry point shared by the CSV admin upload path (above) and
-	 * the in-plugin extractor (Phase B+). Takes rows that have already had
-	 * `_merchant_id` resolved — callers are responsible for the merchant
-	 * lookup (the CSV validator does it from the `source`+`site` columns;
-	 * the extractor pulls it off the configured site row).
+	 * Lower-level entry point for single-shot imports (CSV admin upload
+	 * path). Takes rows that have already had `_merchant_id` resolved —
+	 * callers are responsible for the merchant lookup. Internally calls
+	 * begin_run + ingest_rows_into_run + finalize_run for callers that
+	 * have all rows in hand at once.
+	 *
+	 * Multi-page imports (extractor Phase B+) call begin_run / ingest_rows_into_run
+	 * / finalize_run directly so a single import_run row spans many pages
+	 * and stale-detection waits for the final page.
 	 *
 	 * @param array $rows          List of row dicts; each must contain at
 	 *                             least `_merchant_id`, `source_product_id`,
@@ -81,30 +85,63 @@ class Supcomp_CSV_Importer {
 	 * @return array Same shape as import().
 	 */
 	public static function ingest_rows( array $rows, array $source_meta = array() ) {
-		$source_meta = wp_parse_args(
-			$source_meta,
+		$source_meta = self::normalize_source_meta( $source_meta );
+		$run_id      = self::begin_run( $source_meta, count( $rows ) );
+		$result      = self::ingest_rows_into_run( $rows, $run_id );
+		$final       = self::finalize_run(
+			$run_id,
 			array(
-				'filename'      => '',
-				'export_run_id' => '',
-				'exported_at'   => '',
-				'source_kind'   => 'csv_import',
-			)
+				'inserted'   => $result['inserted'],
+				'updated'    => $result['updated'],
+				'errored'    => $result['errored'],
+				'row_errors' => $result['row_errors'],
+			),
+			$result['merchant_ids'],
+			$source_meta['source_kind']
 		);
 
-		$row_errors   = array();
-		$inserted     = 0;
-		$updated      = 0;
-		$stale        = 0;
-		$errored      = 0;
-		$merchant_ids = array();
+		return array(
+			'run_id'     => $run_id,
+			'inserted'   => $result['inserted'],
+			'updated'    => $result['updated'],
+			'stale'      => $final['stale'],
+			'errored'    => $result['errored'],
+			'row_errors' => $result['row_errors'],
+		);
+	}
 
-		$run_id = Supcomp_Import_Runs_Repo::create_run( $source_meta['filename'], count( $rows ) );
+	/**
+	 * Open a new import_run row and return its id. The caller may then
+	 * stream rows in via ingest_rows_into_run() one batch at a time and
+	 * finalize the run with finalize_run() once all batches are done.
+	 */
+	public static function begin_run( array $source_meta, $expected_row_count = 0 ) {
+		$source_meta = self::normalize_source_meta( $source_meta );
+		$run_id      = Supcomp_Import_Runs_Repo::create_run( $source_meta['filename'], (int) $expected_row_count );
 		Supcomp_Import_Runs_Repo::set_export_metadata(
 			$run_id,
 			$source_meta['export_run_id'],
 			$source_meta['exported_at']
 		);
 		Supcomp_Import_Runs_Repo::set_status( $run_id, 'importing' );
+		return $run_id;
+	}
+
+	/**
+	 * Process a batch of rows against an already-open import_run. Does NOT
+	 * run the stale detector, does NOT close the run, does NOT fire the
+	 * supcomp_data_changed action — those happen in finalize_run() once the
+	 * caller has streamed in everything.
+	 *
+	 * Returns counts + a map of merchant_ids touched (for the caller to
+	 * accumulate across batches and hand to finalize_run).
+	 */
+	public static function ingest_rows_into_run( array $rows, $run_id ) {
+		$row_errors   = array();
+		$inserted     = 0;
+		$updated      = 0;
+		$errored      = 0;
+		$merchant_ids = array();
 
 		$now = current_time( 'mysql', true );
 
@@ -154,7 +191,35 @@ class Supcomp_CSV_Importer {
 			}
 		}
 
-		// Stale detection only over merchants that participated in this run.
+		return array(
+			'inserted'     => $inserted,
+			'updated'      => $updated,
+			'errored'      => $errored,
+			'row_errors'   => $row_errors,
+			'merchant_ids' => $merchant_ids,
+		);
+	}
+
+	/**
+	 * Close out a multi-batch import run: stale-detect against the merchants
+	 * that participated, write final counts to the run row, set status to
+	 * 'complete', and fire the supcomp_data_changed action.
+	 *
+	 * @param int    $run_id
+	 * @param array  $totals        Accumulated across all batches. Keys:
+	 *                              inserted, updated, errored, row_errors.
+	 * @param array  $merchant_ids  Merged across all batches (map; keys = ids).
+	 * @param string $source_kind   Tagged on the fired action.
+	 * @return array{stale:int}
+	 */
+	public static function finalize_run( $run_id, array $totals, array $merchant_ids, $source_kind = 'csv_import' ) {
+		$run_id     = (int) $run_id;
+		$inserted   = isset( $totals['inserted'] ) ? (int) $totals['inserted'] : 0;
+		$updated    = isset( $totals['updated'] )  ? (int) $totals['updated']  : 0;
+		$errored    = isset( $totals['errored'] )  ? (int) $totals['errored']  : 0;
+		$row_errors = isset( $totals['row_errors'] ) && is_array( $totals['row_errors'] ) ? $totals['row_errors'] : array();
+
+		$stale = 0;
 		if ( ! empty( $merchant_ids ) ) {
 			$stale = Supcomp_Stale_Detector::mark_stale( array_keys( $merchant_ids ), $run_id );
 		}
@@ -169,7 +234,7 @@ class Supcomp_CSV_Importer {
 		do_action(
 			'supcomp_data_changed',
 			array(
-				'source'   => $source_meta['source_kind'],
+				'source'   => $source_kind,
 				'run_id'   => $run_id,
 				'inserted' => $inserted,
 				'updated'  => $updated,
@@ -177,13 +242,37 @@ class Supcomp_CSV_Importer {
 			)
 		);
 
-		return array(
-			'run_id'     => $run_id,
-			'inserted'   => $inserted,
-			'updated'    => $updated,
-			'stale'      => $stale,
-			'errored'    => $errored,
-			'row_errors' => $row_errors,
+		return array( 'stale' => $stale );
+	}
+
+	/**
+	 * Flush per-batch counts to the import_run row. Called by multi-batch
+	 * extractor workers after each batch so the operator can see progress
+	 * mid-run on the import-runs admin screen.
+	 */
+	public static function record_batch_counts( $run_id, $inserted_delta, $updated_delta, $errored_delta ) {
+		$run = Supcomp_Import_Runs_Repo::get( (int) $run_id );
+		if ( ! $run ) {
+			return;
+		}
+		Supcomp_Import_Runs_Repo::update_counts(
+			(int) $run_id,
+			(int) $run->rows_inserted + (int) $inserted_delta,
+			(int) $run->rows_updated  + (int) $updated_delta,
+			(int) $run->rows_marked_stale,
+			(int) $run->rows_errored  + (int) $errored_delta
+		);
+	}
+
+	private static function normalize_source_meta( array $source_meta ) {
+		return wp_parse_args(
+			$source_meta,
+			array(
+				'filename'      => '',
+				'export_run_id' => '',
+				'exported_at'   => '',
+				'source_kind'   => 'csv_import',
+			)
 		);
 	}
 

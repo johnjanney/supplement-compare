@@ -90,7 +90,14 @@ class Supcomp_Plugin {
 
 		require_once $inc . 'extractor/class-extractor-http.php';
 		require_once $inc . 'extractor/class-extractor-offer.php';
+		require_once $inc . 'extractor/class-extractor-shopify.php';
+		require_once $inc . 'extractor/class-extractor-worker.php';
 		require_once $inc . 'extractor/class-extractor.php';
+
+		// AS dispatches on its own hook from a queue runner request — register
+		// the callback unconditionally (not gated on is_admin) so cron-fired
+		// pages can land regardless of where AS is run from.
+		Supcomp_Extractor_Worker::register_hooks();
 	}
 
 	private static function load_admin() {

@@ -3,7 +3,7 @@
  * Plugin Name:       Supplement Compare
  * Plugin URI:        https://example.invalid/
  * Description:       Single-ingredient supplement affiliate comparison engine: CSV import, normalization, curation queue, click tracking, and static JSON export.
- * Version:           1.2.0
+ * Version:           1.3.0
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            Janney Solutions LLC
@@ -16,9 +16,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SUPPLEMENT_COMPARE_VERSION', '1.2.0' );
+define( 'SUPPLEMENT_COMPARE_VERSION', '1.3.0' );
 define( 'SUPPLEMENT_COMPARE_PLUGIN_FILE', __FILE__ );
 define( 'SUPPLEMENT_COMPARE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+
+// Action Scheduler — vendored (GPLv3, github.com/woocommerce/action-scheduler).
+// Loaded before our classes so any plugin file that calls as_enqueue_async_action
+// or hooks into Action Scheduler can do so safely. AS uses a version-arbitration
+// shim: if a later-loading plugin also bundles AS, the highest-versioned copy
+// wins, so vendoring is safe alongside WooCommerce or other AS consumers.
+require_once SUPPLEMENT_COMPARE_PLUGIN_DIR . 'vendor/action-scheduler/action-scheduler.php';
 
 require_once SUPPLEMENT_COMPARE_PLUGIN_DIR . 'includes/class-installer.php';
 // Activator needs Supcomp_Redirect to register the rewrite rule before flush.

@@ -48,11 +48,26 @@ class Supcomp_Extractor {
 				continue;
 			}
 			$attempt_id = Supcomp_Extract_Runs_Repo::create_attempt( $run_id, (int) $site->id, $triggered_by );
-			if ( $attempt_id > 0 ) {
-				$attempt_ids[] = $attempt_id;
-			} else {
+			if ( $attempt_id <= 0 ) {
 				++$skipped;
+				continue;
 			}
+
+			// Fan out one AS action per site at page=1. The worker chains
+			// follow-on pages itself, keeping each individual action small
+			// enough to finish inside the host's PHP execution-time budget.
+			$as_id = Supcomp_Extractor_Worker::enqueue_initial( $attempt_id, $site, $triggered_by );
+			if ( $as_id <= 0 ) {
+				// AS not initialized or refused the enqueue — fail fast so
+				// the operator sees the row didn't actually queue.
+				Supcomp_Extract_Runs_Repo::set_failed(
+					$attempt_id,
+					__( 'Action Scheduler did not accept the enqueue. Check that AS is loaded and the supcomp_extract_page hook is registered.', 'supplement-compare' )
+				);
+				++$skipped;
+				continue;
+			}
+			$attempt_ids[] = $attempt_id;
 		}
 
 		do_action(

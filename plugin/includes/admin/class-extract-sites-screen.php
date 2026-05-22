@@ -22,10 +22,12 @@ class Supcomp_Extract_Sites_Screen {
 	const PAGE_SLUG    = 'supcomp-extract-sites';
 	const NONCE_SAVE   = 'supcomp_save_extract_site';
 	const NONCE_DELETE = 'supcomp_delete_extract_site';
+	const NONCE_RUN    = 'supcomp_run_extract';
 
 	public static function register_hooks() {
 		add_action( 'admin_post_supcomp_save_extract_site',   array( __CLASS__, 'handle_save' ) );
 		add_action( 'admin_post_supcomp_delete_extract_site', array( __CLASS__, 'handle_delete' ) );
+		add_action( 'admin_post_supcomp_run_extract',         array( __CLASS__, 'handle_run' ) );
 	}
 
 	public static function render() {
@@ -55,8 +57,27 @@ class Supcomp_Extract_Sites_Screen {
 		<div class="wrap">
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Extractor Sites', 'supplement-compare' ); ?></h1>
 			<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&action=new' ) ); ?>" class="page-title-action"><?php esc_html_e( 'Add new', 'supplement-compare' ); ?></a>
+			<?php if ( ! empty( $sites ) ) : ?>
+				<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;margin-left:.5em" onsubmit="return confirm('<?php echo esc_js( __( 'Queue a refresh for all enabled sites?', 'supplement-compare' ) ); ?>');">
+					<input type="hidden" name="action" value="supcomp_run_extract">
+					<input type="hidden" name="scope" value="all">
+					<?php wp_nonce_field( self::NONCE_RUN ); ?>
+					<button type="submit" class="page-title-action"><?php esc_html_e( 'Refresh all enabled', 'supplement-compare' ); ?></button>
+				</form>
+			<?php endif; ?>
+
 			<p class="description">
-				<?php esc_html_e( 'Sites the in-plugin extractor will scrape on each run. Phase A: configuration only — scraping itself lands in Phase B.', 'supplement-compare' ); ?>
+				<?php
+				printf(
+					wp_kses(
+						/* translators: %1$s = Shopify keyword bolded; %2$s = Woo */
+						__( 'Sites the in-plugin extractor will scrape. <strong>Phase B (v1.3.0): only %1$s is supported.</strong> %2$s lands in Phase C, generic JSON-LD in Phase D. Each "Refresh" enqueues an Action Scheduler job that runs out-of-request, so the admin returns immediately.', 'supplement-compare' ),
+						array( 'strong' => array() )
+					),
+					'Shopify',
+					'WooCommerce'
+				);
+				?>
 			</p>
 
 			<?php self::render_notice(); ?>
@@ -92,6 +113,10 @@ class Supcomp_Extract_Sites_Screen {
 								<td><?php echo esc_html( $site->last_run_status ? $site->last_run_status : '—' ); ?></td>
 								<td><?php echo $site->last_offer_count !== null ? (int) $site->last_offer_count : '—'; ?></td>
 								<td>
+									<?php if ( (int) $site->enabled === 1 ) : ?>
+										<?php self::render_run_form( (int) $site->id ); ?>
+										&nbsp;|&nbsp;
+									<?php endif; ?>
 									<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG . '&action=edit&id=' . (int) $site->id ) ); ?>"><?php esc_html_e( 'Edit', 'supplement-compare' ); ?></a>
 									&nbsp;|&nbsp;
 									<?php self::render_delete_form( (int) $site->id ); ?>
@@ -109,6 +134,18 @@ class Supcomp_Extract_Sites_Screen {
 				</tbody>
 			</table>
 		</div>
+		<?php
+	}
+
+	private static function render_run_form( $id ) {
+		?>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline">
+			<input type="hidden" name="action" value="supcomp_run_extract">
+			<input type="hidden" name="scope" value="one">
+			<input type="hidden" name="site_id" value="<?php echo (int) $id; ?>">
+			<?php wp_nonce_field( self::NONCE_RUN ); ?>
+			<button type="submit" class="button-link"><?php esc_html_e( 'Run now', 'supplement-compare' ); ?></button>
+		</form>
 		<?php
 	}
 
@@ -251,6 +288,40 @@ class Supcomp_Extract_Sites_Screen {
 		exit;
 	}
 
+	public static function handle_run() {
+		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission.', 'supplement-compare' ) );
+		}
+		check_admin_referer( self::NONCE_RUN );
+
+		$scope = isset( $_POST['scope'] ) ? sanitize_key( wp_unslash( $_POST['scope'] ) ) : 'one';
+		$base  = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+
+		$site_ids = array();
+		if ( $scope === 'one' ) {
+			$id = isset( $_POST['site_id'] ) ? absint( $_POST['site_id'] ) : 0;
+			if ( $id > 0 ) {
+				$site_ids = array( $id );
+			}
+		}
+		// 'all' → pass empty $site_ids, orchestrator picks up all enabled.
+
+		$result = Supcomp_Extractor::run( $site_ids, 'manual' );
+
+		if ( empty( $result['attempt_ids'] ) ) {
+			wp_safe_redirect( add_query_arg( 'supcomp_notice', 'queued_none', $base ) );
+		} else {
+			wp_safe_redirect( add_query_arg(
+				array(
+					'supcomp_notice'        => 'queued',
+					'supcomp_queued_count'  => count( $result['attempt_ids'] ),
+				),
+				$base
+			) );
+		}
+		exit;
+	}
+
 	public static function handle_delete() {
 		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
 			wp_die( esc_html__( 'You do not have permission.', 'supplement-compare' ) );
@@ -283,11 +354,25 @@ class Supcomp_Extract_Sites_Screen {
 			return;
 		}
 		$type     = sanitize_key( wp_unslash( $_GET['supcomp_notice'] ) );
+		$queued_count = isset( $_GET['supcomp_queued_count'] ) ? absint( $_GET['supcomp_queued_count'] ) : 0;
+		$queued_text  = sprintf(
+			/* translators: %d = number of sites queued */
+			_n(
+				'Queued %d site for extraction. Action Scheduler will process it shortly; refresh this page to see status updates.',
+				'Queued %d sites for extraction. Action Scheduler will process them shortly; refresh this page to see status updates.',
+				max( 1, $queued_count ),
+				'supplement-compare'
+			),
+			$queued_count
+		);
+
 		$messages = array(
-			'saved'   => array( 'success', __( 'Site updated.', 'supplement-compare' ) ),
-			'created' => array( 'success', __( 'Site added.', 'supplement-compare' ) ),
-			'deleted' => array( 'success', __( 'Site deleted.', 'supplement-compare' ) ),
-			'error'   => array( 'error',   __( 'Something went wrong — check that slug is unique and URL is well-formed.', 'supplement-compare' ) ),
+			'saved'       => array( 'success', __( 'Site updated.', 'supplement-compare' ) ),
+			'created'     => array( 'success', __( 'Site added.', 'supplement-compare' ) ),
+			'deleted'     => array( 'success', __( 'Site deleted.', 'supplement-compare' ) ),
+			'queued'      => array( 'success', $queued_text ),
+			'queued_none' => array( 'warning', __( 'No sites were queued — check that at least one site is enabled and that Action Scheduler is loaded.', 'supplement-compare' ) ),
+			'error'       => array( 'error',   __( 'Something went wrong — check that slug is unique and URL is well-formed.', 'supplement-compare' ) ),
 		);
 		if ( ! isset( $messages[ $type ] ) ) {
 			return;

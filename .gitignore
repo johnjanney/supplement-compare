@@ -1,5 +1,11 @@
-# Composer (WordPress plugins often vendor third-party libs here)
+# Composer (WordPress plugins often vendor third-party libs here).
+# Action Scheduler is explicitly checked in — it ships with the plugin
+# zip so installers don't need Composer. Future Composer-installed deps
+# stay ignored.
 vendor/
+!plugin/vendor/
+!plugin/vendor/action-scheduler/
+!plugin/vendor/action-scheduler/**
 
 # Node
 node_modules/
