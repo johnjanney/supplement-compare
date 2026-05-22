@@ -49,7 +49,48 @@ class Supcomp_CSV_Importer {
 			)
 		);
 
-		$rows         = $validated['rows'];
+		$rows = $validated['rows'];
+
+		if ( $args['dry_run'] ) {
+			return self::dry_run_summary( $rows );
+		}
+
+		return self::ingest_rows(
+			$rows,
+			array(
+				'filename'      => (string) $args['filename'],
+				'export_run_id' => isset( $validated['export_run_id'] ) ? (string) $validated['export_run_id'] : '',
+				'exported_at'   => isset( $validated['exported_at'] ) ? (string) $validated['exported_at'] : '',
+				'source_kind'   => 'csv_import',
+			)
+		);
+	}
+
+	/**
+	 * Lower-level entry point shared by the CSV admin upload path (above) and
+	 * the in-plugin extractor (Phase B+). Takes rows that have already had
+	 * `_merchant_id` resolved — callers are responsible for the merchant
+	 * lookup (the CSV validator does it from the `source`+`site` columns;
+	 * the extractor pulls it off the configured site row).
+	 *
+	 * @param array $rows          List of row dicts; each must contain at
+	 *                             least `_merchant_id`, `source_product_id`,
+	 *                             and optionally `source_variant_id`.
+	 * @param array $source_meta   'filename', 'export_run_id', 'exported_at',
+	 *                             'source_kind' (csv_import|extractor|api).
+	 * @return array Same shape as import().
+	 */
+	public static function ingest_rows( array $rows, array $source_meta = array() ) {
+		$source_meta = wp_parse_args(
+			$source_meta,
+			array(
+				'filename'      => '',
+				'export_run_id' => '',
+				'exported_at'   => '',
+				'source_kind'   => 'csv_import',
+			)
+		);
+
 		$row_errors   = array();
 		$inserted     = 0;
 		$updated      = 0;
@@ -57,37 +98,11 @@ class Supcomp_CSV_Importer {
 		$errored      = 0;
 		$merchant_ids = array();
 
-		if ( $args['dry_run'] ) {
-			// Without writes we can still report what *would* happen: every
-			// row would either insert (no existing match) or update (existing).
-			foreach ( $rows as $row_num => $row ) {
-				$existing = Supcomp_Offers_Repo::find_by_natural_key(
-					$row['_merchant_id'],
-					(string) $row['source_product_id'],
-					(string) ( $row['source_variant_id'] ?? '' )
-				);
-				if ( $existing ) {
-					++$updated;
-				} else {
-					++$inserted;
-				}
-				$merchant_ids[ $row['_merchant_id'] ] = true;
-			}
-			return array(
-				'run_id'     => 0,
-				'inserted'   => $inserted,
-				'updated'    => $updated,
-				'stale'      => 0, // dry-run does not project stale counts (would require a hypothetical run id)
-				'errored'    => 0,
-				'row_errors' => array(),
-			);
-		}
-
-		$run_id = Supcomp_Import_Runs_Repo::create_run( $args['filename'], count( $rows ) );
+		$run_id = Supcomp_Import_Runs_Repo::create_run( $source_meta['filename'], count( $rows ) );
 		Supcomp_Import_Runs_Repo::set_export_metadata(
 			$run_id,
-			$validated['export_run_id'],
-			$validated['exported_at']
+			$source_meta['export_run_id'],
+			$source_meta['exported_at']
 		);
 		Supcomp_Import_Runs_Repo::set_status( $run_id, 'importing' );
 
@@ -147,14 +162,14 @@ class Supcomp_CSV_Importer {
 		Supcomp_Import_Runs_Repo::update_counts( $run_id, $inserted, $updated, $stale, $errored );
 		Supcomp_Import_Runs_Repo::set_status(
 			$run_id,
-			$errored > 0 ? 'complete' : 'complete',
+			'complete',
 			self::truncate_error_log( $row_errors )
 		);
 
 		do_action(
 			'supcomp_data_changed',
 			array(
-				'source'   => 'csv_import',
+				'source'   => $source_meta['source_kind'],
 				'run_id'   => $run_id,
 				'inserted' => $inserted,
 				'updated'  => $updated,
@@ -169,6 +184,36 @@ class Supcomp_CSV_Importer {
 			'stale'      => $stale,
 			'errored'    => $errored,
 			'row_errors' => $row_errors,
+		);
+	}
+
+	/**
+	 * Dry-run path: report what the importer *would* do without writing.
+	 * Pulled out of import() so callers can decide whether to dry-run vs
+	 * call ingest_rows() directly.
+	 */
+	private static function dry_run_summary( array $rows ) {
+		$inserted = 0;
+		$updated  = 0;
+		foreach ( $rows as $row ) {
+			$existing = Supcomp_Offers_Repo::find_by_natural_key(
+				$row['_merchant_id'],
+				(string) $row['source_product_id'],
+				(string) ( $row['source_variant_id'] ?? '' )
+			);
+			if ( $existing ) {
+				++$updated;
+			} else {
+				++$inserted;
+			}
+		}
+		return array(
+			'run_id'     => 0,
+			'inserted'   => $inserted,
+			'updated'    => $updated,
+			'stale'      => 0,
+			'errored'    => 0,
+			'row_errors' => array(),
 		);
 	}
 

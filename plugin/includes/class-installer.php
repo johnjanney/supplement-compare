@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '4';
+	const SCHEMA_VERSION = '5';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -61,6 +61,16 @@ class Supcomp_Installer {
 		'validating', 'importing', 'complete', 'failed', 'rolled_back',
 	);
 
+	const EXTRACT_SITE_PLATFORM_HINTS = array(
+		'auto', 'shopify', 'woocommerce', 'generic',
+	);
+	const EXTRACT_RUN_STATUSES = array(
+		'pending', 'running', 'complete', 'failed', 'canceled',
+	);
+	const EXTRACT_RUN_TRIGGERS = array(
+		'manual', 'schedule', 'api',
+	);
+
 	/**
 	 * Runs on plugin activation. Also called by maybe_upgrade() when the
 	 * stored schema version is older than SCHEMA_VERSION (e.g. after a
@@ -82,6 +92,8 @@ class Supcomp_Installer {
 			self::normalized_offers_sql( $prefix, $cc ),
 			self::price_history_sql( $prefix, $cc ),
 			self::click_log_sql( $prefix, $cc ),
+			self::extract_sites_sql( $prefix, $cc ),
+			self::extract_runs_sql( $prefix, $cc ),
 		);
 
 		foreach ( $statements as $sql ) {
@@ -292,6 +304,48 @@ class Supcomp_Installer {
 			KEY offer_changed (offer_id, changed_at),
 			KEY import_run_id (import_run_id),
 			KEY changed_at (changed_at)
+		) {$cc};";
+	}
+
+	private static function extract_sites_sql( $prefix, $cc ) {
+		return "CREATE TABLE {$prefix}extract_sites (
+			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			slug VARCHAR(64) NOT NULL,
+			label VARCHAR(255) NOT NULL DEFAULT '',
+			site_url VARCHAR(512) NOT NULL,
+			platform_hint VARCHAR(32) NOT NULL DEFAULT 'auto',
+			merchant_id BIGINT(20) UNSIGNED NULL,
+			enabled TINYINT(1) NOT NULL DEFAULT 1,
+			last_run_at DATETIME NULL,
+			last_run_status VARCHAR(32) NULL,
+			last_error TEXT NULL,
+			last_offer_count INT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY slug (slug),
+			KEY enabled (enabled),
+			KEY merchant_id (merchant_id)
+		) {$cc};";
+	}
+
+	private static function extract_runs_sql( $prefix, $cc ) {
+		return "CREATE TABLE {$prefix}extract_runs (
+			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			run_id VARCHAR(64) NOT NULL,
+			site_id BIGINT(20) UNSIGNED NULL,
+			platform_used VARCHAR(32) NULL,
+			started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			finished_at DATETIME NULL,
+			status VARCHAR(32) NOT NULL DEFAULT 'pending',
+			offer_count INT NOT NULL DEFAULT 0,
+			error_text LONGTEXT NULL,
+			triggered_by VARCHAR(32) NOT NULL DEFAULT 'manual',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			KEY run_id (run_id),
+			KEY site_started (site_id, started_at),
+			KEY status_started (status, started_at)
 		) {$cc};";
 	}
 

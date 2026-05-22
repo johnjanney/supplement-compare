@@ -28,14 +28,15 @@ class Supcomp_Admin {
 		);
 
 		$submenus = array(
-			array( 'supcomp-pending',    __( 'Pending Queue', 'supplement-compare' ),       array( 'Supcomp_Pending_Queue_Screen', 'render' ) ),
-			array( 'supcomp-active',     __( 'Active Offers', 'supplement-compare' ),       array( 'Supcomp_Active_Offers_Screen', 'render' ) ),
-			array( 'supcomp-import',     __( 'Import', 'supplement-compare' ),              array( 'Supcomp_Import_Screen', 'render' ) ),
-			array( 'supcomp-merchants',  __( 'Merchants', 'supplement-compare' ),           array( 'Supcomp_Merchants_Screen', 'render' ) ),
-			array( 'supcomp-ingredients',__( 'Ingredients', 'supplement-compare' ),         array( 'Supcomp_Ingredients_Screen', 'render' ) ),
-			array( 'supcomp-canonical',  __( 'Canonical Products', 'supplement-compare' ),  array( 'Supcomp_Canonical_Products_Screen', 'render' ) ),
-			array( 'supcomp-clicks',     __( 'Clicks', 'supplement-compare' ),              array( 'Supcomp_Clicks_Screen', 'render' ) ),
-			array( 'supcomp-settings',   __( 'Settings', 'supplement-compare' ),            array( 'Supcomp_Settings', 'render' ) ),
+			array( 'supcomp-pending',        __( 'Pending Queue', 'supplement-compare' ),       array( 'Supcomp_Pending_Queue_Screen', 'render' ) ),
+			array( 'supcomp-active',         __( 'Active Offers', 'supplement-compare' ),       array( 'Supcomp_Active_Offers_Screen', 'render' ) ),
+			array( 'supcomp-import',         __( 'Import', 'supplement-compare' ),              array( 'Supcomp_Import_Screen', 'render' ) ),
+			array( 'supcomp-extract-sites',  __( 'Extractor Sites', 'supplement-compare' ),     array( 'Supcomp_Extract_Sites_Screen', 'render' ) ),
+			array( 'supcomp-merchants',      __( 'Merchants', 'supplement-compare' ),           array( 'Supcomp_Merchants_Screen', 'render' ) ),
+			array( 'supcomp-ingredients',    __( 'Ingredients', 'supplement-compare' ),         array( 'Supcomp_Ingredients_Screen', 'render' ) ),
+			array( 'supcomp-canonical',      __( 'Canonical Products', 'supplement-compare' ),  array( 'Supcomp_Canonical_Products_Screen', 'render' ) ),
+			array( 'supcomp-clicks',         __( 'Clicks', 'supplement-compare' ),              array( 'Supcomp_Clicks_Screen', 'render' ) ),
+			array( 'supcomp-settings',       __( 'Settings', 'supplement-compare' ),            array( 'Supcomp_Settings', 'render' ) ),
 		);
 
 		foreach ( $submenus as $row ) {

@@ -9,6 +9,15 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 ## [Unreleased]
 
 ### Added
+- **In-plugin extractor — Phase A scaffolding (no user-visible behavior change).** Foundation for the planned port of `extractor/aggregate_products.py` into the WordPress plugin so John can refresh products from web-only WP Admin without needing local Python / SSH / WP-CLI. Phase A lands the plumbing; Phase B (v1.3.0) wires in the Shopify handler + Action Scheduler-driven chunked execution.
+  - Two new tables (`wp_supcomp_extract_sites`, `wp_supcomp_extract_runs`) created by `dbDelta` on schema bump 4 → 5. Sites table carries last-run telemetry (status, offer count, error) so the admin screen renders site health without joining the runs table.
+  - Two new repos (`Supcomp_Extract_Sites_Repo`, `Supcomp_Extract_Runs_Repo`) modelled on the existing `Supcomp_Import_Runs_Repo` pattern.
+  - `Supcomp_Extractor_Http` — `wp_remote_get` wrapper mirroring the Python `get()` helper at `aggregate_products.py:123-164` (retry on {408,429,500,502,503,504}, exponential backoff capped at 30s, 0.5s post-2xx politeness delay). Reusable by all platform handlers in Phase B+.
+  - `Supcomp_Extractor_Offer` value object — the 30-field PROJECTBRIEF §4 schema as a PHP class; `to_row_dict()` produces the same shape `fgetcsv` produces today so offers can be fed directly into the importer without translation.
+  - `Supcomp_CSV_Importer::ingest_rows( array $rows, array $source_meta )` — extracted from `import()`. Pure refactor: the existing admin CSV upload path is unchanged, and Phase B will call `ingest_rows()` directly without producing/parsing a CSV intermediary. `source_meta['source_kind']` flows through to the `supcomp_data_changed` action so cache invalidation listeners can differentiate `csv_import` vs `extractor`.
+  - `Supcomp_Extractor` skeleton orchestrator — `run( $site_ids )` generates a run_id, creates per-site attempt rows in `extract_runs` (status=pending), and returns the id set. Phase B replaces the "do nothing else" body with Action Scheduler enqueue + per-platform handler dispatch.
+  - New admin screen **WP Admin → Supplement Compare → Extractor Sites** for adding/editing/deleting target sites. No "Run now" or scheduling controls yet — those arrive with the actual scraper in Phase B / Phase E.
+
 ### Changed
 ### Deprecated
 ### Removed

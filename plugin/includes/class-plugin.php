@@ -71,6 +71,8 @@ class Supcomp_Plugin {
 		require_once $inc . 'db/class-canonical-products-repo.php';
 		require_once $inc . 'db/class-import-runs-repo.php';
 		require_once $inc . 'db/class-price-history-repo.php';
+		require_once $inc . 'db/class-extract-sites-repo.php';
+		require_once $inc . 'db/class-extract-runs-repo.php';
 
 		require_once $inc . 'import/class-canonical-csv-importer.php';
 		require_once $inc . 'import/class-csv-validator.php';
@@ -85,6 +87,10 @@ class Supcomp_Plugin {
 		require_once $inc . 'normalization/class-offer-derivations.php';
 
 		require_once $inc . 'import/class-csv-importer.php';
+
+		require_once $inc . 'extractor/class-extractor-http.php';
+		require_once $inc . 'extractor/class-extractor-offer.php';
+		require_once $inc . 'extractor/class-extractor.php';
 	}
 
 	private static function load_admin() {
@@ -100,6 +106,7 @@ class Supcomp_Plugin {
 		require_once $admin_dir . 'class-pending-queue-screen.php';
 		require_once $admin_dir . 'class-active-offers-screen.php';
 		require_once $admin_dir . 'class-clicks-screen.php';
+		require_once $admin_dir . 'class-extract-sites-screen.php';
 
 		add_action( 'admin_menu', array( 'Supcomp_Admin', 'register_menu' ) );
 		add_action( 'admin_init', array( 'Supcomp_Settings', 'register' ) );
@@ -114,5 +121,6 @@ class Supcomp_Plugin {
 		Supcomp_Pending_Queue_Screen::register_hooks();
 		Supcomp_Offer_Form::register_hooks();
 		Supcomp_Settings::register_hooks();
+		Supcomp_Extract_Sites_Screen::register_hooks();
 	}
 }
