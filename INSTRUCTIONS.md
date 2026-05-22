@@ -59,8 +59,8 @@ curation work. See `plugin/uninstall.php` for the deferred decision.
 ## 2. Refreshing products from inside WordPress (the new way, v1.3.0+)
 
 As of v1.3.0 you can extract products directly from WP Admin — no Python,
-no SSH, no CLI. Phase B ships **Shopify** support; Phase C will add
-WooCommerce, Phase D the generic JSON-LD fallback.
+no SSH, no CLI. **v1.4.0** adds WooCommerce alongside Shopify; Phase D
+will add the generic JSON-LD fallback.
 
 **One-time setup per site:**
 
@@ -73,11 +73,12 @@ WooCommerce, Phase D the generic JSON-LD fallback.
    - **Slug** — short identifier (e.g. `examplestore`).
    - **Label** — display name.
    - **Site URL** — the public store URL (e.g. `https://examplestore.com`).
-     The extractor probes `/products.json` under this base for Shopify.
-   - **Platform hint** — leave on `auto` to let the extractor try
-     Shopify first. (Once Phase C ships, `auto` will cascade through
-     Woo and generic JSON-LD.) Pin to a specific platform if a site
-     supports multiple endpoints.
+     The extractor probes `/products.json` (Shopify) and
+     `/wp-json/wc/store/v1/products` (Woo) under this base.
+   - **Platform hint** — leave on `auto` to let the extractor cascade
+     Shopify → Woo (and eventually generic JSON-LD in Phase D). Pin to
+     a specific platform if a site supports multiple endpoints or you
+     want to skip the probe overhead.
    - **Merchant** — pick the linked Merchants row. Required for
      `/out/{id}` to fire downstream.
    - **Enabled** — leave checked.
@@ -104,9 +105,15 @@ for web-only WP installs.
 
 - *"Site has no merchant linked"* on the row → link a Merchants row in
   the site edit form and re-run.
-- *"Site did not respond to Shopify /products.json (HTTP 404)"* → the
-  site isn't Shopify. Phase B only handles Shopify; wait for Phase C
-  (Woo) or Phase D (generic JSON-LD).
+- *"Auto-detect failed: neither Shopify nor WooCommerce endpoints
+  responded with a product list"* → the site doesn't expose either
+  public API. Wait for Phase D (generic JSON-LD) or use the legacy
+  Python extractor against the site and upload its CSV via §3.
+- *"Woo probe: not_woo (HTTP 404)"* on a site you know runs Woo →
+  the merchant has the **Cart and Checkout Blocks** disabled, which
+  also disables the Store API. There's nothing the plugin can do; ask
+  the merchant to enable the Blocks bundle, or fall back to the Python
+  extractor + CSV upload.
 - *"Action Scheduler did not accept the enqueue"* → AS isn't loading.
   Check that `plugin/vendor/action-scheduler/action-scheduler.php`
   shipped with the zip.

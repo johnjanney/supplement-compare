@@ -17,6 +17,23 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.4.0] — 2026-05-22
+
+### Added
+- **In-plugin extractor — WooCommerce (Phase C).** WP Admin can now refresh offers from Woo stores in addition to Shopify. Generic JSON-LD fallback remains for Phase D.
+  - **`Supcomp_Extractor_Woo`** — port of `try_woocommerce` (`extractor/aggregate_products.py:418-794`). Calls the public `/wp-json/wc/store/v1/products` endpoint at `per_page=100`, inline-fetches `/products/{id}/variations` for variable products, and falls back to a single parent row with `variation_retrieval_status=fallback_parent_only` if the variations endpoint fails. Brand resolution walks `product.brands[0].name`, then attributes-named-`brand` (terms first, then options). Barcode is `global_unique_id` (GTIN/UPC/EAN) only — the legacy `meta_data` path is not on the public Store API.
+  - **Price decoding** mirrors `_woo_decimal`: Woo Store API prices arrive as minor-unit integers (e.g. `"3900"` with `currency_minor_unit=2` → `"39.00"`); plugin-customized endpoints sometimes return already-decimal strings, which we detect by the presence of `"."` in the raw value and pass through quantized.
+  - **on_sale gating**: `sale_price` is only populated when `on_sale=true` AND the raw sale value differs from `regular_price`. Suppresses stale sale prices that some stores leave on the row after a promotion ends.
+  - **Variation URL synthesis** is a careful port of `_woo_variation_url`. Builds `?attribute_<taxonomy>=<value>` query params by matching variation attributes back to parent attribute taxonomies (by id first, then by lowercased name). Uses manual query-string assembly instead of `http_build_query` so duplicate keys serialize correctly (`http_build_query` would emit `attr[0]=...` for duplicates, which WooCommerce's permalink resolver doesn't honor).
+  - **Worker cascade**: `Supcomp_Extractor_Worker` now runs page-1 detection across platforms based on `platform_hint`. `auto` tries Shopify first, then Woo. `shopify` / `woocommerce` pins to one. The handler that wins page 1 is recorded in `state['platform_used']` and reused for follow-on pages so the cascade only runs once per attempt. Pagination ceiling is per-platform (Shopify: 250/page × 50 pages; Woo: 100/page × 50 pages).
+  - Admin screen description copy refreshed: "Phase C (v1.4.0): Shopify and WooCommerce are supported. Generic JSON-LD lands in Phase D."
+  - Smoke-tested against `https://woocommerce.com` (which runs the Store API for their own product catalog): 100 products fetched, all 31 schema fields populated, prices decoded correctly from minor-unit integers, stock status derived correctly. Variation paths are 1:1 ports from working Python; first-run against an operator's real Woo merchant will exercise them in production.
+
+### Notes
+- Per-page execution-time risk on shared hosting: when a Woo page contains many variable products, inline variation fetches accumulate. 50 variations × (1s fetch + 0.5s politeness) = 75s, well over typical PHP `max_execution_time = 30s`. AS retries on timeout will re-fetch the page from the start; idempotency is preserved via the natural-key `(merchant_id, source_product_id, source_variant_id)` lookup, so retries update rather than duplicate. If a real merchant trips this, the right fix is a soft-deadline cursor that splits mid-page processing across follow-on AS actions — flagged as a v1.4.x follow-up if it surfaces in practice.
+
+---
+
 ## [1.3.0] — 2026-05-21
 
 ### Added

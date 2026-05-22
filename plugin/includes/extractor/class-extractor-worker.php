@@ -94,27 +94,36 @@ class Supcomp_Extractor_Worker {
 			return;
 		}
 
-		// Resolve handler. Phase B only does Shopify (or 'auto' → tries Shopify).
+		// Resolve handler. Phase C ships Shopify and Woo; 'auto' tries Shopify
+		// first, then Woo. 'generic' lands in Phase D.
 		$hint = $state['platform_hint'] !== '' ? $state['platform_hint'] : 'auto';
-		if ( ! in_array( $hint, array( 'shopify', 'auto' ), true ) ) {
+		if ( ! in_array( $hint, array( 'shopify', 'woocommerce', 'auto' ), true ) ) {
 			self::fail_attempt(
 				$state,
 				sprintf(
 					/* translators: %s = platform name */
-					__( 'Platform "%s" is not yet supported. Phase B ships Shopify; Woo lands in Phase C, generic in Phase D.', 'supplement-compare' ),
+					__( 'Platform "%s" is not yet supported. Generic JSON-LD lands in Phase D.', 'supplement-compare' ),
 					$hint
 				)
 			);
 			return;
 		}
 
-		// On page 1: cache store meta, generate run_id, open import_run.
+		// On page 1: pick the platform, fetch store meta, open import_run.
+		// Follow-on pages inherit state['platform_used'] from the first page
+		// so the cascade only runs once per attempt.
 		if ( (int) $state['page'] === 1 ) {
-			$meta = Supcomp_Extractor_Shopify::fetch_store_meta( $state['site_url'] );
-			$state['store_name']    = $meta['store_name'];
-			$state['currency']      = $meta['currency'];
 			$state['export_run_id'] = (string) $attempt->run_id;
 			$state['exported_at']   = current_time( 'c', true );
+
+			$detect = self::detect_and_fetch_first_page( $state, $hint );
+			if ( $detect === null ) {
+				// Detection failed — finalize_attempt_failed was called inside.
+				return;
+			}
+			$state['platform_used'] = $detect['platform_used'];
+			$state['store_name']    = $detect['store_name'];
+			$state['currency']      = $detect['currency'];
 			$state['import_run_id'] = (int) Supcomp_CSV_Importer::begin_run(
 				array(
 					'filename'      => sprintf( 'extractor:%s', $state['site_slug'] ),
@@ -123,30 +132,11 @@ class Supcomp_Extractor_Worker {
 					'source_kind'   => 'extractor',
 				)
 			);
+			$page_result = $detect['page_result'];
+		} else {
+			// Follow-on page: dispatch to the locked-in platform.
+			$page_result = self::fetch_page_for_platform( $state );
 		}
-
-		// Fetch the page.
-		$page_result = Supcomp_Extractor_Shopify::fetch_page(
-			$state['site_url'],
-			(int) $state['page'],
-			$state['export_run_id'],
-			$state['exported_at'],
-			$state['store_name'],
-			$state['currency']
-		);
-
-		// Page 1 platform-detect: if Shopify probe returns not_shopify or http_error,
-		// the site genuinely isn't Shopify (or unreachable). Phase B fails here;
-		// Phase C will fall through to Woo on this branch.
-		if ( (int) $state['page'] === 1 && in_array( $page_result['status'], array( 'not_shopify', 'http_error', 'empty' ), true ) ) {
-			$msg = $page_result['status'] === 'not_shopify'
-				? sprintf( __( 'Site did not respond to Shopify /products.json (HTTP %d). Phase B only supports Shopify. Woo handler lands in Phase C.', 'supplement-compare' ), (int) $page_result['http_status'] )
-				: sprintf( __( 'HTTP error fetching /products.json (status %d).', 'supplement-compare' ), (int) $page_result['http_status'] );
-			self::finalize_attempt_failed( $state, $msg );
-			return;
-		}
-
-		$state['platform_used'] = 'shopify';
 
 		// Inject _merchant_id into every row so the importer can persist them.
 		$rows = array();
@@ -188,9 +178,10 @@ class Supcomp_Extractor_Worker {
 		);
 
 		// Continue paginating if the page came back full and we're under the cap.
+		list( $page_size, $max_pages ) = self::pagination_for( $state['platform_used'] );
 		$is_final_page = (
-			(int) $page_result['batch_size'] < Supcomp_Extractor_Shopify::PAGE_SIZE
-			|| (int) $state['page'] >= Supcomp_Extractor_Shopify::MAX_PAGES
+			(int) $page_result['batch_size'] < $page_size
+			|| (int) $state['page'] >= $max_pages
 		);
 
 		if ( ! $is_final_page ) {
@@ -270,5 +261,127 @@ class Supcomp_Extractor_Worker {
 			0,
 			(string) $message
 		);
+	}
+
+	/**
+	 * Run the page-1 detection cascade. Returns the platform that succeeded,
+	 * its store meta, and its first page of rows. Returns null if all
+	 * applicable handlers fail; in that case finalize_attempt_failed has
+	 * already been called with a clear operator message.
+	 *
+	 * Order is hinted by the operator's platform_hint:
+	 *   - 'shopify' → Shopify only.
+	 *   - 'woocommerce' → Woo only.
+	 *   - 'auto' → Shopify, then Woo. (Phase D will append generic.)
+	 *
+	 * @return array{
+	 *     platform_used:string,
+	 *     store_name:string,
+	 *     currency:string,
+	 *     page_result:array,
+	 * }|null
+	 */
+	private static function detect_and_fetch_first_page( array &$state, $hint ) {
+		$try_shopify = ( $hint === 'shopify' || $hint === 'auto' );
+		$try_woo     = ( $hint === 'woocommerce' || $hint === 'auto' );
+
+		$last_failure = '';
+
+		if ( $try_shopify ) {
+			$meta = Supcomp_Extractor_Shopify::fetch_store_meta( $state['site_url'] );
+			$page = Supcomp_Extractor_Shopify::fetch_page(
+				$state['site_url'], 1,
+				$state['export_run_id'], $state['exported_at'],
+				$meta['store_name'], $meta['currency']
+			);
+			if ( $page['status'] === 'ok' ) {
+				return array(
+					'platform_used' => 'shopify',
+					'store_name'    => $meta['store_name'],
+					'currency'      => $meta['currency'],
+					'page_result'   => $page,
+				);
+			}
+			$last_failure = sprintf(
+				/* translators: 1: status, 2: HTTP code */
+				__( 'Shopify probe: %1$s (HTTP %2$d).', 'supplement-compare' ),
+				$page['status'],
+				(int) $page['http_status']
+			);
+		}
+
+		if ( $try_woo ) {
+			$meta = Supcomp_Extractor_Woo::fetch_store_meta( $state['site_url'] );
+			$page = Supcomp_Extractor_Woo::fetch_page(
+				$state['site_url'], 1,
+				$state['export_run_id'], $state['exported_at'],
+				$meta['store_name']
+			);
+			if ( $page['status'] === 'ok' ) {
+				return array(
+					'platform_used' => 'woocommerce',
+					'store_name'    => $meta['store_name'],
+					'currency'      => $meta['currency'],
+					'page_result'   => $page,
+				);
+			}
+			$woo_msg = sprintf(
+				/* translators: 1: status, 2: HTTP code */
+				__( 'Woo probe: %1$s (HTTP %2$d).', 'supplement-compare' ),
+				$page['status'],
+				(int) $page['http_status']
+			);
+			$last_failure = $last_failure !== '' ? ( $last_failure . ' ' . $woo_msg ) : $woo_msg;
+		}
+
+		$msg = $hint === 'auto'
+			? sprintf(
+				__( 'Auto-detect failed: neither Shopify nor WooCommerce endpoints responded with a product list. %s Generic JSON-LD lands in Phase D.', 'supplement-compare' ),
+				$last_failure
+			)
+			: sprintf(
+				/* translators: 1: platform, 2: detail */
+				__( '%1$s endpoint did not return products. %2$s', 'supplement-compare' ),
+				$hint,
+				$last_failure
+			);
+
+		self::finalize_attempt_failed( $state, $msg );
+		return null;
+	}
+
+	/**
+	 * Fetch a follow-on page (page > 1) for the platform that won the page-1
+	 * cascade. Reads state['platform_used'].
+	 */
+	private static function fetch_page_for_platform( array $state ) {
+		if ( $state['platform_used'] === 'woocommerce' ) {
+			return Supcomp_Extractor_Woo::fetch_page(
+				$state['site_url'],
+				(int) $state['page'],
+				$state['export_run_id'],
+				$state['exported_at'],
+				$state['store_name']
+			);
+		}
+		// Default to Shopify (covers 'shopify' and legacy state without the field).
+		return Supcomp_Extractor_Shopify::fetch_page(
+			$state['site_url'],
+			(int) $state['page'],
+			$state['export_run_id'],
+			$state['exported_at'],
+			$state['store_name'],
+			$state['currency']
+		);
+	}
+
+	/**
+	 * Per-platform pagination ceiling (page size, max pages).
+	 */
+	private static function pagination_for( $platform_used ) {
+		if ( $platform_used === 'woocommerce' ) {
+			return array( Supcomp_Extractor_Woo::PAGE_SIZE, Supcomp_Extractor_Woo::MAX_PAGES );
+		}
+		return array( Supcomp_Extractor_Shopify::PAGE_SIZE, Supcomp_Extractor_Shopify::MAX_PAGES );
 	}
 }

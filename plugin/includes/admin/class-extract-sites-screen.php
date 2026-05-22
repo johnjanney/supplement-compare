@@ -68,14 +68,9 @@ class Supcomp_Extract_Sites_Screen {
 
 			<p class="description">
 				<?php
-				printf(
-					wp_kses(
-						/* translators: %1$s = Shopify keyword bolded; %2$s = Woo */
-						__( 'Sites the in-plugin extractor will scrape. <strong>Phase B (v1.3.0): only %1$s is supported.</strong> %2$s lands in Phase C, generic JSON-LD in Phase D. Each "Refresh" enqueues an Action Scheduler job that runs out-of-request, so the admin returns immediately.', 'supplement-compare' ),
-						array( 'strong' => array() )
-					),
-					'Shopify',
-					'WooCommerce'
+				echo wp_kses(
+					__( 'Sites the in-plugin extractor will scrape. <strong>Phase C (v1.4.0): Shopify and WooCommerce are supported.</strong> Generic JSON-LD lands in Phase D. Each "Refresh" enqueues an Action Scheduler job that runs out-of-request, so the admin returns immediately.', 'supplement-compare' ),
+					array( 'strong' => array() )
 				);
 				?>
 			</p>
