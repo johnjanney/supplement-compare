@@ -98,13 +98,18 @@ class Supcomp_Shortcode {
 			true
 		);
 
+		$compare_view = (string) get_option( 'supcomp_default_compare_view', 'cost_per_active_unit' );
+		if ( ! in_array( $compare_view, array( 'cost_per_serving', 'cost_per_active_unit' ), true ) ) {
+			$compare_view = 'cost_per_active_unit';
+		}
+
 		wp_localize_script(
 			self::SCRIPT_HANDLE,
 			'supcompFrontend',
 			array(
 				'jsonUrl'             => $json_url,
 				'affiliateDisclosure' => (string) get_option( 'supcomp_affiliate_disclosure', '' ),
-				'defaultCompareView'  => Supcomp_Settings::sanitize_compare_view( get_option( 'supcomp_default_compare_view', 'cost_per_active_unit' ) ),
+				'defaultCompareView'  => $compare_view,
 				'i18n'                => self::i18n_strings(),
 			)
 		);
