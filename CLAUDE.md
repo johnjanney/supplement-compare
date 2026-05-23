@@ -144,13 +144,25 @@ These are not negotiable — WordPress security and ecosystem norms.
 
 ---
 
-## Python conventions (extractor)
+## Python conventions (legacy extractor)
+
+As of v1.8.0 (Phase 11/F per PROJECTBRIEF.md §8), the Python script
+`extractor/aggregate_products.py` is **legacy**. The canonical refresh
+path is the in-plugin extractor (Shopify / Woo / generic JSON-LD
+handlers under `plugin/includes/extractor/`), triggered from WP Admin →
+Extractor Sites. The Python script is kept around because it's the only
+way to exercise merchant endpoints without a running WordPress in the
+loop — useful for debugging a merchant's response shape, or for
+ingesting from a platform that no in-plugin handler covers yet.
+
+When you DO touch it:
 
 - Python 3.10+ (uses `match`/`case`, PEP 604 union syntax in places)
 - Type hints on function signatures
 - PEP 8 with 4-space indents
 - Dependencies pinned in `extractor/requirements.txt`
 - The script must remain runnable as a single-file invocation: `python aggregate_products.py <sites>`
+- If you change the CSV column set, change `Supcomp_Extractor_Offer::fieldnames()` in lockstep (PROJECTBRIEF.md §4 — same schema, two emitters)
 
 ---
 
@@ -158,10 +170,12 @@ These are not negotiable — WordPress security and ecosystem norms.
 
 - Development runs under WSL2 (Ubuntu) on Windows
 - Plugin is tested on a self-hosted WordPress instance the operator controls
-- The Python script runs on the operator's local machine, output piped/uploaded to WordPress
-- No CI/CD is configured for v1 — manual build, test, package, and upload
+- **Operator has web-only access** to the WP install — no SSH, no WP-CLI, no host-level cron. The in-plugin extractor architecture (Phase 11) exists for exactly this constraint
+- Action Scheduler ticks on visitor traffic + WP-Cron. For reliable scheduled runs on low-traffic sites, the operator uses an external pinger (cron-job.org or UptimeRobot) hitting `/wp-cron.php` every 5 minutes
+- The legacy Python script runs on the operator's local machine when needed; output uploads as CSV via WP Admin
+- No CI/CD is configured — manual build, test, package, and upload via `scripts/package-plugin.sh`
 
-If you're asked to do something that assumes CI exists or that runs in a Linux-only context the user can't replicate in WSL2, flag it.
+If you're asked to do something that assumes SSH / WP-CLI / host-level cron, flag it. If you're asked to do something that assumes CI exists or that runs in a Linux-only context the user can't replicate in WSL2, flag it.
 
 ---
 

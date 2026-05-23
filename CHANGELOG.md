@@ -17,6 +17,24 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.8.0] — 2026-05-23
+
+### Changed
+- **Phase F cutover — the architecture brief is now consistent with what the plugin actually does.** PROJECTBRIEF.md §2 (data flow), §4 (row schema), and §8 (build phases) had described the Python script as the sole ingestion path. Six versions of in-plugin extractor work later (v1.3.0 → v1.7.0), that's no longer true — the operator-facing canonical path is WP Admin → Extractor Sites → Run now / scheduled WP-Cron, and Python is the legacy fallback for debugging or unsupported platforms. The brief now reflects that.
+  - **§2 (data flow)** — diagram redrawn with two ingestion paths (A: in-plugin extractor, B: legacy Python CSV upload) both landing in the same `Supcomp_CSV_Importer` pipeline. "Key principle" reworded: the importer doesn't care where rows came from; sticky-edit semantics, stale detection, and the curation queue work identically regardless of source.
+  - **§4 (row schema)** — title changed from "The CSV contract (Python ↔ WordPress)" to "The row schema (extractor → importer contract)" since the contract is now between two emitters (PHP `Supcomp_Extractor_Offer` value object and Python `Offer` dataclass) and one consumer (the importer). Intro paragraph rewritten to acknowledge both.
+  - **§8 (build phases)** — new Phase 11 entry summarizing the v1.3.0 → v1.8.0 in-plugin extractor work with sub-phase breakdown (A foundation → B Shopify → C Woo → D generic JSON-LD → E admin UX → F cutover). v1.5.0 hard-delete + Cleanup also flagged as ridealong from the same band. "Post-1.0 phases" section renamed to "Post-1.x" and expanded with the genuinely-still-open follow-ups (Woo mid-page execution-time cursor, per-site schedule overrides, email alerts, etc.). v2.0.0 explicitly reserved for a future actual breaking change (e.g. retiring the legacy Python path).
+- **CLAUDE.md** updated:
+  - "Python conventions (extractor)" section retitled "Python conventions (legacy extractor)" with a paragraph explaining when to still touch it (merchant-endpoint debugging, unsupported platforms) and the schema-lockstep requirement.
+  - "Environment notes" expanded to document the operator's web-only access constraint (no SSH, no WP-CLI, no host-level cron) — that's the load-bearing constraint that Phase 11 exists to satisfy, and future architectural decisions should respect it. Added the external-pinger guidance for WP-Cron reliability on low-traffic sites.
+- **`extractor/README.md`** legacy framing left as it was in v1.3.0 (it already calls itself legacy as of that version) — no rewrite needed.
+
+### Notes
+- **Version is 1.8.0, not 2.0.0.** Standard semver post-1.0: MAJOR is for breaking changes; the cutover doesn't break anything (Python extractor still works, CSV upload still works, no external API removed). v2.0.0 is reserved for an actual breaking change — most likely the eventual retirement of the legacy Python path, once enough merchants are covered by in-plugin handlers that nobody's reaching for it.
+- This is the planned end of the Phase 11 sub-series. No further extractor work is scheduled until a real operational need surfaces (e.g. the Woo mid-page cursor flagged in v1.4.0's CHANGELOG note if it actually bites in production).
+
+---
+
 ## [1.7.0] — 2026-05-23
 
 ### Added

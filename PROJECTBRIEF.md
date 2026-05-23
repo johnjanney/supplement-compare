@@ -35,18 +35,24 @@ The site does not sell anything. Every product listing links out to a participat
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  External (operator's local machine or scheduled job)           │
+│  Ingestion (two paths into the importer — same row schema)      │
 │                                                                 │
-│  Python script (aggregate_products.py)                          │
-│  → fetches product data from merchant Shopify/Woo endpoints     │
-│  → emits canonical-schema CSV, one row per variant              │
+│  A) In-plugin extractor (canonical, v1.3.0+)                    │
+│     WP Admin → Extractor Sites → Run now / WP-Cron schedule     │
+│     → Action Scheduler ticks per page                           │
+│     → Shopify / Woo / generic JSON-LD handler returns rows      │
+│     → rows streamed into Supcomp_CSV_Importer::ingest_rows_into_run │
+│                                                                 │
+│  B) Python script (legacy, local-debug only)                    │
+│     aggregate_products.py emits CSV → WP Admin CSV upload       │
+│     → Supcomp_CSV_Importer::import() (same row pipeline)        │
 └─────────────────────────────────────────────────────────────────┘
                               │
-                              ▼ (manual upload or scheduled drop)
+                              ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  WordPress (the plugin built by this project)                   │
 │                                                                 │
-│  CSV Import → raw_source_offers table                           │
+│  raw_source_offers table (audit snapshot)                       │
 │       ↓                                                         │
 │  Normalization → parse strength/count/form from raw data        │
 │       ↓                                                         │
@@ -64,7 +70,7 @@ The site does not sell anything. Every product listing links out to a participat
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Key principle:** the WordPress plugin does no live calls to merchant sites. Everything is fed from CSV imports. The Python script is the only thing that talks to merchants.
+**Key principle:** the importer doesn't care where rows came from. Path A (in-plugin extractor) is the operator default — it runs inside WordPress with no Python/SSH/WP-CLI requirement. Path B (Python CSV upload) is retained for local debugging and for sites whose platform the in-plugin handlers don't yet cover. Both paths land in the same `Supcomp_CSV_Importer` pipeline; sticky-edit semantics, stale detection, and the curation queue work identically regardless of source.
 
 ---
 
@@ -263,9 +269,9 @@ is_bot_suspected         BOOLEAN
 
 ---
 
-## 4. The CSV contract (Python ↔ WordPress)
+## 4. The row schema (extractor → importer contract)
 
-The Python script `aggregate_products.py` produces the CSV. The WordPress plugin imports the CSV. The schema below is the **contract between them**. Both sides must agree.
+The same row schema is produced by both ingestion paths described in §2: the in-plugin extractor (Shopify / Woo / generic handlers under `plugin/includes/extractor/`) and the legacy Python script `aggregate_products.py` (which serializes the schema as a CSV for upload). The schema below is the **contract** — both the PHP `Supcomp_Extractor_Offer` value object and the Python `Offer` dataclass must agree on it, and the plugin's CSV validator enforces it on upload.
 
 | Column | Required | Notes |
 |---|---|---|
@@ -529,14 +535,31 @@ Phases are sequenced for end-to-end testability at each step. Do not skip ahead;
 - **Deliverable:** site is SEO-viable
 - **Version:** → 1.0.0 (production-ready milestone)
 
-### Post-1.0 phases (not in scope for initial build)
+### Phase 11 — In-plugin extractor (the "no Python on the host" cutover)
 
-- Authenticated API access (Shopify custom apps, Woo REST API keys) as a CSV-skipping alternative path
+Originally the Python script was the only path into the importer (per the historic §2 diagram). v1.3.0 through v1.8.0 added a parallel ingestion path that runs inside WordPress via Action Scheduler, so an operator with web-only WP Admin access can refresh products without local Python, SSH, or WP-CLI. Sub-phases:
+
+- **A (v1.2.0 → v1.3.0-alpha)** — foundation. Vendored Action Scheduler; `Supcomp_Extractor_Http` (wp_remote_get wrapper mirroring Python `get()` semantics); `Supcomp_Extractor_Offer` value object (PHP analog of the dataclass); `Supcomp_CSV_Importer::ingest_rows()` refactor; `extract_sites` + `extract_runs` tables; Extractor Sites admin screen.
+- **B (v1.3.0)** — Shopify handler port. Page-oriented `fetch_page()` + chunked AS execution. `Supcomp_Extractor_Worker` chains follow-on pages through AS action args.
+- **C (v1.4.0)** — WooCommerce handler port. Inline variation fetch with `fallback_parent_only` recovery. `auto` cascade tries Shopify → Woo.
+- **D (v1.6.0)** — generic JSON-LD fallback. Sitemap discovery + DOMDocument-based JSON-LD extraction. `auto` cascade extends to Shopify → Woo → generic.
+- **E (v1.7.0)** — admin UX. Extractor Runs history screen, WP-Cron schedule (off/daily/twicedaily/weekly), in-flight indicators on the Sites list.
+- **F (v1.8.0)** — cutover. This brief rewritten; legacy `extractor/` Python directory marked legacy-only in its README; INSTRUCTIONS.md and CLAUDE.md adjusted.
+
+The Python extractor is retained for local-debug use — it remains the only path that doesn't require a running WordPress to exercise the merchant endpoints — but it is no longer the canonical operator workflow. New merchants are added under Extractor Sites and refreshed via Run now / scheduled WP-Cron.
+
+Separately during this stretch, v1.5.0 added the **hard-delete + Cleanup** feature (per-row deletes + a bulk Cleanup admin sub-page) so the curation database can be pruned without manual SQL. Not strictly part of Phase 11, but it shipped in the same band.
+
+### Post-1.x phases (not yet scoped)
+
+- Mid-page execution-time cursor for the Woo handler (in-plugin variation fetches across many variable products on a single page can outrun PHP `max_execution_time`; current behavior is AS retry-from-start, which is idempotent via the natural-key lookup but wasteful)
+- Per-site schedule overrides (currently one global frequency)
 - Per-canonical-product editorial content workflow
 - Email alerts for price drops
 - Subscription/saved-search features for visitors
 - Multi-currency support
 - Internationalization
+- Eventually: a true v2.0.0 marked by an actual breaking change (e.g. retiring the legacy Python extractor and CSV upload path entirely)
 
 ---
 
