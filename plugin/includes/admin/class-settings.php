@@ -8,6 +8,8 @@
  *   supcomp_staleness_warn_hours    — soft threshold (offer visually downgraded)
  *   supcomp_staleness_hide_hours    — hard threshold (offer excluded from public JSON)
  *   supcomp_affiliate_disclosure    — disclosure text rendered on every comparison page
+ *   supcomp_default_compare_view    — which compare-table column set loads by default
+ *                                     ('cost_per_serving' | 'cost_per_active_unit')
  *
  * Note on two staleness thresholds: PROJECTBRIEF.md §1 Phase 1 mentions
  * "staleness threshold hours" in the singular, but §6 defines two distinct
@@ -67,6 +69,16 @@ class Supcomp_Settings {
 			)
 		);
 
+		register_setting(
+			self::OPTION_GROUP,
+			'supcomp_default_compare_view',
+			array(
+				'type'              => 'string',
+				'sanitize_callback' => array( __CLASS__, 'sanitize_compare_view' ),
+				'default'           => 'cost_per_active_unit',
+			)
+		);
+
 		add_settings_section(
 			self::SECTION_ID,
 			__( 'General', 'supplement-compare' ),
@@ -105,12 +117,27 @@ class Supcomp_Settings {
 			self::PAGE_SLUG,
 			self::SECTION_ID
 		);
+
+		add_settings_field(
+			'supcomp_default_compare_view',
+			__( 'Default compare-table view', 'supplement-compare' ),
+			array( __CLASS__, 'render_compare_view_field' ),
+			self::PAGE_SLUG,
+			self::SECTION_ID
+		);
 	}
 
 	public static function sanitize_currency( $value ) {
 		$value = strtoupper( preg_replace( '/[^A-Za-z]/', '', (string) $value ) );
 		$value = substr( $value, 0, 3 );
 		return $value !== '' ? $value : 'USD';
+	}
+
+	const COMPARE_VIEWS = array( 'cost_per_serving', 'cost_per_active_unit' );
+
+	public static function sanitize_compare_view( $value ) {
+		$value = sanitize_key( (string) $value );
+		return in_array( $value, self::COMPARE_VIEWS, true ) ? $value : 'cost_per_active_unit';
 	}
 
 	public static function render_section_intro() {
@@ -151,6 +178,23 @@ class Supcomp_Settings {
 			esc_textarea( $value ),
 			esc_html__( 'Rendered on every page that shows comparison content (Phase 9+). Keep the language factual; avoid therapeutic claims.', 'supplement-compare' )
 		);
+	}
+
+	public static function render_compare_view_field() {
+		$value = self::sanitize_compare_view( get_option( 'supcomp_default_compare_view', 'cost_per_active_unit' ) );
+		?>
+		<fieldset>
+			<label>
+				<input type="radio" name="supcomp_default_compare_view" value="cost_per_active_unit" <?php checked( $value, 'cost_per_active_unit' ); ?>>
+				<?php esc_html_e( 'Cost / Active Unit (Merchant, Total active, Cost / active unit, Price, Coupon, Buy)', 'supplement-compare' ); ?>
+			</label><br>
+			<label>
+				<input type="radio" name="supcomp_default_compare_view" value="cost_per_serving" <?php checked( $value, 'cost_per_serving' ); ?>>
+				<?php esc_html_e( 'Cost / Serving (Merchant, Serving size, Servings, Cost / serving, Price, Coupon, Buy)', 'supplement-compare' ); ?>
+			</label>
+			<p class="description"><?php esc_html_e( 'Which column set the public compare table opens with. Visitors can flip between the two views with a radio toggle above the table; this setting only changes which view loads by default.', 'supplement-compare' ); ?></p>
+		</fieldset>
+		<?php
 	}
 
 	const NONCE_REGEN = 'supcomp_regenerate_json';

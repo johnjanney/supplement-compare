@@ -104,6 +104,7 @@ class Supcomp_Shortcode {
 			array(
 				'jsonUrl'             => $json_url,
 				'affiliateDisclosure' => (string) get_option( 'supcomp_affiliate_disclosure', '' ),
+				'defaultCompareView'  => Supcomp_Settings::sanitize_compare_view( get_option( 'supcomp_default_compare_view', 'cost_per_active_unit' ) ),
 				'i18n'                => self::i18n_strings(),
 			)
 		);
@@ -145,6 +146,9 @@ class Supcomp_Shortcode {
 			'priceColumn'            => __( 'Price', 'supplement-compare' ),
 			'couponCodeColumn'       => __( 'Coupon code', 'supplement-compare' ),
 			'couponDetailsColumn'    => __( 'Coupon details', 'supplement-compare' ),
+			'viewModeLabel'          => __( 'Show:', 'supplement-compare' ),
+			'viewCostPerServing'     => __( 'Cost / Serving', 'supplement-compare' ),
+			'viewCostPerActive'      => __( 'Cost / Active Unit', 'supplement-compare' ),
 			'servingsColumn'         => __( 'Servings', 'supplement-compare' ),
 			'totalActiveColumn'      => __( 'Total active', 'supplement-compare' ),
 			'servingSizeColumn'      => __( 'Serving size', 'supplement-compare' ),

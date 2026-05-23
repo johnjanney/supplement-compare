@@ -25,6 +25,11 @@
 	var i18n = config.i18n || {};
 	var initial = parseDataInitial(root.getAttribute('data-initial'));
 
+	var DETAIL_VIEWS = ['cost_per_serving', 'cost_per_active_unit'];
+	var defaultDetailView = DETAIL_VIEWS.indexOf(config.defaultCompareView) >= 0
+		? config.defaultCompareView
+		: 'cost_per_active_unit';
+
 	var data = null;
 	var state = {
 		view: parseHash() || initialView(),
@@ -42,6 +47,7 @@
 		listSort: 'cost_per_active_unit',
 		detailFilters: { inStockOnly: false, thirdPartyOnly: false, coaOnly: false },
 		detailSort: 'cost_per_active_unit',
+		detailView: defaultDetailView,
 	};
 
 	if (!config.jsonUrl) {
@@ -79,6 +85,13 @@
 	function onControlChange(ev) {
 		var t = ev.target;
 		if (!t || !t.dataset) return;
+		if (t.dataset.role === 'detail-view') {
+			if (DETAIL_VIEWS.indexOf(t.value) >= 0) {
+				state.detailView = t.value;
+				render();
+			}
+			return;
+		}
 		var key = t.dataset.field;
 		if (!key) return;
 		var bag = ev.target.dataset.bag === 'detail' ? state.detailFilters : state.listFilters;
@@ -242,14 +255,23 @@
 		if (offers.length === 0) {
 			html += '<p class="supcomp-empty">' + escapeHtml(i18n.noResults || 'No matches.') + '</p>';
 		} else {
+			var showActive = state.detailView === 'cost_per_active_unit';
+			var showServing = state.detailView === 'cost_per_serving';
+
 			html += '<table class="supcomp-table supcomp-detail">';
 			html += '<thead><tr>';
 			html += '<th>' + escapeHtml(i18n.merchantColumn || 'Merchant') + '</th>';
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.totalActiveColumn || 'Total active') + '</th>';
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.servingSizeColumn || 'Serving size') + '</th>';
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.numServingsColumn || 'Servings') + '</th>';
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerServingColumn || 'Cost / serving') + '</th>';
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerActiveColumn || 'Cost / active unit') + '</th>';
+			if (showActive) {
+				html += '<th class="supcomp-num">' + escapeHtml(i18n.totalActiveColumn || 'Total active') + '</th>';
+			}
+			if (showServing) {
+				html += '<th class="supcomp-num">' + escapeHtml(i18n.servingSizeColumn || 'Serving size') + '</th>';
+				html += '<th class="supcomp-num">' + escapeHtml(i18n.numServingsColumn || 'Servings') + '</th>';
+				html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerServingColumn || 'Cost / serving') + '</th>';
+			}
+			if (showActive) {
+				html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerActiveColumn || 'Cost / active unit') + '</th>';
+			}
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.priceColumn || 'Price') + '</th>';
 			html += '<th>' + escapeHtml(i18n.couponCodeColumn || 'Coupon code') + '</th>';
 			html += '<th>' + escapeHtml(i18n.couponDetailsColumn || 'Coupon details') + '</th>';
@@ -267,11 +289,17 @@
 				}
 				html += badges(o);
 				html += '</td>';
-				html += '<td class="supcomp-num">' + formatAmount(o.active_compound_total, cp) + '</td>';
-				html += '<td class="supcomp-num">' + formatAmount(o.strength_per_serving, cp) + '</td>';
-				html += '<td class="supcomp-num">' + (o.servings_per_container != null ? o.servings_per_container : '—') + '</td>';
-				html += '<td class="supcomp-num">' + formatCostPerServing(o) + '</td>';
-				html += '<td class="supcomp-num">' + formatCostPerActive(o, cp) + '</td>';
+				if (showActive) {
+					html += '<td class="supcomp-num">' + formatAmount(o.active_compound_total, cp) + '</td>';
+				}
+				if (showServing) {
+					html += '<td class="supcomp-num">' + formatAmount(o.strength_per_serving, cp) + '</td>';
+					html += '<td class="supcomp-num">' + (o.servings_per_container != null ? o.servings_per_container : '—') + '</td>';
+					html += '<td class="supcomp-num">' + formatCostPerServing(o) + '</td>';
+				}
+				if (showActive) {
+					html += '<td class="supcomp-num">' + formatCostPerActive(o, cp) + '</td>';
+				}
 				html += '<td class="supcomp-num">';
 				html += formatPrice(o.current_price, o.currency);
 				if (o.on_sale && o.regular_price && o.regular_price > o.current_price) {
@@ -351,7 +379,13 @@
 
 	function detailFilterBar() {
 		var f = state.detailFilters;
-		var h = '<div class="supcomp-filters">';
+		var v = state.detailView;
+		var h = '<div class="supcomp-view-toggle" role="radiogroup" aria-label="' + escapeAttr(i18n.viewModeLabel || 'Show:') + '">';
+		h += '<span class="supcomp-view-toggle-label">' + escapeHtml(i18n.viewModeLabel || 'Show:') + '</span>';
+		h += '<label><input type="radio" name="supcomp-detail-view" data-role="detail-view" value="cost_per_serving"' + (v === 'cost_per_serving' ? ' checked' : '') + '> ' + escapeHtml(i18n.viewCostPerServing || 'Cost / Serving') + '</label>';
+		h += '<label><input type="radio" name="supcomp-detail-view" data-role="detail-view" value="cost_per_active_unit"' + (v === 'cost_per_active_unit' ? ' checked' : '') + '> ' + escapeHtml(i18n.viewCostPerActive || 'Cost / Active Unit') + '</label>';
+		h += '</div>';
+		h += '<div class="supcomp-filters">';
 		h += '<label><input type="checkbox" data-bag="detail" data-field="inStockOnly"' + (f.inStockOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.inStockOnly || 'In stock only') + '</label>';
 		h += '<label><input type="checkbox" data-bag="detail" data-field="thirdPartyOnly"' + (f.thirdPartyOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.thirdPartyOnly || '3PT only') + '</label>';
 		h += '<label><input type="checkbox" data-bag="detail" data-field="coaOnly"' + (f.coaOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.coaOnly || 'COA only') + '</label>';

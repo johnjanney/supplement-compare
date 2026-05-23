@@ -56,6 +56,29 @@
 	margin-left: auto;
 }
 
+.supcomp-view-toggle {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5em 1.25em;
+	margin: 1em 0 0;
+	padding: 0.75em 1em;
+	background: #eef2f7;
+	border: 1px solid #dbe3ec;
+	border-radius: 4px;
+	font-size: 14px;
+}
+.supcomp-view-toggle .supcomp-view-toggle-label {
+	font-weight: 600;
+}
+.supcomp-view-toggle label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35em;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
 .supcomp-table {
 	width: 100%;
 	border-collapse: collapse;

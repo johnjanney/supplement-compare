@@ -17,6 +17,22 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.11.0] — 2026-05-23
+
+### Added
+- **Compare-table view-mode toggle.** Two-radio control above the compare table lets visitors flip the column set between two presentations of the same offer rows:
+  - **Cost / Serving** — Merchant · Serving size · Servings · Cost / serving · Price · Coupon code · Coupon details · Buy
+  - **Cost / Active Unit** — Merchant · Total active · Cost / active unit · Price · Coupon code · Coupon details · Buy
+
+  Same underlying data, same row ordering — just a visibility filter on the columns. Default view is configurable via a new **Default compare-table view** radio on the Settings page (option `supcomp_default_compare_view`, sanitized to the two allowed values, default `cost_per_active_unit`). Toggle state is per-pageload (not persisted across visits); the operator-chosen default is what loads every time.
+- **New i18n keys** for the toggle: `viewModeLabel`, `viewCostPerServing`, `viewCostPerActive`.
+
+### Notes
+- The existing in-stock / 3PT / COA filters and the sort dropdown were kept where they were — the toggle is additive. If those should go away in favor of the radios alone, that's a separate change.
+- Sort still operates on `cost_per_active_unit` by default regardless of view, since the data is computed either way. Adding a `cost_per_serving` sort option (so sort tracks view) is a small follow-up if it turns out to matter in practice.
+
+---
+
 ## [1.10.1] — 2026-05-23
 
 ### Changed

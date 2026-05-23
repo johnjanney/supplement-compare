@@ -121,6 +121,7 @@ class Supcomp_Installer {
 		add_option( 'supcomp_default_currency', 'USD' );
 		add_option( 'supcomp_staleness_warn_hours', 48 );
 		add_option( 'supcomp_staleness_hide_hours', 168 );
+		add_option( 'supcomp_default_compare_view', 'cost_per_active_unit' );
 		add_option(
 			'supcomp_affiliate_disclosure',
 			'This site contains affiliate links. When you click a "Buy Now" button and complete a purchase, we may earn a commission at no additional cost to you. Prices are sourced from each merchant\'s public listings and may not reflect current promotions. This site does not make therapeutic or health claims about any product listed.'
