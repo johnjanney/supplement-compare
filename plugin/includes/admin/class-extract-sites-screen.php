@@ -19,15 +19,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Extract_Sites_Screen {
 
-	const PAGE_SLUG    = 'supcomp-extract-sites';
-	const NONCE_SAVE   = 'supcomp_save_extract_site';
-	const NONCE_DELETE = 'supcomp_delete_extract_site';
-	const NONCE_RUN    = 'supcomp_run_extract';
+	const PAGE_SLUG      = 'supcomp-extract-sites';
+	const NONCE_SAVE     = 'supcomp_save_extract_site';
+	const NONCE_DELETE   = 'supcomp_delete_extract_site';
+	const NONCE_RUN      = 'supcomp_run_extract';
+	const NONCE_SCHEDULE = 'supcomp_save_extract_schedule';
 
 	public static function register_hooks() {
-		add_action( 'admin_post_supcomp_save_extract_site',   array( __CLASS__, 'handle_save' ) );
-		add_action( 'admin_post_supcomp_delete_extract_site', array( __CLASS__, 'handle_delete' ) );
-		add_action( 'admin_post_supcomp_run_extract',         array( __CLASS__, 'handle_run' ) );
+		add_action( 'admin_post_supcomp_save_extract_site',     array( __CLASS__, 'handle_save' ) );
+		add_action( 'admin_post_supcomp_delete_extract_site',   array( __CLASS__, 'handle_delete' ) );
+		add_action( 'admin_post_supcomp_run_extract',           array( __CLASS__, 'handle_run' ) );
+		add_action( 'admin_post_supcomp_save_extract_schedule', array( __CLASS__, 'handle_save_schedule' ) );
 	}
 
 	public static function render() {
@@ -52,7 +54,10 @@ class Supcomp_Extract_Sites_Screen {
 	// ---------- list ----------
 
 	private static function render_list() {
-		$sites = Supcomp_Extract_Sites_Repo::list_all();
+		$sites          = Supcomp_Extract_Sites_Repo::list_all();
+		$open_attempts  = Supcomp_Extract_Runs_Repo::open_attempts_by_site();
+		$current_freq   = Supcomp_Extractor_Scheduler::get_schedule();
+		$next_scheduled = Supcomp_Extractor_Scheduler::next_scheduled_at();
 		?>
 		<div class="wrap">
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Extractor Sites', 'supplement-compare' ); ?></h1>
@@ -77,6 +82,41 @@ class Supcomp_Extract_Sites_Screen {
 
 			<?php self::render_notice(); ?>
 
+			<h2 style="margin-top:1.5em"><?php esc_html_e( 'Scheduled runs', 'supplement-compare' ); ?></h2>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="background:#f6f7f7;border:1px solid #c3c4c7;padding:1em 1.2em;max-width:60em">
+				<input type="hidden" name="action" value="supcomp_save_extract_schedule">
+				<?php wp_nonce_field( self::NONCE_SCHEDULE ); ?>
+				<label style="display:inline-block;margin-right:1em">
+					<strong><?php esc_html_e( 'Frequency:', 'supplement-compare' ); ?></strong>
+					<select name="frequency">
+						<?php foreach ( Supcomp_Extractor_Scheduler::valid_frequencies() as $f ) : ?>
+							<option value="<?php echo esc_attr( $f ); ?>" <?php selected( $current_freq, $f ); ?>><?php echo esc_html( Supcomp_Extractor_Scheduler::schedule_label( $f ) ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+				<button type="submit" class="button"><?php esc_html_e( 'Save schedule', 'supplement-compare' ); ?></button>
+				<?php if ( $current_freq !== 'off' && $next_scheduled > 0 ) : ?>
+					<p class="description" style="margin:.6em 0 0">
+						<?php
+						printf(
+							/* translators: %s = time, e.g. "2 hours" */
+							esc_html__( 'Next scheduled run: in %s (server time: %s UTC).', 'supplement-compare' ),
+							esc_html( human_time_diff( time(), $next_scheduled ) ),
+							esc_html( gmdate( 'Y-m-d H:i', $next_scheduled ) )
+						);
+						?>
+					</p>
+				<?php elseif ( $current_freq === 'off' ) : ?>
+					<p class="description" style="margin:.6em 0 0">
+						<?php esc_html_e( 'Manual triggers only. Use the "Run now" / "Refresh all enabled" buttons below.', 'supplement-compare' ); ?>
+					</p>
+				<?php endif; ?>
+				<p class="description" style="margin:.6em 0 0">
+					<?php esc_html_e( 'WP-Cron only fires when a visitor hits the site (or an external pinger like cron-job.org hits /wp-cron.php). On low-traffic sites, scheduled runs may drift — set up a 5-minute pinger if you need reliable timing.', 'supplement-compare' ); ?>
+				</p>
+			</form>
+
+			<h2 style="margin-top:1.5em"><?php esc_html_e( 'Sites', 'supplement-compare' ); ?></h2>
 			<table class="widefat striped">
 				<thead>
 					<tr>
@@ -96,8 +136,17 @@ class Supcomp_Extract_Sites_Screen {
 					<?php if ( empty( $sites ) ) : ?>
 						<tr><td colspan="10"><em><?php esc_html_e( 'No extractor sites configured yet.', 'supplement-compare' ); ?></em></td></tr>
 					<?php else : ?>
-						<?php foreach ( $sites as $site ) : ?>
-							<tr>
+						<?php foreach ( $sites as $site ) :
+							$in_flight = $open_attempts[ (int) $site->id ] ?? array();
+							$running   = false;
+							foreach ( $in_flight as $att ) {
+								if ( $att->status === 'running' || $att->status === 'pending' ) {
+									$running = true;
+									break;
+								}
+							}
+						?>
+							<tr<?php echo $running ? ' style="background:#e7f3ff"' : ''; ?>>
 								<td><strong><?php echo esc_html( $site->label ? $site->label : $site->slug ); ?></strong></td>
 								<td><code><?php echo esc_html( $site->slug ); ?></code></td>
 								<td><a href="<?php echo esc_url( $site->site_url ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $site->site_url ); ?></a></td>
@@ -105,7 +154,14 @@ class Supcomp_Extract_Sites_Screen {
 								<td><?php echo esc_html( self::merchant_label( $site->merchant_id ) ); ?></td>
 								<td><?php echo (int) $site->enabled === 1 ? '<span style="color:#46b450">●</span> ' . esc_html__( 'yes', 'supplement-compare' ) : '<span style="color:#888">○</span> ' . esc_html__( 'no', 'supplement-compare' ); ?></td>
 								<td><?php echo esc_html( $site->last_run_at ? $site->last_run_at : '—' ); ?></td>
-								<td><?php echo esc_html( $site->last_run_status ? $site->last_run_status : '—' ); ?></td>
+								<td>
+									<?php if ( $running ) : ?>
+										<strong style="color:#004085"><?php esc_html_e( 'in flight', 'supplement-compare' ); ?></strong>
+										<br><small><?php echo (int) count( $in_flight ); ?>&nbsp;attempt(s)</small>
+									<?php else : ?>
+										<?php echo esc_html( $site->last_run_status ? $site->last_run_status : '—' ); ?>
+									<?php endif; ?>
+								</td>
 								<td><?php echo $site->last_offer_count !== null ? (int) $site->last_offer_count : '—'; ?></td>
 								<td>
 									<?php if ( (int) $site->enabled === 1 ) : ?>
@@ -283,6 +339,17 @@ class Supcomp_Extract_Sites_Screen {
 		exit;
 	}
 
+	public static function handle_save_schedule() {
+		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission.', 'supplement-compare' ) );
+		}
+		check_admin_referer( self::NONCE_SCHEDULE );
+		$freq = isset( $_POST['frequency'] ) ? sanitize_key( wp_unslash( $_POST['frequency'] ) ) : 'off';
+		Supcomp_Extractor_Scheduler::set_schedule( $freq );
+		wp_safe_redirect( add_query_arg( 'supcomp_notice', 'schedule_saved', admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ) );
+		exit;
+	}
+
 	public static function handle_run() {
 		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
 			wp_die( esc_html__( 'You do not have permission.', 'supplement-compare' ) );
@@ -362,12 +429,13 @@ class Supcomp_Extract_Sites_Screen {
 		);
 
 		$messages = array(
-			'saved'       => array( 'success', __( 'Site updated.', 'supplement-compare' ) ),
-			'created'     => array( 'success', __( 'Site added.', 'supplement-compare' ) ),
-			'deleted'     => array( 'success', __( 'Site deleted.', 'supplement-compare' ) ),
-			'queued'      => array( 'success', $queued_text ),
-			'queued_none' => array( 'warning', __( 'No sites were queued — check that at least one site is enabled and that Action Scheduler is loaded.', 'supplement-compare' ) ),
-			'error'       => array( 'error',   __( 'Something went wrong — check that slug is unique and URL is well-formed.', 'supplement-compare' ) ),
+			'saved'          => array( 'success', __( 'Site updated.', 'supplement-compare' ) ),
+			'created'        => array( 'success', __( 'Site added.', 'supplement-compare' ) ),
+			'deleted'        => array( 'success', __( 'Site deleted.', 'supplement-compare' ) ),
+			'queued'         => array( 'success', $queued_text ),
+			'queued_none'    => array( 'warning', __( 'No sites were queued — check that at least one site is enabled and that Action Scheduler is loaded.', 'supplement-compare' ) ),
+			'schedule_saved' => array( 'success', __( 'Schedule updated. WP-Cron reconciled.', 'supplement-compare' ) ),
+			'error'          => array( 'error',   __( 'Something went wrong — check that slug is unique and URL is well-formed.', 'supplement-compare' ) ),
 		);
 		if ( ! isset( $messages[ $type ] ) ) {
 			return;

@@ -92,11 +92,22 @@ any site running an SEO plugin like Yoast or Rank Math).
 - **Per-site**: click **Run now** in the Actions column of the
   Extractor Sites list. The button queues an Action Scheduler job and
   returns immediately. Refresh the page after a minute to see the row's
-  Last run / Status / Offers count populate.
+  Last run / Status / Offers count populate. Sites with in-flight
+  attempts get a light-blue highlight and a "in flight" status badge.
 - **All enabled sites**: click **Refresh all enabled** at the top.
+- **Scheduled**: set the **Scheduled runs** dropdown at the top of the
+  Extractor Sites screen to daily / twice daily / weekly. The schedule
+  shows the next scheduled run time. WP-Cron handles the trigger; on
+  low-traffic sites add an external pinger (see WP-Cron caveat below).
 - New offers land in the **Pending Queue** for operator review, same as
   CSV-uploaded offers. Existing offers update in place; operator edits
   remain sticky (normalization does not re-run on updates).
+
+**Viewing run history.** WP Admin → Supplement Compare → **Extractor
+Runs** lists the most recent 100 attempts with status badges, durations,
+offer counts, and error excerpts. Filter by status (failed-only is the
+common operator use). Click any attempt id for the full error log + the
+sibling attempts that shared its run_id.
 
 **WP-Cron caveat on low-traffic sites.** Action Scheduler ticks on
 visitor requests + WP-Cron. If your site sees hours between visits, a

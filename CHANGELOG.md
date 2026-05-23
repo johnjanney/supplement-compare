@@ -17,6 +17,20 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.7.0] — 2026-05-23
+
+### Added
+- **Extractor Runs history screen** at WP Admin → Supplement Compare → Extractor Runs. One row per (run_id, site) attempt, most recent 100. Columns: attempt id, site label, platform used, status (color-coded badge), started_at, duration (live for in-flight), offer count, trigger source, error excerpt. Filter tabs for all / running / pending / complete / failed / canceled. 24-hour status summary at the top. Click an attempt id to open a detail page with the full error log + sibling-attempts list (the other site attempts that shared the same run_id).
+- **Scheduled extractor runs** via WP-Cron. New "Scheduled runs" section at the top of the Extractor Sites screen with frequency picker: off / daily / twice daily / weekly. Saving the schedule reconciles the WP-Cron event (idempotent — runs on every plugins_loaded). When active, the screen shows the next scheduled run time in human-readable form ("in 5 hours") plus the absolute UTC timestamp.
+- **`Supcomp_Extractor_Scheduler`** class — single source of truth for the schedule option, hook registration, and reconciliation. `fire()` is the WP-Cron callback; it just delegates to `Supcomp_Extractor::run( [], 'schedule' )` so scheduled and manual runs go through the same orchestrator + worker. WP-Cron caveats called out in the UI: low-traffic sites should add an external pinger (cron-job.org / UptimeRobot hitting `/wp-cron.php` every 5 minutes) for reliable timing.
+- **In-flight indicators on the Extractor Sites list.** Sites with currently-pending or running attempts get highlighted (light-blue row background) and the Status column shows "in flight" + the open-attempt count instead of the stale `last_run_status`. Operators see immediately which sites are queued/running vs. truly done.
+- **Repo query extensions**: `Supcomp_Extract_Runs_Repo::recent_with_sites()` (joined select for the history screen), `open_attempts_by_site()` (in-flight indicator backing), `counts_by_status()` (24-hour summary).
+
+### Notes
+- Phase F (v2.0.0 cutover — PROJECTBRIEF rewrite for in-plugin extractor as canonical, `extractor/` directory archived to legacy README) is the only remaining milestone before v2.0.0.
+
+---
+
 ## [1.6.0] — 2026-05-22
 
 ### Added

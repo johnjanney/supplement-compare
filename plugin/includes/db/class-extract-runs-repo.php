@@ -126,6 +126,65 @@ class Supcomp_Extract_Runs_Repo {
 		);
 	}
 
+	/**
+	 * List recent attempts with the site label joined in for the history
+	 * screen. Optionally filter by status.
+	 */
+	public static function recent_with_sites( $limit = 100, $status_filter = '' ) {
+		global $wpdb;
+		$prefix = $wpdb->prefix . 'supcomp_';
+		$where  = '';
+		$params = array();
+		if ( $status_filter !== '' && in_array( $status_filter, Supcomp_Installer::EXTRACT_RUN_STATUSES, true ) ) {
+			$where    = ' WHERE r.status = %s';
+			$params[] = $status_filter;
+		}
+		$params[] = (int) $limit;
+		$sql = "SELECT r.*, s.label AS site_label, s.slug AS site_slug, s.site_url AS site_url
+			FROM {$prefix}extract_runs r
+			LEFT JOIN {$prefix}extract_sites s ON s.id = r.site_id
+			{$where}
+			ORDER BY r.id DESC
+			LIMIT %d";
+		return $wpdb->get_results( $wpdb->prepare( $sql, $params ) );
+	}
+
+	/**
+	 * Currently-open attempts (pending or running) for a given site, so
+	 * the Extractor Sites screen can flag in-flight rows.
+	 *
+	 * @return array map of site_id → array of attempt rows
+	 */
+	public static function open_attempts_by_site() {
+		global $wpdb;
+		$table = self::table();
+		$rows  = $wpdb->get_results(
+			"SELECT * FROM {$table} WHERE status IN ('pending','running') AND site_id IS NOT NULL ORDER BY id ASC"
+		);
+		$by_site = array();
+		foreach ( $rows as $row ) {
+			$by_site[ (int) $row->site_id ][] = $row;
+		}
+		return $by_site;
+	}
+
+	public static function counts_by_status( $hours = 24 ) {
+		global $wpdb;
+		$table = self::table();
+		$rows  = $wpdb->get_results( $wpdb->prepare(
+			"SELECT status, COUNT(*) AS n
+			 FROM {$table}
+			 WHERE created_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL %d HOUR)
+			 GROUP BY status",
+			(int) $hours
+		) );
+		$out = array();
+		foreach ( $rows as $r ) {
+			$out[ $r->status ] = (int) $r->n;
+		}
+		return $out;
+	}
+
 	private static function trim_to( $val, $max ) {
 		return strlen( $val ) > $max ? substr( $val, 0, $max ) : $val;
 	}

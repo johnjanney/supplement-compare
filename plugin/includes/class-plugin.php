@@ -95,6 +95,11 @@ class Supcomp_Plugin {
 		require_once $inc . 'extractor/class-extractor-generic.php';
 		require_once $inc . 'extractor/class-extractor-worker.php';
 		require_once $inc . 'extractor/class-extractor.php';
+		require_once $inc . 'extractor/class-extractor-scheduler.php';
+
+		// Scheduler hook registration must happen domain-side (not gated
+		// on is_admin) so WP-Cron callbacks fire from any request context.
+		Supcomp_Extractor_Scheduler::register_hooks();
 
 		require_once $inc . 'deletion/class-deletion-service.php';
 
@@ -118,6 +123,7 @@ class Supcomp_Plugin {
 		require_once $admin_dir . 'class-active-offers-screen.php';
 		require_once $admin_dir . 'class-clicks-screen.php';
 		require_once $admin_dir . 'class-extract-sites-screen.php';
+		require_once $admin_dir . 'class-extract-runs-screen.php';
 		require_once $admin_dir . 'class-deletion-admin.php';
 		require_once $admin_dir . 'class-cleanup-screen.php';
 

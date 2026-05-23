@@ -32,6 +32,7 @@ class Supcomp_Admin {
 			array( 'supcomp-active',         __( 'Active Offers', 'supplement-compare' ),       array( 'Supcomp_Active_Offers_Screen', 'render' ) ),
 			array( 'supcomp-import',         __( 'Import', 'supplement-compare' ),              array( 'Supcomp_Import_Screen', 'render' ) ),
 			array( 'supcomp-extract-sites',  __( 'Extractor Sites', 'supplement-compare' ),     array( 'Supcomp_Extract_Sites_Screen', 'render' ) ),
+			array( 'supcomp-extract-runs',   __( 'Extractor Runs', 'supplement-compare' ),      array( 'Supcomp_Extract_Runs_Screen', 'render' ) ),
 			array( 'supcomp-merchants',      __( 'Merchants', 'supplement-compare' ),           array( 'Supcomp_Merchants_Screen', 'render' ) ),
 			array( 'supcomp-ingredients',    __( 'Ingredients', 'supplement-compare' ),         array( 'Supcomp_Ingredients_Screen', 'render' ) ),
 			array( 'supcomp-canonical',      __( 'Canonical Products', 'supplement-compare' ),  array( 'Supcomp_Canonical_Products_Screen', 'render' ) ),
