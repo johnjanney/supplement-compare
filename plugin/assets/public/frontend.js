@@ -247,11 +247,12 @@
 			html += '<th>' + escapeHtml(i18n.merchantColumn || 'Merchant') + '</th>';
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.totalActiveColumn || 'Total active') + '</th>';
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.servingSizeColumn || 'Serving size') + '</th>';
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.numServingsColumn || '# Servings') + '</th>';
+			html += '<th class="supcomp-num">' + escapeHtml(i18n.numServingsColumn || 'Servings') + '</th>';
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerServingColumn || 'Cost / serving') + '</th>';
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerActiveColumn || 'Cost / active unit') + '</th>';
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.priceColumn || 'Price') + '</th>';
 			html += '<th>' + escapeHtml(i18n.couponCodeColumn || 'Coupon code') + '</th>';
+			html += '<th>' + escapeHtml(i18n.couponDetailsColumn || 'Coupon details') + '</th>';
 			html += '<th>' + escapeHtml(i18n.buyColumn || 'Buy') + '</th>';
 			html += '</tr></thead><tbody>';
 			offers.forEach(function (o) {
@@ -281,6 +282,14 @@
 				var couponCode = o.merchant && o.merchant.coupon_code ? String(o.merchant.coupon_code) : '';
 				if (couponCode) {
 					html += '<code class="supcomp-coupon">' + escapeHtml(couponCode) + '</code>';
+				} else {
+					html += '<span class="supcomp-meta">—</span>';
+				}
+				html += '</td>';
+				html += '<td>';
+				var couponDetails = o.merchant && o.merchant.coupon_details ? String(o.merchant.coupon_details) : '';
+				if (couponDetails) {
+					html += escapeHtml(couponDetails);
 				} else {
 					html += '<span class="supcomp-meta">—</span>';
 				}
@@ -488,9 +497,15 @@
 
 	// ---------- formatting ----------
 
+	var CURRENCY_SYMBOLS = { USD: '$', EUR: '€', GBP: '£', JPY: '¥' };
+
 	function formatPrice(value, currency) {
 		if (value == null) return '—';
-		return (currency ? currency + ' ' : '') + value.toFixed(2);
+		var code = currency ? String(currency).toUpperCase() : '';
+		if (CURRENCY_SYMBOLS[code]) {
+			return CURRENCY_SYMBOLS[code] + value.toFixed(2);
+		}
+		return (code ? code + ' ' : '') + value.toFixed(2);
 	}
 
 	function formatCostPerActive(offer, canonical) {

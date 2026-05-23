@@ -207,6 +207,7 @@ class Supcomp_Merchants_Screen {
 		$default_currency       = $row ? $row->default_currency : (string) get_option( 'supcomp_default_currency', 'USD' );
 		$affiliate_url_template = $row ? (string) $row->affiliate_url_template : '';
 		$coupon_code            = $row ? (string) $row->coupon_code : '';
+		$coupon_details         = $row ? (string) $row->coupon_details : '';
 		$status                 = $row ? $row->status : 'active';
 		$notes                  = $row ? (string) $row->notes : '';
 
@@ -287,6 +288,11 @@ class Supcomp_Merchants_Screen {
 						<th><label for="supcomp-coupon-code"><?php esc_html_e( 'Coupon code', 'supplement-compare' ); ?></label></th>
 						<td><input type="text" id="supcomp-coupon-code" name="coupon_code" value="<?php echo esc_attr( $coupon_code ); ?>" maxlength="64" class="regular-text code" placeholder="<?php esc_attr_e( 'e.g. SAVE10', 'supplement-compare' ); ?>">
 							<p class="description"><?php esc_html_e( 'Optional. If the merchant issues an affiliate coupon, enter the code here and it will display in the public comparison table next to each offer. Leave blank for no code.', 'supplement-compare' ); ?></p></td>
+					</tr>
+					<tr>
+						<th><label for="supcomp-coupon-details"><?php esc_html_e( 'Coupon details', 'supplement-compare' ); ?></label></th>
+						<td><input type="text" id="supcomp-coupon-details" name="coupon_details" value="<?php echo esc_attr( $coupon_details ); ?>" maxlength="255" class="large-text" placeholder="<?php esc_attr_e( 'e.g. 10% off your first order', 'supplement-compare' ); ?>">
+							<p class="description"><?php esc_html_e( 'Optional. Short description of what the coupon does (discount, expiration, restrictions). Displays in a "Coupon details" column next to the code on the public comparison table. Leave blank to hide.', 'supplement-compare' ); ?></p></td>
 					</tr>
 					<tr>
 						<th><label for="supcomp-test-urls"><?php esc_html_e( 'Template tester', 'supplement-compare' ); ?></label></th>

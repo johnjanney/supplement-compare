@@ -374,7 +374,8 @@ class Supcomp_Offers_Repo {
 		return $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT o.*,
-						m.slug AS merchant_slug, m.name AS merchant_name, m.coupon_code AS merchant_coupon_code,
+						m.slug AS merchant_slug, m.name AS merchant_name,
+						m.coupon_code AS merchant_coupon_code, m.coupon_details AS merchant_coupon_details,
 						cp.slug AS canonical_slug, cp.display_name AS canonical_display_name,
 						cp.ingredient_form AS canonical_form,
 						cp.strength_per_serving AS canonical_strength,

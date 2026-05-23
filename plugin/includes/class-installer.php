@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '6';
+	const SCHEMA_VERSION = '7';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -139,6 +139,7 @@ class Supcomp_Installer {
 			default_currency CHAR(3) NOT NULL DEFAULT 'USD',
 			affiliate_url_template TEXT NULL,
 			coupon_code VARCHAR(64) NULL,
+			coupon_details VARCHAR(255) NULL,
 			status VARCHAR(16) NOT NULL DEFAULT 'active',
 			notes TEXT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -265,6 +265,7 @@ Other fields:
 - **Default currency** — ISO 4217. Used when this merchant's CSV omits currency.
 - **Affiliate URL template** — see below.
 - **Coupon code** — see below.
+- **Coupon details** — see below.
 - **Status** — `active` (default), `paused` (offers hidden, imports rejected),
   `dead` (permanently retired).
 - **Notes** — operator-only. Stash affiliate program IDs, network names, contact
@@ -325,6 +326,18 @@ event (offer save, CSV import, scheduled regenerate, or the manual
 
 Per-offer or time-bounded codes aren't supported — the field is a single
 string per merchant.
+
+### Coupon details
+
+A free-form short description that displays in the **Coupon details** column
+of the public comparison table, immediately after the **Coupon code** column.
+Use it to tell visitors what the code actually does — e.g. "10% off your first
+order", "15% off, expires Dec 31", "Free shipping on $50+". 255-character cap.
+
+The field is independent of **Coupon code** — either, both, or neither can be
+set. Empty cells render as `—` to keep the column rhythm consistent. Update
+or remove it on the merchant edit form when the promotion changes; the public
+JSON refreshes on save.
 
 ### Pause vs. Dead
 

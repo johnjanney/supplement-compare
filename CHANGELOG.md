@@ -17,6 +17,17 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.10.0] — 2026-05-23
+
+### Added
+- **Merchant coupon details field.** New `coupon_details VARCHAR(255) NULL` column on `merchants` (schema bump `6` → `7`, dbDelta-applied on next page load). Free-form short description of what the coupon does — e.g. "10% off your first order", "15% off, expires Dec 31". Operator inputs it on the merchant add/edit form directly under the **Coupon code** field; sanitized via `sanitize_text_field` and clamped to 255 chars at the repo boundary. Surfaced in the public JSON under `merchant.coupon_details` (null when unset) and rendered in a new **Coupon details** column on the public comparison detail table, immediately after **Coupon code**. New i18n key `couponDetailsColumn`.
+
+### Changed
+- **`# Servings` column header → `Servings`.** Drops the leading `#` to reclaim horizontal space on the public comparison detail table. The column still shows servings-per-container counts; only the header label changed. The i18n key remains `numServingsColumn` so any operator override survives the rename.
+- **USD prices render as `$12.99` instead of `USD 12.99`.** `formatPrice()` now maps known ISO 4217 codes (USD → $, EUR → €, GBP → £, JPY → ¥) to symbols; unknown codes still render as `CODE 12.99` so multi-currency support isn't silently broken. Applies to the Price column, Cost / serving, Cost / active unit, and the strikethrough "was" price on sale rows.
+
+---
+
 ## [1.9.1] — 2026-05-23
 
 ### Fixed

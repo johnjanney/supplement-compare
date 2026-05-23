@@ -197,6 +197,10 @@ class Supcomp_Merchants_Repo {
 			$code                  = sanitize_text_field( (string) $data['coupon_code'] );
 			$clean['coupon_code'] = substr( trim( $code ), 0, 64 );
 		}
+		if ( array_key_exists( 'coupon_details', $data ) ) {
+			$details                  = sanitize_text_field( (string) $data['coupon_details'] );
+			$clean['coupon_details'] = substr( trim( $details ), 0, 255 );
+		}
 		if ( isset( $data['status'] ) ) {
 			$s              = sanitize_key( $data['status'] );
 			$clean['status'] = in_array( $s, Supcomp_Installer::MERCHANT_STATUSES, true ) ? $s : 'active';
