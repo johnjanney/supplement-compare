@@ -17,6 +17,13 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.11.1] — 2026-05-23
+
+### Fixed
+- **Frontend "critical error" on `/compare` and any page using `[supplement_compare]`.** v1.11.0's shortcode enqueue called `Supcomp_Settings::sanitize_compare_view()` to normalize the default-view option, but `Supcomp_Settings` is loaded only inside `Supcomp_Plugin::load_admin()` — so every non-admin pageview hitting the shortcode died with `Uncaught Error: Class "Supcomp_Settings" not found in .../class-shortcode.php:107`. The whitelist check is now inlined in the shortcode so the frontend has no admin-side dependency.
+
+---
+
 ## [1.11.0] — 2026-05-23
 
 ### Added
