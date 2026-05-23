@@ -251,6 +251,7 @@
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerServingColumn || 'Cost / serving') + '</th>';
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerActiveColumn || 'Cost / active unit') + '</th>';
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.priceColumn || 'Price') + '</th>';
+			html += '<th>' + escapeHtml(i18n.couponCodeColumn || 'Coupon code') + '</th>';
 			html += '<th>' + escapeHtml(i18n.buyColumn || 'Buy') + '</th>';
 			html += '</tr></thead><tbody>';
 			offers.forEach(function (o) {
@@ -274,6 +275,14 @@
 				html += formatPrice(o.current_price, o.currency);
 				if (o.on_sale && o.regular_price && o.regular_price > o.current_price) {
 					html += '<br><span class="supcomp-was">' + escapeHtml(formatPrice(o.regular_price, o.currency)) + '</span>';
+				}
+				html += '</td>';
+				html += '<td>';
+				var couponCode = o.merchant && o.merchant.coupon_code ? String(o.merchant.coupon_code) : '';
+				if (couponCode) {
+					html += '<code class="supcomp-coupon">' + escapeHtml(couponCode) + '</code>';
+				} else {
+					html += '<span class="supcomp-meta">—</span>';
 				}
 				html += '</td>';
 				html += '<td>';

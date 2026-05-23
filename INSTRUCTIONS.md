@@ -264,6 +264,7 @@ Other fields:
   in Phase 3; will gate import validation later.
 - **Default currency** — ISO 4217. Used when this merchant's CSV omits currency.
 - **Affiliate URL template** — see below.
+- **Coupon code** — see below.
 - **Status** — `active` (default), `paused` (offers hidden, imports rejected),
   `dead` (permanently retired).
 - **Notes** — operator-only. Stash affiliate program IDs, network names, contact
@@ -306,6 +307,24 @@ The edit form has a Template Tester section right under the template field:
 
 The tester runs the exact engine `/out/` will use at click time, so what you
 see in the preview is what site visitors get redirected to.
+
+### Coupon code
+
+If the merchant issues an affiliate-program coupon (e.g. "SAVE10"), enter it in
+the **Coupon code** field. The code is per-merchant: it applies to every offer
+from this merchant and renders in the **Coupon code** column of the public
+comparison detail table, between Price and Buy. Leave blank for no code — the
+column shows `—` for offers whose merchant has no code set.
+
+The code is informational only — it is not auto-appended to the affiliate
+redirect or pre-applied at checkout. Visitors copy it from the table and paste
+it on the merchant's cart page. Update or remove it on the merchant edit form
+when the promotion ends; the public JSON refreshes on the next data-changed
+event (offer save, CSV import, scheduled regenerate, or the manual
+**Regenerate now** button on the Settings page).
+
+Per-offer or time-bounded codes aren't supported — the field is a single
+string per merchant.
 
 ### Pause vs. Dead
 

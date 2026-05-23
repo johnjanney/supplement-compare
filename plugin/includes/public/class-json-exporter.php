@@ -172,9 +172,10 @@ class Supcomp_JSON_Exporter {
 			'id'                          => (int) $row->id,
 			'canonical_product_id'        => (int) $row->canonical_product_id,
 			'merchant'                    => array(
-				'id'   => (int) $row->merchant_id,
-				'slug' => (string) $row->merchant_slug,
-				'name' => (string) $row->merchant_name,
+				'id'          => (int) $row->merchant_id,
+				'slug'        => (string) $row->merchant_slug,
+				'name'        => (string) $row->merchant_name,
+				'coupon_code' => self::nullable_str( $row->merchant_coupon_code ),
 			),
 			'brand'                       => (string) $row->brand,
 			'product_title'               => (string) $row->product_title,

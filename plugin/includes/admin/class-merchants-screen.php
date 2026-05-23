@@ -206,6 +206,7 @@ class Supcomp_Merchants_Screen {
 		$platform               = $row ? $row->platform : 'generic';
 		$default_currency       = $row ? $row->default_currency : (string) get_option( 'supcomp_default_currency', 'USD' );
 		$affiliate_url_template = $row ? (string) $row->affiliate_url_template : '';
+		$coupon_code            = $row ? (string) $row->coupon_code : '';
 		$status                 = $row ? $row->status : 'active';
 		$notes                  = $row ? (string) $row->notes : '';
 
@@ -283,6 +284,11 @@ class Supcomp_Merchants_Screen {
 						</td>
 					</tr>
 					<tr>
+						<th><label for="supcomp-coupon-code"><?php esc_html_e( 'Coupon code', 'supplement-compare' ); ?></label></th>
+						<td><input type="text" id="supcomp-coupon-code" name="coupon_code" value="<?php echo esc_attr( $coupon_code ); ?>" maxlength="64" class="regular-text code" placeholder="<?php esc_attr_e( 'e.g. SAVE10', 'supplement-compare' ); ?>">
+							<p class="description"><?php esc_html_e( 'Optional. If the merchant issues an affiliate coupon, enter the code here and it will display in the public comparison table next to each offer. Leave blank for no code.', 'supplement-compare' ); ?></p></td>
+					</tr>
+					<tr>
 						<th><label for="supcomp-test-urls"><?php esc_html_e( 'Template tester', 'supplement-compare' ); ?></label></th>
 						<td>
 							<textarea id="supcomp-test-urls" rows="3" class="large-text code" placeholder="https://example.com/products/foo&#10;https://example.com/products/bar?variant=42"></textarea>
@@ -335,6 +341,8 @@ class Supcomp_Merchants_Screen {
 			exit;
 		}
 
+		do_action( 'supcomp_data_changed', array( 'source' => 'merchant_save', 'id' => $result['id'] ) );
+
 		wp_safe_redirect( self::url( array( 'action' => 'edit', 'id' => $result['id'], 'supcomp_notice' => $result['created'] ? 'created' : 'updated' ) ) );
 		exit;
 	}
@@ -349,6 +357,7 @@ class Supcomp_Merchants_Screen {
 		$status = isset( $_POST['status'] ) ? sanitize_key( wp_unslash( $_POST['status'] ) ) : '';
 		if ( $id && Supcomp_Merchants_Repo::set_status( $id, $status ) ) {
 			$notice = ( $status === 'paused' ) ? 'paused' : ( $status === 'active' ? 'resumed' : 'updated' );
+			do_action( 'supcomp_data_changed', array( 'source' => 'merchant_status', 'id' => $id, 'status' => $status ) );
 		} else {
 			$notice = 'error';
 		}

@@ -143,6 +143,7 @@ class Supcomp_Shortcode {
 			'backToAll'              => __( '← Back to all products', 'supplement-compare' ),
 			'merchantColumn'         => __( 'Merchant', 'supplement-compare' ),
 			'priceColumn'            => __( 'Price', 'supplement-compare' ),
+			'couponCodeColumn'       => __( 'Coupon code', 'supplement-compare' ),
 			'servingsColumn'         => __( 'Servings', 'supplement-compare' ),
 			'totalActiveColumn'      => __( 'Total active', 'supplement-compare' ),
 			'servingSizeColumn'      => __( 'Serving size', 'supplement-compare' ),

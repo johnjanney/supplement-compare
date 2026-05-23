@@ -17,6 +17,27 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.9.1] — 2026-05-23
+
+### Fixed
+- **Merchant edits now refresh the public JSON immediately.** `Supcomp_Merchants_Screen::handle_save()` and `handle_status()` now fire `supcomp_data_changed`, matching the pattern used by every other admin save handler (canonical products, ingredients, offers, deletion). Before this fix, editing a merchant's coupon code, display name, or status left the public `public.json` carrying the old values until an unrelated data-changed event happened to fire. Flagged as a known limitation in the v1.9.0 entry below; the lag is now gone. Note: merchant rows aren't joined into the public payload directly — they're projected into each offer's `merchant.{slug,name,coupon_code}` block — so the refresh works by regenerating the whole payload, same as every other state change.
+
+---
+
+## [1.9.0] — 2026-05-23
+
+### Added
+- **Merchant coupon code field.** New `coupon_code VARCHAR(64) NULL` column on `merchants` (schema bump `5` → `6`, dbDelta-applied on next page load). Operator inputs it on the merchant add/edit form between the affiliate URL template and the template tester; sanitized via `sanitize_text_field` and clamped to 64 chars at the repo boundary. Optional — leaving it blank means no code displays for that merchant's offers.
+- **Coupon Code column on the public comparison detail table.** Inserted between Price and Buy: `Merchant · Total active · Serving size · # Servings · Cost / serving · Cost / active unit · Price · Coupon Code · Buy`. Codes render as monospace inside a dashed-border chip so they read as "copy this string", not as a price; missing codes render as `—` to keep the column rhythm consistent. New i18n key `couponCodeColumn`.
+- **Coupon code surfaced in the public JSON payload** under each offer's `merchant.coupon_code` (null when unset). `Supcomp_Offers_Repo::for_export` joins `m.coupon_code AS merchant_coupon_code`; the exporter passes it through `nullable_str` so the frontend sees `null` rather than `""` for blanks.
+
+### Notes
+- The code is per-merchant (one code applies to every offer from that merchant), not per-offer. If an operator runs merchant-wide promo codes — the common affiliate-program case — that's the right shape. Per-offer or time-bounded codes would need a different model and aren't in scope here; raise it as a follow-up if a real merchant program requires them.
+- No data migration. Existing merchant rows pick up the new column as `NULL` on dbDelta; offers regenerate into the next public JSON with `coupon_code: null` until the operator edits each merchant.
+- `mark_dirty()` does **not** fire on a merchant save right now, so the public JSON keeps the prior (empty) coupon code until the next data-changed event (offer save, import, scheduled regenerate, or the manual "Regenerate now" button). Hooking merchant saves into `supcomp_data_changed` is the right fix if operators end up frustrated by the lag — flagged here rather than built speculatively.
+
+---
+
 ## [1.8.0] — 2026-05-23
 
 ### Changed

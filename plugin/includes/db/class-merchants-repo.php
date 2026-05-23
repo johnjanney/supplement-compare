@@ -193,6 +193,10 @@ class Supcomp_Merchants_Repo {
 			$val                              = trim( (string) $data['affiliate_url_template'] );
 			$clean['affiliate_url_template'] = $val;
 		}
+		if ( array_key_exists( 'coupon_code', $data ) ) {
+			$code                  = sanitize_text_field( (string) $data['coupon_code'] );
+			$clean['coupon_code'] = substr( trim( $code ), 0, 64 );
+		}
 		if ( isset( $data['status'] ) ) {
 			$s              = sanitize_key( $data['status'] );
 			$clean['status'] = in_array( $s, Supcomp_Installer::MERCHANT_STATUSES, true ) ? $s : 'active';
