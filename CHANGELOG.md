@@ -17,6 +17,13 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.10.1] — 2026-05-23
+
+### Changed
+- **Plugin header — Author and License updated.** `Author` is now `Cornflower` (was `Janney Solutions LLC`) and `License` is now `Proprietary` (was `TBD`). No functional change; both fields surface on the WP Admin Plugins list.
+
+---
+
 ## [1.10.0] — 2026-05-23
 
 ### Added

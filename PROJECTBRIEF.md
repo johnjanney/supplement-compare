@@ -5,7 +5,7 @@
 > **Primary domain:** TBD (placeholder used in code: `example.invalid`)
 > **Build environment:** Claude Code CLI running in WSL2 (Ubuntu) on Windows
 > **Target deployment:** Self-hosted WordPress site
-> **Brief owner:** John (Janney Solutions LLC / Apex Optima)
+> **Brief owner:** John (Cornflower / Apex Optima)
 > **Brief version:** 1.0 (initial)
 
 ---
