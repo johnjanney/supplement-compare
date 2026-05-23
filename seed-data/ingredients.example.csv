@@ -1,0 +1,4 @@
+slug,name,aliases,category,default_unit,elemental_percentage,standardization_compound,standardization_default_pct,status,notes
+l-theanine,L-Theanine,theanine|Suntheanine,amino_acid,mg,,,,active,Common nootropic; no standardization or elemental fraction.
+magnesium-glycinate,Magnesium Glycinate,magnesium bisglycinate,mineral,mg,14.10,,,active,Listed weight is the glycinate salt; 14.10% is the elemental magnesium fraction.
+bacopa-monnieri-50,Bacopa Monnieri (50% bacosides),bacopa|Bacognize|Synapsa,nootropic,mg,,bacosides,50.00,active,Standardized extract. The 50% / 20% standardizations are different canonical ingredients per PROJECTBRIEF §1.

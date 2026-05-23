@@ -1,0 +1,31 @@
+# Composer (WordPress plugins often vendor third-party libs here).
+# Action Scheduler is explicitly checked in — it ships with the plugin
+# zip so installers don't need Composer. Future Composer-installed deps
+# stay ignored.
+vendor/
+!plugin/vendor/
+!plugin/vendor/action-scheduler/
+!plugin/vendor/action-scheduler/**
+
+# Node
+node_modules/
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets
+.env
+
+# Build artifacts — installable plugin zips at the repo root
+/*.zip
+
+# WSL / Windows NTFS alternate-data-stream cruft
+*:Zone.Identifier
