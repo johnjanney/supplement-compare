@@ -148,6 +148,27 @@
 	font-size: 13px;
 	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 	color: #333;
+	cursor: pointer;
+	line-height: 1.2;
+	margin: 0;
+}
+button.supcomp-coupon {
+	-webkit-appearance: none;
+	appearance: none;
+}
+.supcomp-coupon:hover {
+	background: #ebeef0;
+	border-color: #555;
+}
+.supcomp-coupon:focus-visible {
+	outline: 2px solid #2271b1;
+	outline-offset: 1px;
+}
+.supcomp-coupon.supcomp-coupon-copied {
+	background: #e6f4ea;
+	border-style: solid;
+	border-color: #2e7d32;
+	color: #1b5e20;
 }
 
 .supcomp-buy {

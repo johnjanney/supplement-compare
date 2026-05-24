@@ -151,6 +151,8 @@ class Supcomp_Shortcode {
 			'priceColumn'            => __( 'Price', 'supplement-compare' ),
 			'couponCodeColumn'       => __( 'Coupon code', 'supplement-compare' ),
 			'couponDetailsColumn'    => __( 'Coupon details', 'supplement-compare' ),
+			'couponCopyHint'         => __( 'Click to copy', 'supplement-compare' ),
+			'couponCopied'           => __( 'Copied!', 'supplement-compare' ),
 			'viewModeLabel'          => __( 'Show:', 'supplement-compare' ),
 			'viewCostPerServing'     => __( 'Cost / Serving', 'supplement-compare' ),
 			'viewCostPerActive'      => __( 'Cost / Active Unit', 'supplement-compare' ),

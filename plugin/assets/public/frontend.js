@@ -81,6 +81,7 @@
 
 	root.addEventListener('change', onControlChange);
 	root.addEventListener('input', onControlInput);
+	root.addEventListener('click', onControlClick);
 
 	function onControlChange(ev) {
 		var t = ev.target;
@@ -101,6 +102,75 @@
 			bag[key] = t.value;
 		}
 		render();
+	}
+
+	function onControlClick(ev) {
+		var btn = ev.target && ev.target.closest ? ev.target.closest('[data-role="copy-coupon"]') : null;
+		if (!btn) return;
+		ev.preventDefault();
+		var code = btn.getAttribute('data-code') || '';
+		if (!code) return;
+		copyToClipboard(code).then(function () {
+			flashCopied(btn);
+		}, function () {
+			// On failure (no clipboard permission, http context, etc.) select the
+			// text so the user can copy it manually — at least give them something.
+			selectButtonText(btn);
+		});
+	}
+
+	function copyToClipboard(text) {
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			return navigator.clipboard.writeText(text);
+		}
+		return new Promise(function (resolve, reject) {
+			try {
+				var ta = document.createElement('textarea');
+				ta.value = text;
+				ta.setAttribute('readonly', '');
+				ta.style.position = 'fixed';
+				ta.style.left = '-9999px';
+				document.body.appendChild(ta);
+				ta.select();
+				var ok = document.execCommand('copy');
+				document.body.removeChild(ta);
+				ok ? resolve() : reject(new Error('execCommand returned false'));
+			} catch (e) {
+				reject(e);
+			}
+		});
+	}
+
+	function flashCopied(btn) {
+		if (btn._copyResetTimer) {
+			clearTimeout(btn._copyResetTimer);
+			delete btn._copyResetTimer;
+		}
+		var original = btn.getAttribute('data-original-text');
+		if (original == null) {
+			btn.setAttribute('data-original-text', btn.textContent);
+		}
+		btn.textContent = i18n.couponCopied || 'Copied!';
+		btn.classList.add('supcomp-coupon-copied');
+		btn._copyResetTimer = setTimeout(function () {
+			var restore = btn.getAttribute('data-original-text');
+			if (restore != null) {
+				btn.textContent = restore;
+				btn.removeAttribute('data-original-text');
+			}
+			btn.classList.remove('supcomp-coupon-copied');
+			delete btn._copyResetTimer;
+		}, 1500);
+	}
+
+	function selectButtonText(btn) {
+		try {
+			var range = document.createRange();
+			range.selectNodeContents(btn);
+			var sel = window.getSelection();
+			sel.removeAllRanges();
+			sel.addRange(range);
+		} catch (e) {}
 	}
 
 	function onControlInput(ev) {
@@ -321,7 +391,7 @@
 				html += '<td>';
 				var couponCode = o.merchant && o.merchant.coupon_code ? String(o.merchant.coupon_code) : '';
 				if (couponCode) {
-					html += '<code class="supcomp-coupon">' + escapeHtml(couponCode) + '</code>';
+					html += '<button type="button" class="supcomp-coupon" data-role="copy-coupon" data-code="' + escapeAttr(couponCode) + '" title="' + escapeAttr(i18n.couponCopyHint || 'Click to copy') + '" aria-label="' + escapeAttr((i18n.couponCopyHint || 'Click to copy') + ': ' + couponCode) + '">' + escapeHtml(couponCode) + '</button>';
 				} else {
 					html += '<span class="supcomp-meta">—</span>';
 				}
