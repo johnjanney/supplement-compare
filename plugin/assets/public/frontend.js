@@ -238,12 +238,17 @@
 		}
 		if (cp.form) metaBits.push(escapeHtml(cp.form));
 		var unit = cp.strength_unit || cp.active_unit_label || '';
+		var unitDisp = displayUnit(unit);
+		// Multi-word display labels (e.g. "B CFU") get a leading space so the
+		// magnitude doesn't run into the unit ("200 B CFU" not "200B CFU").
+		// Single-word labels stay compact ("200mg").
+		var unitGlue = unitDisp.indexOf(' ') >= 0 ? ' ' : '';
 		var strengthNum = Number(cp.strength_per_serving);
 		var hasStrength = cp.strength_per_serving != null && cp.strength_per_serving !== '' && strengthNum > 0;
 		if (hasStrength) {
-			metaBits.push(escapeHtml(formatNumber(cp.strength_per_serving) + unit));
-		} else if (unit) {
-			metaBits.push(escapeHtml(unit));
+			metaBits.push(escapeHtml(formatNumber(cp.strength_per_serving) + unitGlue + unitDisp));
+		} else if (unitDisp) {
+			metaBits.push(escapeHtml(unitDisp));
 		}
 		if (cp.standardization_compound && cp.standardization_percentage) {
 			metaBits.push(escapeHtml(formatNumber(cp.standardization_percentage) + '% ' + cp.standardization_compound));
@@ -258,11 +263,11 @@
 			var showActive = state.detailView === 'cost_per_active_unit';
 			var showServing = state.detailView === 'cost_per_serving';
 
-			var totalHeader = unit
-				? (i18n.totalUnitColumn || 'Total %s').replace('%s', unit)
+			var totalHeader = unitDisp
+				? (i18n.totalUnitColumn || 'Total %s').replace('%s', unitDisp)
 				: (i18n.totalActiveColumn || 'Total active');
-			var costPerActiveHeader = unit
-				? (i18n.costPerUnitColumn || 'Cost / %s').replace('%s', unit)
+			var costPerActiveHeader = unitDisp
+				? (i18n.costPerUnitColumn || 'Cost / %s').replace('%s', unitDisp)
 				: (i18n.costPerActiveColumn || 'Cost / active unit');
 
 			html += '<table class="supcomp-table supcomp-detail">';
@@ -540,6 +545,13 @@
 
 	var CURRENCY_SYMBOLS = { USD: '$', EUR: '€', GBP: '£', JPY: '¥' };
 
+	var UNIT_DISPLAY_OVERRIDES = { billion_cfu: 'B CFU' };
+
+	function displayUnit(rawUnit) {
+		if (!rawUnit) return '';
+		return UNIT_DISPLAY_OVERRIDES[rawUnit] || rawUnit;
+	}
+
 	function formatPrice(value, currency) {
 		if (value == null) return '—';
 		var code = currency ? String(currency).toUpperCase() : '';
@@ -551,7 +563,7 @@
 
 	function formatCostPerActive(offer, canonical) {
 		if (!offer || offer.cost_per_active_unit == null) return '<span class="supcomp-meta">—</span>';
-		var unit = (canonical && canonical.active_unit_label) || (canonical && canonical.strength_unit) || '';
+		var unit = displayUnit((canonical && canonical.active_unit_label) || (canonical && canonical.strength_unit) || '');
 		var fmt = formatPrice(offer.cost_per_active_unit, offer.currency) + (unit ? ' / ' + escapeHtml(unit) : '');
 		return fmt;
 	}
@@ -563,7 +575,7 @@
 
 	function formatAmount(value, canonical) {
 		if (value == null) return '<span class="supcomp-meta">—</span>';
-		var unit = (canonical && canonical.active_unit_label) || (canonical && canonical.strength_unit) || '';
+		var unit = displayUnit((canonical && canonical.active_unit_label) || (canonical && canonical.strength_unit) || '');
 		return escapeHtml(formatNumber(value)) + (unit ? ' ' + escapeHtml(unit) : '');
 	}
 

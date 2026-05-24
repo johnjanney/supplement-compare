@@ -17,6 +17,14 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.11.3] — 2026-05-23
+
+### Changed
+- **Friendlier display label for the `billion_cfu` unit.** Probiotic canonicals now show **B CFU** in compare headers, cells, subtitles, and the list view's "Lowest cost / active unit" column, instead of the raw schema code `billion_cfu` ("Total B CFU", "Cost / B CFU", "5 B CFU"). Implemented as a one-line `UNIT_DISPLAY_OVERRIDES = { billion_cfu: 'B CFU' }` map in `frontend.js`, applied via a new `displayUnit()` helper at every render site. The stored schema value is unchanged — this is presentation-only.
+- **Subtitle magnitude/unit spacing.** Single-word units stay compact ("200mg", "5g") to match the existing pattern. Multi-word display labels get a leading space ("5 B CFU") so the magnitude doesn't read as part of the unit string.
+
+---
+
 ## [1.11.2] — 2026-05-23
 
 ### Changed
