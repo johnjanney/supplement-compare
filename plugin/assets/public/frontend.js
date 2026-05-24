@@ -49,10 +49,29 @@
 			minPrice: '',
 			maxPrice: '',
 		},
-		listSort: 'cost_per_active_unit',
+		listSort: { key: 'cost_per_active_unit', dir: 'asc' },
 		detailFilters: { inStockOnly: false, thirdPartyOnly: false, coaOnly: false },
-		detailSort: 'cost_per_active_unit',
+		detailSort: { key: 'cost_per_active_unit', dir: 'asc' },
 		detailView: defaultDetailView,
+	};
+
+	// Each sortable column declares its natural direction so a first-click on
+	// (say) "Price" sorts cheapest-first and "Total active" sorts most-first,
+	// matching what a buyer probably wants without forcing them to click twice.
+	// Subsequent clicks on the same column toggle direction.
+	var LIST_SORT_DEFAULT_DIR = {
+		display_name: 'asc',
+		cost_per_active_unit: 'asc',
+		merchant_count: 'desc',
+	};
+	var DETAIL_SORT_DEFAULT_DIR = {
+		merchant: 'asc',
+		active_compound_total: 'desc',
+		strength_per_serving: 'desc',
+		servings_per_container: 'desc',
+		cost_per_serving: 'asc',
+		cost_per_active_unit: 'asc',
+		current_price: 'asc',
 	};
 
 	if (!config.jsonUrl) {
@@ -87,6 +106,7 @@
 	root.addEventListener('change', onControlChange);
 	root.addEventListener('input', onControlInput);
 	root.addEventListener('click', onControlClick);
+	root.addEventListener('keydown', onControlKeydown);
 
 	function onControlChange(ev) {
 		var t = ev.target;
@@ -110,7 +130,16 @@
 	}
 
 	function onControlClick(ev) {
-		var btn = ev.target && ev.target.closest ? ev.target.closest('[data-role="copy-coupon"]') : null;
+		if (!ev.target || !ev.target.closest) return;
+
+		var header = ev.target.closest('th[data-sort-key]');
+		if (header) {
+			ev.preventDefault();
+			applyHeaderSort(header);
+			return;
+		}
+
+		var btn = ev.target.closest('[data-role="copy-coupon"]');
 		if (!btn) return;
 		ev.preventDefault();
 		var code = btn.getAttribute('data-code') || '';
@@ -122,6 +151,29 @@
 			// text so the user can copy it manually — at least give them something.
 			selectButtonText(btn);
 		});
+	}
+
+	function onControlKeydown(ev) {
+		if (ev.key !== 'Enter' && ev.key !== ' ') return;
+		var header = ev.target && ev.target.closest ? ev.target.closest('th[data-sort-key]') : null;
+		if (!header) return;
+		ev.preventDefault();
+		applyHeaderSort(header);
+	}
+
+	function applyHeaderSort(header) {
+		var key = header.getAttribute('data-sort-key');
+		if (!key) return;
+		var isList = !!header.closest('.supcomp-list');
+		var stateKey = isList ? 'listSort' : 'detailSort';
+		var defaults = isList ? LIST_SORT_DEFAULT_DIR : DETAIL_SORT_DEFAULT_DIR;
+		var current = state[stateKey];
+		if (current.key === key) {
+			state[stateKey] = { key: key, dir: current.dir === 'asc' ? 'desc' : 'asc' };
+		} else {
+			state[stateKey] = { key: key, dir: defaults[key] || 'asc' };
+		}
+		render();
 	}
 
 	function copyToClipboard(text) {
@@ -181,14 +233,6 @@
 	function onControlInput(ev) {
 		var t = ev.target;
 		if (!t || !t.dataset) return;
-		if (t.dataset.role === 'sort') {
-			if (t.dataset.bag === 'detail') {
-				state.detailSort = t.value;
-			} else {
-				state.listSort = t.value;
-			}
-			render();
-		}
 		if (t.dataset.role === 'search') {
 			state.listFilters.search = t.value;
 			render();
@@ -264,9 +308,9 @@
 		} else {
 			html += '<table class="supcomp-table supcomp-list">';
 			html += '<thead><tr>';
-			html += '<th>' + escapeHtml(i18n.product || 'Product') + '</th>';
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.lowestCost || 'Lowest cost / active unit') + '</th>';
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.merchants || 'Merchants') + '</th>';
+			html += sortHeader('display_name', i18n.product || 'Product', state.listSort);
+			html += sortHeader('cost_per_active_unit', i18n.lowestCost || 'Lowest cost / active unit', state.listSort, { numeric: true });
+			html += sortHeader('merchant_count', i18n.merchants || 'Merchants', state.listSort, { numeric: true });
 			html += '<th></th>';
 			html += '</tr></thead><tbody>';
 			canonicals.forEach(function (item) {
@@ -347,19 +391,19 @@
 
 			html += '<table class="supcomp-table supcomp-detail">';
 			html += '<thead><tr>';
-			html += '<th>' + escapeHtml(i18n.merchantColumn || 'Merchant') + '</th>';
+			html += sortHeader('merchant', i18n.merchantColumn || 'Merchant', state.detailSort);
 			if (showActive) {
-				html += '<th class="supcomp-num">' + escapeHtml(totalHeader) + '</th>';
+				html += sortHeader('active_compound_total', totalHeader, state.detailSort, { numeric: true });
 			}
 			if (showServing) {
-				html += '<th class="supcomp-num">' + escapeHtml(i18n.servingSizeColumn || 'Serving size') + '</th>';
-				html += '<th class="supcomp-num">' + escapeHtml(i18n.numServingsColumn || 'Servings') + '</th>';
-				html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerServingColumn || 'Cost / serving') + '</th>';
+				html += sortHeader('strength_per_serving', i18n.servingSizeColumn || 'Serving size', state.detailSort, { numeric: true });
+				html += sortHeader('servings_per_container', i18n.numServingsColumn || 'Servings', state.detailSort, { numeric: true });
+				html += sortHeader('cost_per_serving', i18n.costPerServingColumn || 'Cost / serving', state.detailSort, { numeric: true });
 			}
 			if (showActive) {
-				html += '<th class="supcomp-num">' + escapeHtml(costPerActiveHeader) + '</th>';
+				html += sortHeader('cost_per_active_unit', costPerActiveHeader, state.detailSort, { numeric: true });
 			}
-			html += '<th class="supcomp-num">' + escapeHtml(i18n.priceColumn || 'Price') + '</th>';
+			html += sortHeader('current_price', i18n.priceColumn || 'Price', state.detailSort, { numeric: true });
 			html += '<th>' + escapeHtml(i18n.couponCodeColumn || 'Coupon code') + '</th>';
 			html += '<th>' + escapeHtml(i18n.couponDetailsColumn || 'Coupon details') + '</th>';
 			html += '<th>' + escapeHtml(i18n.buyColumn || 'Buy') + '</th>';
@@ -459,13 +503,6 @@
 			h += '<label><input type="checkbox" data-field="coaOnly"' + (f.coaOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.coaOnly || 'COA only') + '</label>';
 		}
 
-		h += '<label class="supcomp-sort">' + escapeHtml(i18n.sortBy || 'Sort') + ': ';
-		h += '<select data-role="sort">';
-		h += sortOption('cost_per_active_unit', i18n.sortCostPerActive, state.listSort);
-		h += sortOption('current_price', i18n.sortPrice, state.listSort);
-		h += sortOption('display_name', i18n.product, state.listSort);
-		h += '</select>';
-		h += '</label>';
 		h += '</div>';
 		return h;
 	}
@@ -489,21 +526,23 @@
 			h += '<label><input type="checkbox" data-bag="detail" data-field="coaOnly"' + (f.coaOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.coaOnly || 'COA only') + '</label>';
 		}
 
-		h += '<label class="supcomp-sort">' + escapeHtml(i18n.sortBy || 'Sort') + ': ';
-		h += '<select data-role="sort" data-bag="detail">';
-		h += sortOption('cost_per_active_unit', i18n.sortCostPerActive, state.detailSort);
-		h += sortOption('current_price', i18n.sortPrice, state.detailSort);
-		h += sortOption('active_compound_total', i18n.sortTotalActive, state.detailSort);
-		h += sortOption('merchant', i18n.sortMerchant, state.detailSort);
-		h += sortOption('last_synced_at', i18n.sortRecency, state.detailSort);
-		h += '</select>';
-		h += '</label>';
 		h += '</div>';
 		return h;
 	}
 
-	function sortOption(value, label, current) {
-		return '<option value="' + escapeAttr(value) + '"' + (current === value ? ' selected' : '') + '>' + escapeHtml(label || value) + '</option>';
+	function sortHeader(key, label, current, opts) {
+		opts = opts || {};
+		var active = current && current.key === key;
+		var dir = active ? current.dir : '';
+		var ariaSort = active ? (dir === 'desc' ? 'descending' : 'ascending') : 'none';
+		var arrow = active ? (dir === 'desc' ? ' ▼' : ' ▲') : '';
+		var classes = 'supcomp-sortable';
+		if (opts.numeric) classes += ' supcomp-num';
+		if (active) classes += ' supcomp-sorted';
+		return '<th class="' + classes + '" data-sort-key="' + escapeAttr(key) + '" aria-sort="' + ariaSort + '" tabindex="0" role="button">' +
+			escapeHtml(label || key) +
+			'<span class="supcomp-sort-arrow" aria-hidden="true">' + arrow + '</span>' +
+			'</th>';
 	}
 
 	// ---------- filtering / sorting ----------
@@ -543,44 +582,56 @@
 	}
 
 	function listSortCompare(a, b) {
-		switch (state.listSort) {
-			case 'current_price':
-				return numericCompare(minBy(a.offers, 'current_price'), minBy(b.offers, 'current_price'), 'current_price');
+		var s = state.listSort;
+		switch (s.key) {
 			case 'display_name':
-				return (a.cp.display_name || '').localeCompare(b.cp.display_name || '');
+				return textCompare(a.cp.display_name, b.cp.display_name, s.dir);
+			case 'merchant_count':
+				return numericCompareDir(a.merchantCount, b.merchantCount, s.dir);
 			case 'cost_per_active_unit':
 			default:
-				return numericCompare(a.lowest, b.lowest, 'cost_per_active_unit');
+				return numericCompareDir(
+					a.lowest && a.lowest.cost_per_active_unit,
+					b.lowest && b.lowest.cost_per_active_unit,
+					s.dir
+				);
 		}
 	}
 
 	function detailSortCompare(a, b) {
-		switch (state.detailSort) {
-			case 'current_price':
-				return numericCompare(a, b, 'current_price');
-			case 'active_compound_total':
-				var av = a.active_compound_total, bv = b.active_compound_total;
-				if (av == null && bv == null) return 0;
-				if (av == null) return 1;
-				if (bv == null) return -1;
-				return bv - av;
+		var s = state.detailSort;
+		switch (s.key) {
 			case 'merchant':
-				return ((a.merchant && a.merchant.name) || '').localeCompare((b.merchant && b.merchant.name) || '');
-			case 'last_synced_at':
-				return (b.last_synced_at || '').localeCompare(a.last_synced_at || '');
+				return textCompare((a.merchant && a.merchant.name) || '', (b.merchant && b.merchant.name) || '', s.dir);
+			case 'current_price':
+				return numericCompareDir(a.current_price, b.current_price, s.dir);
+			case 'active_compound_total':
+				return numericCompareDir(a.active_compound_total, b.active_compound_total, s.dir);
+			case 'strength_per_serving':
+				return numericCompareDir(a.strength_per_serving, b.strength_per_serving, s.dir);
+			case 'servings_per_container':
+				return numericCompareDir(a.servings_per_container, b.servings_per_container, s.dir);
+			case 'cost_per_serving':
+				return numericCompareDir(a.cost_per_serving, b.cost_per_serving, s.dir);
 			case 'cost_per_active_unit':
 			default:
-				return numericCompare(a, b, 'cost_per_active_unit');
+				return numericCompareDir(a.cost_per_active_unit, b.cost_per_active_unit, s.dir);
 		}
 	}
 
-	function numericCompare(a, b, field) {
-		var av = a ? a[field] : null;
-		var bv = b ? b[field] : null;
+	// Numeric compare with nulls always at the bottom regardless of direction.
+	// Flipping direction reverses the comparison of populated values only —
+	// empty cells stay at the end of the table either way.
+	function numericCompareDir(av, bv, dir) {
 		if (av == null && bv == null) return 0;
 		if (av == null) return 1;
 		if (bv == null) return -1;
-		return av - bv;
+		return dir === 'desc' ? bv - av : av - bv;
+	}
+
+	function textCompare(av, bv, dir) {
+		var cmp = (av || '').localeCompare(bv || '');
+		return dir === 'desc' ? -cmp : cmp;
 	}
 
 	function groupByCanonical(offers) {

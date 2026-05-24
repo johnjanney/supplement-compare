@@ -677,12 +677,16 @@ shortcode there.
 **What renders:**
 - Top filter bar: search, form, ingredient, and (each independently
   toggleable on the Settings page → **Filter checkboxes**) in-stock-only,
-  third-party-only, COA-only, plus the sort dropdown. Unchecking a filter
-  on the Settings page removes its checkbox from both the list and detail
-  filter bars — useful when your dataset doesn't populate that field
-  uniformly. The sort menu on the per-canonical detail view sorts by
-  cost-per-active-unit, price, total active (most compound per container
-  first), merchant, or recently updated.
+  third-party-only, COA-only. Unchecking a filter on the Settings page
+  removes its checkbox from both the list and detail filter bars —
+  useful when your dataset doesn't populate that field uniformly.
+- **Click-to-sort column headers.** Every numeric and text column on the
+  list and detail tables is sortable by clicking its header. First click
+  applies the column's natural direction (cost/price ascending — cheapest
+  first; total active / servings / merchant count descending — most first;
+  text ascending — A→Z); a second click on the same column toggles
+  direction. The active column shows a ▲/▼ indicator. Keyboard users can
+  Tab to a header and press Enter or Space.
 - On the detail (per-canonical) view: a **Show: Cost / Serving | Cost /
   Active Unit** radio toggle above the table. Both views show the same
   offer rows; the toggle swaps which columns are visible:
