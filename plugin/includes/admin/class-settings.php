@@ -10,6 +10,10 @@
  *   supcomp_affiliate_disclosure    — disclosure text rendered on every comparison page
  *   supcomp_default_compare_view    — which compare-table column set loads by default
  *                                     ('cost_per_serving' | 'cost_per_active_unit')
+ *   supcomp_multi_compare_view_enabled — whether visitors see the Cost / Serving vs
+ *                                        Cost / Active Unit radio toggle on the
+ *                                        detail view. When off, the default view
+ *                                        above is the only view that renders.
  *   supcomp_filter_in_stock_enabled — whether the "In stock only" checkbox renders
  *   supcomp_filter_third_party_enabled — whether the "Third-party tested only" checkbox renders
  *   supcomp_filter_coa_enabled      — whether the "COA available only" checkbox renders
@@ -82,6 +86,16 @@ class Supcomp_Settings {
 			)
 		);
 
+		register_setting(
+			self::OPTION_GROUP,
+			'supcomp_multi_compare_view_enabled',
+			array(
+				'type'              => 'boolean',
+				'sanitize_callback' => array( __CLASS__, 'sanitize_bool' ),
+				'default'           => true,
+			)
+		);
+
 		foreach ( self::filter_toggle_options() as $option_name => $_label ) {
 			register_setting(
 				self::OPTION_GROUP,
@@ -129,6 +143,14 @@ class Supcomp_Settings {
 			'supcomp_affiliate_disclosure',
 			__( 'Affiliate disclosure text', 'supplement-compare' ),
 			array( __CLASS__, 'render_disclosure_field' ),
+			self::PAGE_SLUG,
+			self::SECTION_ID
+		);
+
+		add_settings_field(
+			'supcomp_multi_compare_view_enabled',
+			__( 'Multi compare-table view', 'supplement-compare' ),
+			array( __CLASS__, 'render_multi_compare_view_field' ),
 			self::PAGE_SLUG,
 			self::SECTION_ID
 		);
@@ -233,7 +255,8 @@ class Supcomp_Settings {
 	}
 
 	public static function render_compare_view_field() {
-		$value = self::sanitize_compare_view( get_option( 'supcomp_default_compare_view', 'cost_per_active_unit' ) );
+		$value      = self::sanitize_compare_view( get_option( 'supcomp_default_compare_view', 'cost_per_active_unit' ) );
+		$multi_on   = (bool) get_option( 'supcomp_multi_compare_view_enabled', true );
 		?>
 		<fieldset>
 			<label>
@@ -244,7 +267,27 @@ class Supcomp_Settings {
 				<input type="radio" name="supcomp_default_compare_view" value="cost_per_serving" <?php checked( $value, 'cost_per_serving' ); ?>>
 				<?php esc_html_e( 'Cost / Serving (Merchant, Serving size, Servings, Cost / serving, Price, Coupon, Buy)', 'supplement-compare' ); ?>
 			</label>
-			<p class="description"><?php esc_html_e( 'Which column set the public compare table opens with. Visitors can flip between the two views with a radio toggle above the table; this setting only changes which view loads by default.', 'supplement-compare' ); ?></p>
+			<p class="description">
+			<?php if ( $multi_on ) : ?>
+				<?php esc_html_e( 'Which column set the public compare table opens with. Visitors can flip between the two views with a radio toggle above the table; this setting only changes which view loads by default.', 'supplement-compare' ); ?>
+			<?php else : ?>
+				<?php esc_html_e( 'Multi compare-table view is off, so this is the only view visitors see — the toggle above the table is hidden.', 'supplement-compare' ); ?>
+			<?php endif; ?>
+			</p>
+		</fieldset>
+		<?php
+	}
+
+	public static function render_multi_compare_view_field() {
+		$enabled = (bool) get_option( 'supcomp_multi_compare_view_enabled', true );
+		?>
+		<fieldset>
+			<label>
+				<input type="hidden" name="supcomp_multi_compare_view_enabled" value="0">
+				<input type="checkbox" name="supcomp_multi_compare_view_enabled" value="1" <?php checked( $enabled, true ); ?>>
+				<?php esc_html_e( 'Let visitors switch between Cost / Serving and Cost / Active Unit on the detail view', 'supplement-compare' ); ?>
+			</label>
+			<p class="description"><?php esc_html_e( 'When checked, the per-canonical detail view shows a "Show:" radio toggle above the table and visitors can flip between the two column sets. When unchecked, the radio toggle is hidden and visitors only ever see the Default compare-table view selected below.', 'supplement-compare' ); ?></p>
 		</fieldset>
 		<?php
 	}

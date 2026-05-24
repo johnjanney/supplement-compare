@@ -107,15 +107,16 @@ class Supcomp_Shortcode {
 			self::SCRIPT_HANDLE,
 			'supcompFrontend',
 			array(
-				'jsonUrl'             => $json_url,
-				'affiliateDisclosure' => (string) get_option( 'supcomp_affiliate_disclosure', '' ),
-				'defaultCompareView'  => $compare_view,
-				'filters'             => array(
+				'jsonUrl'                 => $json_url,
+				'affiliateDisclosure'     => (string) get_option( 'supcomp_affiliate_disclosure', '' ),
+				'defaultCompareView'      => $compare_view,
+				'multiCompareViewEnabled' => (bool) get_option( 'supcomp_multi_compare_view_enabled', true ),
+				'filters'                 => array(
 					'inStockOnly'    => (bool) get_option( 'supcomp_filter_in_stock_enabled', true ),
 					'thirdPartyOnly' => (bool) get_option( 'supcomp_filter_third_party_enabled', true ),
 					'coaOnly'        => (bool) get_option( 'supcomp_filter_coa_enabled', true ),
 				),
-				'i18n'                => self::i18n_strings(),
+				'i18n'                    => self::i18n_strings(),
 			)
 		);
 	}

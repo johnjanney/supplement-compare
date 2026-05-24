@@ -728,14 +728,18 @@ shortcode there.
   direction. The active column shows a ▲/▼ indicator. Keyboard users can
   Tab to a header and press Enter or Space.
 - On the detail (per-canonical) view: a **Show: Cost / Serving | Cost /
-  Active Unit** radio toggle above the table. Both views show the same
-  offer rows; the toggle swaps which columns are visible:
+  Active Unit** radio toggle above the table (visible only when **Multi
+  compare-table view** is checked on the Settings page — see below). Both
+  views show the same offer rows; the toggle swaps which columns are
+  visible:
   - **Cost / Active Unit** — Merchant · Total active · Cost / active unit
     · Price · Coupon · Buy
   - **Cost / Serving** — Merchant · Serving size · Servings · Cost /
     serving · Price · Coupon · Buy
   The default view loaded on first render is set on the Settings page
-  (**Default compare-table view**).
+  (**Default compare-table view**). When **Multi compare-table view** is
+  unchecked, the toggle is hidden and the Default view is the only view
+  visitors see.
 - A list-or-detail table, hash-routed (`#/` for list, `#/canonical/<slug>`
   for detail).
 - Below the table: the affiliate disclosure (configurable in Settings) and

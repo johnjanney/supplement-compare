@@ -29,6 +29,7 @@
 	var defaultDetailView = DETAIL_VIEWS.indexOf(config.defaultCompareView) >= 0
 		? config.defaultCompareView
 		: 'cost_per_active_unit';
+	var multiCompareViewEnabled = config.multiCompareViewEnabled !== false;
 
 	var filterToggles = (config.filters && typeof config.filters === 'object') ? config.filters : {};
 	var showInStock = filterToggles.inStockOnly !== false;
@@ -112,7 +113,7 @@
 		var t = ev.target;
 		if (!t || !t.dataset) return;
 		if (t.dataset.role === 'detail-view') {
-			if (DETAIL_VIEWS.indexOf(t.value) >= 0) {
+			if (multiCompareViewEnabled && DETAIL_VIEWS.indexOf(t.value) >= 0) {
 				state.detailView = t.value;
 				render();
 			}
@@ -510,11 +511,14 @@
 	function detailFilterBar() {
 		var f = state.detailFilters;
 		var v = state.detailView;
-		var h = '<div class="supcomp-view-toggle" role="radiogroup" aria-label="' + escapeAttr(i18n.viewModeLabel || 'Show:') + '">';
-		h += '<span class="supcomp-view-toggle-label">' + escapeHtml(i18n.viewModeLabel || 'Show:') + '</span>';
-		h += '<label><input type="radio" name="supcomp-detail-view" data-role="detail-view" value="cost_per_serving"' + (v === 'cost_per_serving' ? ' checked' : '') + '> ' + escapeHtml(i18n.viewCostPerServing || 'Cost / Serving') + '</label>';
-		h += '<label><input type="radio" name="supcomp-detail-view" data-role="detail-view" value="cost_per_active_unit"' + (v === 'cost_per_active_unit' ? ' checked' : '') + '> ' + escapeHtml(i18n.viewCostPerActive || 'Cost / Active Unit') + '</label>';
-		h += '</div>';
+		var h = '';
+		if (multiCompareViewEnabled) {
+			h += '<div class="supcomp-view-toggle" role="radiogroup" aria-label="' + escapeAttr(i18n.viewModeLabel || 'Show:') + '">';
+			h += '<span class="supcomp-view-toggle-label">' + escapeHtml(i18n.viewModeLabel || 'Show:') + '</span>';
+			h += '<label><input type="radio" name="supcomp-detail-view" data-role="detail-view" value="cost_per_serving"' + (v === 'cost_per_serving' ? ' checked' : '') + '> ' + escapeHtml(i18n.viewCostPerServing || 'Cost / Serving') + '</label>';
+			h += '<label><input type="radio" name="supcomp-detail-view" data-role="detail-view" value="cost_per_active_unit"' + (v === 'cost_per_active_unit' ? ' checked' : '') + '> ' + escapeHtml(i18n.viewCostPerActive || 'Cost / Active Unit') + '</label>';
+			h += '</div>';
+		}
 		h += '<div class="supcomp-filters">';
 		if (showInStock) {
 			h += '<label><input type="checkbox" data-bag="detail" data-field="inStockOnly"' + (f.inStockOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.inStockOnly || 'In stock only') + '</label>';
