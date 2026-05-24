@@ -119,6 +119,12 @@ class Supcomp_Shortcode {
 					'form'           => (bool) get_option( 'supcomp_filter_form_enabled', true ),
 					'ingredient'     => (bool) get_option( 'supcomp_filter_ingredient_enabled', true ),
 				),
+				// Nested object (not top-level scalars) so wp_localize_script
+				// keeps the booleans as real booleans — see 1.16.1 note.
+				'subheads'                => array(
+					'detail' => (bool) get_option( 'supcomp_subhead_detail_enabled', true ),
+					'list'   => (bool) get_option( 'supcomp_subhead_list_enabled', true ),
+				),
 				'i18n'                    => self::i18n_strings(),
 			)
 		);

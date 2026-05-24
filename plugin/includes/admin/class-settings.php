@@ -20,6 +20,12 @@
  *   supcomp_filter_search_enabled   — whether the search-ingredient input renders on the list view
  *   supcomp_filter_form_enabled     — whether the "All forms" select renders on the list view
  *   supcomp_filter_ingredient_enabled — whether the "All ingredients" select renders on the list view
+ *   supcomp_subhead_detail_enabled  — whether the canonical-product detail page renders the
+ *                                     subhead under the title (ingredient · category · form · unit).
+ *                                     Applies to both the JS-rendered shortcode detail view and
+ *                                     the PHP-rendered /compare/{slug}/ landing page.
+ *   supcomp_subhead_list_enabled    — whether each row in the list table shows the ingredient ·
+ *                                     category line under the canonical product name.
  *
  * Note on two staleness thresholds: PROJECTBRIEF.md §1 Phase 1 mentions
  * "staleness threshold hours" in the singular, but §6 defines two distinct
@@ -123,6 +129,18 @@ class Supcomp_Settings {
 			);
 		}
 
+		foreach ( self::subhead_toggle_options() as $option_name => $_label ) {
+			register_setting(
+				self::OPTION_GROUP,
+				$option_name,
+				array(
+					'type'              => 'boolean',
+					'sanitize_callback' => array( __CLASS__, 'sanitize_bool' ),
+					'default'           => true,
+				)
+			);
+		}
+
 		add_settings_section(
 			self::SECTION_ID,
 			__( 'General', 'supplement-compare' ),
@@ -193,6 +211,14 @@ class Supcomp_Settings {
 			self::PAGE_SLUG,
 			self::SECTION_ID
 		);
+
+		add_settings_field(
+			'supcomp_subhead_toggles',
+			__( 'Product subhead', 'supplement-compare' ),
+			array( __CLASS__, 'render_subhead_toggles_field' ),
+			self::PAGE_SLUG,
+			self::SECTION_ID
+		);
 	}
 
 	public static function filter_toggle_options() {
@@ -208,6 +234,13 @@ class Supcomp_Settings {
 			'supcomp_filter_search_enabled'     => __( 'Search ingredient (text input)', 'supplement-compare' ),
 			'supcomp_filter_form_enabled'       => __( 'All forms (dropdown)', 'supplement-compare' ),
 			'supcomp_filter_ingredient_enabled' => __( 'All ingredients (dropdown)', 'supplement-compare' ),
+		);
+	}
+
+	public static function subhead_toggle_options() {
+		return array(
+			'supcomp_subhead_detail_enabled' => __( 'Detail page subhead (ingredient · category · form · active unit, under the product title)', 'supplement-compare' ),
+			'supcomp_subhead_list_enabled'   => __( 'List row subhead (ingredient · category, under each product name in the main table)', 'supplement-compare' ),
 		);
 	}
 
@@ -298,6 +331,23 @@ class Supcomp_Settings {
 			</label>
 		<?php endforeach; ?>
 			<p class="description"><?php esc_html_e( 'Each enabled control appears above the main (list) table. Disable any of these to simplify the filter bar — useful when the dataset is small enough that a search field or form/ingredient dropdown is unnecessary. The detail view (per-canonical comparison) is unaffected. Pre-filtering via shortcode attributes (e.g. [supplement_compare ingredient="L-Theanine"]) still applies even when the matching control is hidden.', 'supplement-compare' ); ?></p>
+		</fieldset>
+		<?php
+	}
+
+	public static function render_subhead_toggles_field() {
+		?>
+		<fieldset>
+		<?php foreach ( self::subhead_toggle_options() as $option_name => $label ) :
+			$enabled = (bool) get_option( $option_name, true );
+		?>
+			<label style="display:block;margin-bottom:0.25em">
+				<input type="hidden" name="<?php echo esc_attr( $option_name ); ?>" value="0">
+				<input type="checkbox" name="<?php echo esc_attr( $option_name ); ?>" value="1" <?php checked( $enabled, true ); ?>>
+				<?php echo esc_html( $label ); ?>
+			</label>
+		<?php endforeach; ?>
+			<p class="description"><?php esc_html_e( 'Each enabled subhead renders as a small grey line of meta-text. The detail toggle applies to both the shortcode-rendered detail view and the dedicated /compare/{slug}/ landing page. Disable either subhead to keep the page cleaner when the product title already communicates enough on its own.', 'supplement-compare' ); ?></p>
 		</fieldset>
 		<?php
 	}

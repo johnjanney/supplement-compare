@@ -17,6 +17,16 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.18.0] — 2026-05-24
+
+### Added
+- **New Settings field: "Product subhead."** Two independent checkboxes let the operator hide the small grey meta-line of text on the public site.
+  - **Detail page subhead** (`supcomp_subhead_detail_enabled`, default `true`) controls the `ingredient · category · form · active unit` line that renders under the product title on the canonical detail view. Applies to both the JS-rendered shortcode detail view (`#/canonical/{slug}`) and the PHP-rendered `/compare/{slug}/` SEO landing page, so the operator only flips one switch.
+  - **List row subhead** (`supcomp_subhead_list_enabled`, default `true`) controls the `ingredient · category` line that renders under each product name in the main (list) table.
+  - Wired through a new nested `supcompFrontend.subheads` object so booleans survive `wp_localize_script` unchanged (top-level scalar booleans get string-coerced — see 1.16.1).
+
+---
+
 ## [1.17.0] — 2026-05-24
 
 ### Added

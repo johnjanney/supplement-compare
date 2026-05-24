@@ -149,6 +149,26 @@ Defer until the operator runs scheduled extraction in real life for long enough 
 
 ---
 
+### Q-010: Coupon code details / description text
+
+**Status:** open (next-session feature)
+**Raised:** 2026-05-23
+**Last touched:** 2026-05-23
+
+Add a free-text "coupon details" field next to the per-merchant `coupon_code` (added in v1.9.1) so the public comparison table can render context like "10% off" or "$5 off purchases of $50 or more" next to the code itself.
+
+**Ambiguities to resolve before coding:**
+
+- **Shape — one field or two?** Single free-text "details" string is simplest (operator types whatever the merchant told them). A structured pair (discount_kind ∈ {percent, fixed, free_shipping, …} + discount_amount + minimum_purchase) would let the frontend localize and sort, but it's a much bigger surface and most affiliate-program copy doesn't map cleanly. Default recommendation: single `coupon_details VARCHAR(160) NULL`, sanitized identically to `coupon_code`.
+- **Display layout.** Next to or below the chip? Same cell? Visible on mobile (the detail table already scrolls horizontally on narrow screens — adding more text per cell risks pushing more columns off-screen)?
+- **Length cap.** 160 chars covers "$5 off purchases of $50 or more, first-time customers only, expires 12/31" with room to spare. Don't go longer — long marketing copy belongs on the merchant's site, not in the comparison table.
+- **JSON payload key.** `merchant.coupon_details` mirrors `merchant.coupon_code` cleanly.
+- **No expiry handling.** Don't build a date-bounded auto-expire — operators already update the code field manually when promos end; details would follow the same workflow.
+
+Code touchpoints will be the same set as v1.9.1's coupon code work: installer schema bump, merchants repo sanitize, merchants admin form, `for_export` join, exporter `nullable_str`, frontend table rendering, CSS, i18n key, INSTRUCTIONS §6 docs, CHANGELOG, version bump.
+
+---
+
 ### Q-009: Retiring the legacy Python extractor
 
 **Status:** open (gates v2.0.0)
