@@ -17,6 +17,16 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.16.0] — 2026-05-24
+
+### Added
+- **New Settings checkbox: "Multi compare-table view."** Controls whether the per-canonical detail view exposes the `Show: Cost / Serving | Cost / Active Unit` radio toggle to visitors. New option `supcomp_multi_compare_view_enabled` (boolean, default `true` — preserves prior behavior on upgrade).
+  - **Checked (default):** the toggle renders above the detail table and visitors can flip between the two column sets. The **Default compare-table view** setting selects which view loads first.
+  - **Unchecked:** the toggle is hidden and visitors only ever see the view selected in **Default compare-table view** — locking the site to a single column set. Useful when one comparison axis (e.g. cost per active unit) is the only one that matters for the operator's audience and the alternate view would be noise.
+  - Wired through `wp_localize_script` as `supcompFrontend.multiCompareViewEnabled`; the frontend hides the radio group and ignores any stray `data-role="detail-view"` change events when the flag is `false`.
+
+---
+
 ## [1.15.0] — 2026-05-24
 
 ### Changed
