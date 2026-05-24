@@ -17,6 +17,16 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.13.0] — 2026-05-23
+
+### Added
+- **Per-filter enable/disable toggles on the Settings page.** A new **Filter checkboxes** fieldset under Settings exposes three boolean options (`supcomp_filter_in_stock_enabled`, `supcomp_filter_third_party_enabled`, `supcomp_filter_coa_enabled`, all default-on) that gate whether the matching checkbox renders on the public comparison filter bar (both list and detail views). Disabling a filter hides its checkbox entirely so the bar stays tidy when the underlying field isn't populated across your dataset (e.g. unticking "COA available only" when no offer has a COA recorded). State is read by the shortcode and forwarded to the frontend via `wp_localize_script` under a new `filters` key.
+
+### Changed
+- **Detail-view sort: "Brand" → "Total active."** The per-canonical comparison-table sort dropdown drops the alphabetical-brand option in favor of a numeric **Total active** sort (descending — most active first, nulls last) on the offer's `active_compound_total` field. The new option matches the apples-to-apples framing of the comparison: with brand removed from public columns in earlier releases, sorting by brand offered little to visitors, whereas sorting by total active mass per container surfaces the offers that pack the most compound into a single unit. The list-view sort menu is unchanged. New i18n key `sortTotalActive` replaces `sortBrand`.
+
+---
+
 ## [1.12.0] — 2026-05-23
 
 ### Added

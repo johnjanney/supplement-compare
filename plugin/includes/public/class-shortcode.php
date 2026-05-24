@@ -110,6 +110,11 @@ class Supcomp_Shortcode {
 				'jsonUrl'             => $json_url,
 				'affiliateDisclosure' => (string) get_option( 'supcomp_affiliate_disclosure', '' ),
 				'defaultCompareView'  => $compare_view,
+				'filters'             => array(
+					'inStockOnly'    => (bool) get_option( 'supcomp_filter_in_stock_enabled', true ),
+					'thirdPartyOnly' => (bool) get_option( 'supcomp_filter_third_party_enabled', true ),
+					'coaOnly'        => (bool) get_option( 'supcomp_filter_coa_enabled', true ),
+				),
 				'i18n'                => self::i18n_strings(),
 			)
 		);
@@ -139,7 +144,7 @@ class Supcomp_Shortcode {
 			'sortBy'                 => __( 'Sort by', 'supplement-compare' ),
 			'sortCostPerActive'      => __( 'Cost per active unit', 'supplement-compare' ),
 			'sortPrice'              => __( 'Price', 'supplement-compare' ),
-			'sortBrand'              => __( 'Brand', 'supplement-compare' ),
+			'sortTotalActive'        => __( 'Total active', 'supplement-compare' ),
 			'sortMerchant'           => __( 'Merchant', 'supplement-compare' ),
 			'sortRecency'            => __( 'Recently updated', 'supplement-compare' ),
 			'product'                => __( 'Product', 'supplement-compare' ),

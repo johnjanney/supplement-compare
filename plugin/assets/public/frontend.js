@@ -30,6 +30,11 @@
 		? config.defaultCompareView
 		: 'cost_per_active_unit';
 
+	var filterToggles = (config.filters && typeof config.filters === 'object') ? config.filters : {};
+	var showInStock = filterToggles.inStockOnly !== false;
+	var showThirdParty = filterToggles.thirdPartyOnly !== false;
+	var showCoa = filterToggles.coaOnly !== false;
+
 	var data = null;
 	var state = {
 		view: parseHash() || initialView(),
@@ -444,9 +449,15 @@
 		});
 		h += '</select>';
 
-		h += '<label><input type="checkbox" data-field="inStockOnly"' + (f.inStockOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.inStockOnly || 'In stock only') + '</label>';
-		h += '<label><input type="checkbox" data-field="thirdPartyOnly"' + (f.thirdPartyOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.thirdPartyOnly || '3PT only') + '</label>';
-		h += '<label><input type="checkbox" data-field="coaOnly"' + (f.coaOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.coaOnly || 'COA only') + '</label>';
+		if (showInStock) {
+			h += '<label><input type="checkbox" data-field="inStockOnly"' + (f.inStockOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.inStockOnly || 'In stock only') + '</label>';
+		}
+		if (showThirdParty) {
+			h += '<label><input type="checkbox" data-field="thirdPartyOnly"' + (f.thirdPartyOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.thirdPartyOnly || '3PT only') + '</label>';
+		}
+		if (showCoa) {
+			h += '<label><input type="checkbox" data-field="coaOnly"' + (f.coaOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.coaOnly || 'COA only') + '</label>';
+		}
 
 		h += '<label class="supcomp-sort">' + escapeHtml(i18n.sortBy || 'Sort') + ': ';
 		h += '<select data-role="sort">';
@@ -468,15 +479,21 @@
 		h += '<label><input type="radio" name="supcomp-detail-view" data-role="detail-view" value="cost_per_active_unit"' + (v === 'cost_per_active_unit' ? ' checked' : '') + '> ' + escapeHtml(i18n.viewCostPerActive || 'Cost / Active Unit') + '</label>';
 		h += '</div>';
 		h += '<div class="supcomp-filters">';
-		h += '<label><input type="checkbox" data-bag="detail" data-field="inStockOnly"' + (f.inStockOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.inStockOnly || 'In stock only') + '</label>';
-		h += '<label><input type="checkbox" data-bag="detail" data-field="thirdPartyOnly"' + (f.thirdPartyOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.thirdPartyOnly || '3PT only') + '</label>';
-		h += '<label><input type="checkbox" data-bag="detail" data-field="coaOnly"' + (f.coaOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.coaOnly || 'COA only') + '</label>';
+		if (showInStock) {
+			h += '<label><input type="checkbox" data-bag="detail" data-field="inStockOnly"' + (f.inStockOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.inStockOnly || 'In stock only') + '</label>';
+		}
+		if (showThirdParty) {
+			h += '<label><input type="checkbox" data-bag="detail" data-field="thirdPartyOnly"' + (f.thirdPartyOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.thirdPartyOnly || '3PT only') + '</label>';
+		}
+		if (showCoa) {
+			h += '<label><input type="checkbox" data-bag="detail" data-field="coaOnly"' + (f.coaOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.coaOnly || 'COA only') + '</label>';
+		}
 
 		h += '<label class="supcomp-sort">' + escapeHtml(i18n.sortBy || 'Sort') + ': ';
 		h += '<select data-role="sort" data-bag="detail">';
 		h += sortOption('cost_per_active_unit', i18n.sortCostPerActive, state.detailSort);
 		h += sortOption('current_price', i18n.sortPrice, state.detailSort);
-		h += sortOption('brand', i18n.sortBrand, state.detailSort);
+		h += sortOption('active_compound_total', i18n.sortTotalActive, state.detailSort);
 		h += sortOption('merchant', i18n.sortMerchant, state.detailSort);
 		h += sortOption('last_synced_at', i18n.sortRecency, state.detailSort);
 		h += '</select>';
@@ -541,8 +558,12 @@
 		switch (state.detailSort) {
 			case 'current_price':
 				return numericCompare(a, b, 'current_price');
-			case 'brand':
-				return (a.brand || '').localeCompare(b.brand || '');
+			case 'active_compound_total':
+				var av = a.active_compound_total, bv = b.active_compound_total;
+				if (av == null && bv == null) return 0;
+				if (av == null) return 1;
+				if (bv == null) return -1;
+				return bv - av;
 			case 'merchant':
 				return ((a.merchant && a.merchant.name) || '').localeCompare((b.merchant && b.merchant.name) || '');
 			case 'last_synced_at':
