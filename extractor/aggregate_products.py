@@ -577,18 +577,54 @@ def _woo_product_to_offers(p: dict, session: requests.Session, site: str, store_
     )]
 
 
+def _woo_request_variations(session: requests.Session, url: str, params: dict,
+                            strict: bool) -> list | None:
+    """GET a variation-list endpoint. Returns the parsed list on success,
+    [] on success-but-empty, or None on hard failure (non-200, malformed,
+    error envelope, or — when strict — a payload whose first item isn't
+    variation-typed)."""
+    r = get(session, url, params=params)
+    if r is None or r.status_code != 200:
+        return None
+    try:
+        body = r.json()
+    except ValueError:
+        return None
+    if not isinstance(body, list):
+        return None
+    if not body:
+        return []
+    if strict:
+        first = body[0]
+        if not isinstance(first, dict) or first.get("type", "variation") != "variation":
+            return None
+    return body
+
+
 def _woo_fetch_variations(session: requests.Session, site: str, store_name: str, product_id: str,
                           parent: dict, raw_base: dict, brand: str, product_type: str,
                           currency_code: str, minor_unit, run_id: str, exported_at: str) -> list[Offer]:
-    r = get(session, f"{site}/wp-json/wc/store/v1/products/{product_id}/variations",
-            params={"per_page": 100})
-    if r is None or r.status_code != 200:
-        return []
-    try:
-        variations = r.json()
-    except ValueError:
-        return []
-    if not isinstance(variations, list) or not variations:
+    # Modern Woo (Store API in Woo 8.x+) dropped /products/<id>/variations
+    # — it now returns 404. The supported path is a filter on the products
+    # list. We try the modern path first and fall back to the legacy path
+    # for older stores. The strict guard on the modern path rejects
+    # responses whose first item isn't variation-typed, because older Woo
+    # versions silently ignore unknown filter params and would return the
+    # regular products list instead.
+    variations = _woo_request_variations(
+        session,
+        f"{site}/wp-json/wc/store/v1/products",
+        params={"type": "variation", "parent": product_id, "per_page": 100},
+        strict=True,
+    )
+    if variations is None:
+        variations = _woo_request_variations(
+            session,
+            f"{site}/wp-json/wc/store/v1/products/{product_id}/variations",
+            params={"per_page": 100},
+            strict=False,
+        )
+    if not variations:
         return []
 
     parent_title = parent.get("name", "") or ""

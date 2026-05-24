@@ -141,15 +141,16 @@ class Supcomp_Offer_Form {
 							</tr>
 
 							<tr>
-								<th><label for="supcomp-strength"><?php esc_html_e( 'Active mass / serving', 'supplement-compare' ); ?></label></th>
+								<th><label for="supcomp-total-active"><?php esc_html_e( 'Total active / container', 'supplement-compare' ); ?></label></th>
 								<td>
-									<input type="number" id="supcomp-strength" name="strength_per_serving" value="<?php echo esc_attr( self::trim_decimal( $offer->strength_per_serving ) ); ?>" step="0.0001" min="0" class="regular-text" style="width:8em">
+									<input type="number" id="supcomp-total-active" name="total_active_per_container" value="<?php echo esc_attr( self::trim_decimal( self::seed_total_active( $offer ) ) ); ?>" step="0.0001" min="0" class="regular-text" style="width:10em">
 									<select id="supcomp-strength-unit" name="strength_unit">
 										<option value=""><?php esc_html_e( '— unit —', 'supplement-compare' ); ?></option>
 										<?php foreach ( Supcomp_Installer::INGREDIENT_UNITS as $u ) : ?>
 											<option value="<?php echo esc_attr( $u ); ?>" <?php selected( $offer->strength_unit, $u ); ?>><?php echo esc_html( $u ); ?></option>
 										<?php endforeach; ?>
 									</select>
+									<p class="description"><?php esc_html_e( 'Primary input. Authoritative when entered — the comparison table shows this value (with standardization applied) even when Servings / container is blank. Active mass / serving is derived from Total ÷ Servings when both are filled.', 'supplement-compare' ); ?></p>
 								</td>
 							</tr>
 
@@ -157,15 +158,15 @@ class Supcomp_Offer_Form {
 								<th><label for="supcomp-servings"><?php esc_html_e( 'Servings / container', 'supplement-compare' ); ?></label></th>
 								<td>
 									<input type="number" id="supcomp-servings" name="servings_per_container" value="<?php echo esc_attr( $offer->servings_per_container !== null ? (int) $offer->servings_per_container : '' ); ?>" min="1" step="1" class="small-text">
+									<p class="description"><?php esc_html_e( 'Optional when Total active / container is set. Required for the per-serving cost column.', 'supplement-compare' ); ?></p>
 								</td>
 							</tr>
 
 							<tr>
-								<th><label for="supcomp-total-active"><?php esc_html_e( 'Total active / container', 'supplement-compare' ); ?></label></th>
+								<th><label for="supcomp-strength"><?php esc_html_e( 'Active mass / serving', 'supplement-compare' ); ?></label></th>
 								<td>
-									<input type="number" id="supcomp-total-active" name="total_active_per_container" value="<?php echo esc_attr( self::trim_decimal( self::seed_total_active( $offer ) ) ); ?>" step="0.0001" min="0" class="regular-text" style="width:10em">
-									<span id="supcomp-total-active-unit" class="description" style="margin-left:.4em"><?php echo esc_html( $offer->strength_unit ); ?></span>
-									<p class="description"><?php esc_html_e( 'Sum across all servings. Fill any two of {active mass/serving, servings/container, total active} and the third will be computed on save. If all three are filled, active-mass/serving and servings/container take precedence.', 'supplement-compare' ); ?></p>
+									<input type="number" id="supcomp-strength" name="strength_per_serving" value="<?php echo esc_attr( self::trim_decimal( $offer->strength_per_serving ) ); ?>" step="0.0001" min="0" class="regular-text" style="width:8em">
+									<span class="description" style="margin-left:.4em"><?php esc_html_e( '(legacy / alternative input — use Total active / container above when possible)', 'supplement-compare' ); ?></span>
 								</td>
 							</tr>
 
@@ -238,8 +239,6 @@ class Supcomp_Offer_Form {
 					var strengthEl = document.getElementById('supcomp-strength');
 					var servingsEl = document.getElementById('supcomp-servings');
 					var totalEl    = document.getElementById('supcomp-total-active');
-					var unitSel    = document.getElementById('supcomp-strength-unit');
-					var unitLbl    = document.getElementById('supcomp-total-active-unit');
 					if ( ! strengthEl || ! servingsEl || ! totalEl ) { return; }
 
 					function num( el ) {
@@ -252,31 +251,27 @@ class Supcomp_Offer_Form {
 						if ( s.indexOf( '.' ) !== -1 ) { s = s.replace( /0+$/, '' ).replace( /\.$/, '' ); }
 						return s;
 					}
+					// v1.15.0: Total active / container is the primary input. When
+					// Total + Servings are filled, derive Active mass / serving.
+					// Legacy fallback: when only Strength + Servings are filled
+					// (no Total), derive Total — preserves the old workflow.
 					function recalc( source ) {
 						var s = num( strengthEl ), n = num( servingsEl ), t = num( totalEl );
-						if ( source === 'strength' && s !== null && n !== null ) {
-							totalEl.value = fmt( s * n );
-						} else if ( source === 'servings' && s !== null && n !== null ) {
-							totalEl.value = fmt( s * n );
-						} else if ( source === 'total' && t !== null && n !== null ) {
+						if ( source === 'total' && t !== null && n !== null ) {
 							strengthEl.value = fmt( t / n );
-						} else if ( source === 'total' && t !== null && s !== null ) {
-							servingsEl.value = String( Math.max( 1, Math.round( t / s ) ) );
-						} else if ( s !== null && n !== null && t === null ) {
-							totalEl.value = fmt( s * n );
-						} else if ( t !== null && n !== null && s === null ) {
+						} else if ( source === 'servings' && t !== null && n !== null ) {
 							strengthEl.value = fmt( t / n );
-						} else if ( t !== null && s !== null && n === null ) {
+						} else if ( source === 'servings' && s !== null && n !== null && t === null ) {
+							totalEl.value = fmt( s * n );
+						} else if ( source === 'strength' && t === null && s !== null && n !== null ) {
+							totalEl.value = fmt( s * n );
+						} else if ( source === 'strength' && t !== null && s !== null ) {
 							servingsEl.value = String( Math.max( 1, Math.round( t / s ) ) );
 						}
-					}
-					function syncUnit() {
-						if ( unitSel && unitLbl ) { unitLbl.textContent = unitSel.value || ''; }
 					}
 					strengthEl.addEventListener( 'input', function () { recalc( 'strength' ); } );
 					servingsEl.addEventListener( 'input', function () { recalc( 'servings' ); } );
 					totalEl.addEventListener( 'input', function () { recalc( 'total' ); } );
-					if ( unitSel ) { unitSel.addEventListener( 'change', syncUnit ); }
 				})();
 				</script>
 
@@ -470,13 +465,17 @@ class Supcomp_Offer_Form {
 	}
 
 	/**
-	 * Best-effort starting value for the Total Active input field. Prefers
-	 * the stored derived `total_strength` so the operator sees the same
-	 * number the comparison table will. Falls back to strength × servings
-	 * when total_strength hasn't been computed yet (fresh insert before
-	 * derivations run).
+	 * Starting value for the Total Active input field. Prefers the
+	 * operator-stored `total_active_per_container`, then the derived
+	 * `total_strength`, then strength × servings (for fresh inserts that
+	 * predate derivations).
 	 */
 	private static function seed_total_active( $offer ) {
+		if ( isset( $offer->total_active_per_container ) && $offer->total_active_per_container !== null
+			&& $offer->total_active_per_container !== '' && (float) $offer->total_active_per_container > 0
+		) {
+			return $offer->total_active_per_container;
+		}
 		if ( $offer->total_strength !== null && $offer->total_strength !== '' && (float) $offer->total_strength > 0 ) {
 			return $offer->total_strength;
 		}
@@ -491,32 +490,45 @@ class Supcomp_Offer_Form {
 	}
 
 	/**
-	 * If the operator filled the Total Active phantom input, fold it into
-	 * the canonical fields (`strength_per_serving` / `servings_per_container`)
-	 * so the existing sanitizer + derivations pipeline can take over. If all
-	 * three are filled, strength + servings win and total is dropped — they
-	 * are the stored columns and total is always derived per PROJECTBRIEF §6.
+	 * Reconcile the three operator-input fields (Total active / container,
+	 * Servings / container, Active mass / serving) before persistence.
 	 *
-	 * Mutates $data in place and strips the phantom key.
+	 * v1.15.0 flipped the primary: Total active / container is now the
+	 * authoritative stored column. When the operator fills Total + Servings
+	 * we also persist a derived strength_per_serving so the per-serving
+	 * cost column stays accurate. When only Total is filled (no Servings),
+	 * strength_per_serving is cleared — the comparison table will show
+	 * Total active per container without a per-serving figure. The legacy
+	 * Strength + Servings workflow still works: when Total is blank but
+	 * Strength + Servings are filled, derivations compute Total downstream
+	 * (no change needed here).
+	 *
+	 * Mutates $data in place.
 	 */
 	private static function resolve_total_active_input( array &$data ) {
-		$total = isset( $data['total_active_per_container'] ) ? trim( (string) $data['total_active_per_container'] ) : '';
-		unset( $data['total_active_per_container'] );
-		if ( $total === '' ) {
-			return;
-		}
-		$total_f = (float) $total;
-		if ( $total_f <= 0 ) {
-			return;
-		}
-
+		$total    = isset( $data['total_active_per_container'] ) ? trim( (string) $data['total_active_per_container'] ) : '';
 		$strength = isset( $data['strength_per_serving'] ) ? trim( (string) $data['strength_per_serving'] ) : '';
 		$servings = isset( $data['servings_per_container'] ) ? trim( (string) $data['servings_per_container'] ) : '';
 
-		if ( $strength === '' && $servings !== '' && (int) $servings > 0 ) {
+		if ( $total === '' || (float) $total <= 0 ) {
+			// Total cleared; legacy strength × servings mode handles the rest
+			// via derivations. Make sure the stored column is nulled so a
+			// previously-set value doesn't shadow the per-serving inputs.
+			$data['total_active_per_container'] = '';
+			return;
+		}
+
+		$total_f = (float) $total;
+
+		if ( $servings !== '' && (int) $servings > 0 ) {
+			// Total + Servings → derive strength so the per-serving cost
+			// column stays in sync. Overrides any operator-typed strength
+			// because Total + Servings are now authoritative.
 			$data['strength_per_serving'] = $total_f / (int) $servings;
-		} elseif ( $servings === '' && $strength !== '' && (float) $strength > 0 ) {
-			$data['servings_per_container'] = max( 1, (int) round( $total_f / (float) $strength ) );
+		} else {
+			// Total only (no servings) → clear strength. The per-serving
+			// columns will be blank; Total / cost-per-active still display.
+			$data['strength_per_serving'] = '';
 		}
 	}
 

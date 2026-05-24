@@ -3,15 +3,27 @@
  * Offer-level derived field computation — PROJECTBRIEF.md §6.
  *
  * Pure function over (offer state, ingredient, optional canonical_product).
- * Computes:
- *   total_strength             = strength × servings
- *   active_compound_per_serving= strength × pct/100, where pct comes from
- *                                product overrides → canonical product's std%
- *                                → ingredient standardization → ingredient
- *                                elemental → no scaling.
- *   active_compound_total      = active_per_serving × servings
- *   cost_per_serving           = current_price / servings
- *   cost_per_active_unit       = current_price / active_compound_total
+ *
+ * Two equally-valid input modes per v1.15.0:
+ *
+ *   (A) Total-first (preferred): operator enters total_active_per_container.
+ *       total_strength             = total_active_per_container
+ *       active_compound_total      = total × pct/100
+ *       active_compound_per_serving= active_compound_total / servings  (if servings)
+ *       cost_per_active_unit       = current_price / active_compound_total
+ *       (cost_per_serving requires servings; Total alone is enough for the
+ *       per-container comparison columns.)
+ *
+ *   (B) Per-serving (legacy): operator enters strength_per_serving + servings.
+ *       total_strength             = strength × servings
+ *       active_compound_per_serving= strength × pct/100
+ *       active_compound_total      = active_per_serving × servings
+ *       cost_per_active_unit       = current_price / active_compound_total
+ *
+ * Mode A wins when total_active_per_container is set; otherwise falls back
+ * to mode B. The pct multiplier (standardization) is resolved identically
+ * in both modes: operator override → canonical std% → ingredient std% →
+ * ingredient elemental% → 100%.
  *
  * Called by the importer on every CSV insert/update so price-driven fields
  * stay current. NULL inputs propagate (any missing piece → null output).
@@ -38,7 +50,9 @@ class Supcomp_Offer_Derivations {
 	public static function compute( $offer, $ingredient = null ) {
 		$strength = self::nf( $offer, 'strength_per_serving' );
 		$servings = self::ni( $offer, 'servings_per_container' );
+		$total    = self::nf( $offer, 'total_active_per_container' );
 		$price    = self::nf( $offer, 'current_price' );
+		$pct      = self::resolve_pct( $offer, $ingredient );
 
 		$out = array(
 			'total_strength'              => null,
@@ -48,21 +62,25 @@ class Supcomp_Offer_Derivations {
 			'cost_per_active_unit'        => null,
 		);
 
-		if ( $strength !== null && $servings !== null && $servings > 0 ) {
-			$out['total_strength'] = round( $strength * $servings, 4 );
-		}
-
-		if ( $strength !== null ) {
-			$pct = self::resolve_pct( $offer, $ingredient );
-			if ( $pct !== null ) {
-				$out['active_compound_per_serving'] = round( $strength * ( $pct / 100 ), 4 );
-			} else {
-				$out['active_compound_per_serving'] = $strength;
+		if ( $total !== null && $total > 0 ) {
+			// Mode A: total_active_per_container is authoritative. Servings
+			// becomes optional — the per-container columns work without it.
+			$out['total_strength']        = round( $total, 4 );
+			$out['active_compound_total'] = round( $total * ( $pct !== null ? $pct / 100 : 1 ), 4 );
+			if ( $servings !== null && $servings > 0 ) {
+				$out['active_compound_per_serving'] = round( $out['active_compound_total'] / $servings, 4 );
 			}
-		}
-
-		if ( $out['active_compound_per_serving'] !== null && $servings !== null && $servings > 0 ) {
-			$out['active_compound_total'] = round( $out['active_compound_per_serving'] * $servings, 4 );
+		} else {
+			// Mode B: derive total from per-serving × servings (legacy).
+			if ( $strength !== null && $servings !== null && $servings > 0 ) {
+				$out['total_strength'] = round( $strength * $servings, 4 );
+			}
+			if ( $strength !== null ) {
+				$out['active_compound_per_serving'] = round( $strength * ( $pct !== null ? $pct / 100 : 1 ), 4 );
+			}
+			if ( $out['active_compound_per_serving'] !== null && $servings !== null && $servings > 0 ) {
+				$out['active_compound_total'] = round( $out['active_compound_per_serving'] * $servings, 4 );
+			}
 		}
 
 		if ( $price !== null && $servings !== null && $servings > 0 ) {

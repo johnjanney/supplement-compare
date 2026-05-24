@@ -17,6 +17,35 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.15.0] — 2026-05-24
+
+### Changed
+- **Total active / container is now the primary operator input, with the derivation direction flipped.** Previously the offer-detail form treated **Active mass / serving** as the canonical input and computed **Total active / container** as `strength × servings`. This meant that any offer the operator hadn't pinned a Servings / container value on showed nothing in the public comparison table's Total active and Cost / active unit columns. The Woo variations fix in v1.14.1/.2 made the problem visible: variants now arrived correctly, but those whose merchant page didn't surface a serving count rendered as empty cells. v1.15.0 inverts the relationship:
+  - New stored column `total_active_per_container DECIMAL(14,4) NULL` on `wp_supcomp_normalized_offers` (schema version 7 → 8; dbDelta adds the column on upgrade, no data migration required).
+  - In `Supcomp_Offer_Derivations::compute()`, when `total_active_per_container` is set it becomes authoritative: `total_strength` = total, `active_compound_total` = total × standardization%, `active_compound_per_serving` = active_total ÷ servings (when servings present). `cost_per_active_unit` = price ÷ active_compound_total — works with only Total + price, no servings needed. When `total_active_per_container` is null, the legacy `strength × servings` path runs unchanged so existing offers don't regress.
+  - The offer-detail form reorders to put **Total active / container** first (with the unit selector inline), Servings / container second (labeled optional), Active mass / serving third (kept as a legacy/alternative input). The inline JS recalc swaps direction — typing Total + Servings derives Strength; typing Strength + Servings still derives Total as a fallback for the legacy workflow. The save-side `resolve_total_active_input()` persists `total_active_per_container` as a real column and clears `strength_per_serving` when only Total is entered (so the per-serving columns are honestly blank rather than showing a stale value).
+- **Extractor behavior is unchanged.** The strength rule continues to extract per-serving mass values from titles (e.g., "20 mg per capsule" → `strength_per_serving = 20`). Auto-imported offers whose merchant page didn't surface a serving count still need the operator to enter Total in the form to populate the comparison table — the system won't guess a per-serving value to be a per-container value. The operator-form change makes that one-field fix safe and effective even when Servings stays blank.
+
+### Notes
+- **Migration impact:** None for stored data. Existing offers keep their `strength_per_serving` / `servings_per_container` values and continue to compute `active_compound_total` via the legacy path. The new column starts null on every existing row and only populates when an operator edits the offer with a value in the new field.
+- **`csv_columns()` was intentionally NOT extended** with `total_active_per_container`. The extractor pipeline (CSV import, in-plugin extractor, legacy Python script) still doesn't auto-populate it. Operator edits stay sticky across re-imports per the upsert contract documented in `INSTRUCTIONS.md` §2.
+
+---
+
+## [1.14.2] — 2026-05-23
+
+### Fixed
+- **Every variant of a strength-typed variable product got the same `strength_per_serving`.** When a Woo variable product varied by dose (e.g. 10 MG / 20 MG / 50 MG), every variant was normalized to the same mg figure — usually the one stated in the parent's description with positive context ("each capsule contains X mg"). Cause: `Supcomp_Normalizer::collect_text()` concatenates `variant_title` + `product_title` + `description` + flattened raw attributes into one blob, then `Supcomp_Strength_Rule` scores all mass matches in the blob and picks the highest-scoring one. A bare "20 MG" in `variant_title` scored 0 (no nearby per-serving language), so it lost to the parent's description match that scored +10 — and since every variant shared the parent's description, every variant got the same wrong mg. Fix: in the normalizer, try the strength rule on `variant_title` alone first; if it returns a mass match, that's authoritative and the full-text scan is skipped. Variants with non-strength `variant_title` (e.g. "Small / Blue") still fall through to the full-text scan unchanged. Only affects offers normalized after the upgrade — existing variants in the DB keep their previously-stored mg until re-normalized (reject + cleanup + re-extract is the simplest re-trigger).
+
+---
+
+## [1.14.1] — 2026-05-23
+
+### Fixed
+- **WooCommerce variation extraction silently missing on Woo 8.x+.** The Woo Store API in Woo 8.x dropped the per-product `/products/<id>/variations` endpoint, which now returns 404. The in-plugin Woo handler treated that 404 as "no variations" and fell back to emitting a single parent row with `variation_retrieval_status=fallback_parent_only` — operators saw the parent listed once, with a price range in the raw payload, but the actual variations never made it into the offers table. Fix: try the supported endpoint first (`/products?type=variation&parent=<id>`, which returns full variation objects with prices, attributes, and pre-built `?attribute_pa_*=` permalinks), and fall back to the legacy path for older stores. A strict guard rejects older Woo versions that silently ignore unknown filter params and would return the regular products list instead. Mirrored in the legacy Python script (`extractor/aggregate_products.py`) for parity per CLAUDE.md "same schema, two emitters."
+
+---
+
 ## [1.14.0] — 2026-05-23
 
 ### Changed

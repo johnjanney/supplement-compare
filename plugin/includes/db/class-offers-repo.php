@@ -230,6 +230,10 @@ class Supcomp_Offers_Repo {
 			$v                                = trim( (string) $data['servings_per_container'] );
 			$clean['servings_per_container'] = $v === '' ? null : (int) $v;
 		}
+		if ( array_key_exists( 'total_active_per_container', $data ) ) {
+			$v                                       = trim( (string) $data['total_active_per_container'] );
+			$clean['total_active_per_container'] = $v === '' ? null : (float) $v;
+		}
 		if ( array_key_exists( 'standardization_percentage', $data ) ) {
 			$v                                    = trim( (string) $data['standardization_percentage'] );
 			$clean['standardization_percentage'] = $v === '' ? null : (float) $v;

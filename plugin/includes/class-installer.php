@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '7';
+	const SCHEMA_VERSION = '8';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -254,6 +254,7 @@ class Supcomp_Installer {
 			strength_per_serving DECIMAL(12,4) NULL,
 			strength_unit VARCHAR(16) NULL,
 			servings_per_container INT NULL,
+			total_active_per_container DECIMAL(14,4) NULL,
 			total_strength DECIMAL(14,4) NULL,
 			standardization_percentage DECIMAL(5,2) NULL,
 			active_compound_per_serving DECIMAL(12,4) NULL,

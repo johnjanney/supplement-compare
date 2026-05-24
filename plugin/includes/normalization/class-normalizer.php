@@ -41,7 +41,18 @@ class Supcomp_Normalizer {
 	public static function normalize( $offer ) {
 		$text = self::collect_text( $offer );
 
-		$strength        = Supcomp_Strength_Rule::extract( $text );
+		// Variant-title strength wins when present. Each variant of a
+		// strength-typed variable product (e.g. 10 MG vs 20 MG vs 50 MG)
+		// carries its own dose in variant_title; the parent's
+		// product_title and description are shared across all variants and
+		// often have a strength figure with positive context that would
+		// out-score the bare variant_title number in the full-text scan,
+		// pinning every variant to the same wrong mg.
+		$variant_title = self::field( $offer, 'variant_title' );
+		$strength      = $variant_title !== '' ? Supcomp_Strength_Rule::extract( $variant_title ) : null;
+		if ( $strength === null ) {
+			$strength = Supcomp_Strength_Rule::extract( $text );
+		}
 		$count           = Supcomp_Count_Rule::extract( $text );
 		$form            = Supcomp_Form_Rule::extract( $text );
 		$standardization = Supcomp_Standardization_Rule::extract( $text );
@@ -63,25 +74,15 @@ class Supcomp_Normalizer {
 	 * authoritative; description trails because it's marketing copy.
 	 */
 	private static function collect_text( $offer ) {
-		$get = function ( $field ) use ( $offer ) {
-			if ( is_array( $offer ) ) {
-				return isset( $offer[ $field ] ) ? (string) $offer[ $field ] : '';
-			}
-			if ( is_object( $offer ) ) {
-				return isset( $offer->$field ) ? (string) $offer->$field : '';
-			}
-			return '';
-		};
-
 		$parts = array(
-			$get( 'variant_title' ),
-			$get( 'product_title' ),
-			$get( 'description' ),
+			self::field( $offer, 'variant_title' ),
+			self::field( $offer, 'product_title' ),
+			self::field( $offer, 'description' ),
 		);
 
 		// Flatten raw_attributes_json: pull out top-level string values so
 		// e.g. a "Dosage: 200mg" attribute is still searchable.
-		$raw = $get( 'raw_attributes_json' );
+		$raw = self::field( $offer, 'raw_attributes_json' );
 		if ( $raw !== '' ) {
 			$decoded = json_decode( $raw, true );
 			if ( is_array( $decoded ) ) {
@@ -90,6 +91,16 @@ class Supcomp_Normalizer {
 		}
 
 		return implode( ' | ', array_filter( $parts, 'strlen' ) );
+	}
+
+	private static function field( $offer, $name ) {
+		if ( is_array( $offer ) ) {
+			return isset( $offer[ $name ] ) ? (string) $offer[ $name ] : '';
+		}
+		if ( is_object( $offer ) ) {
+			return isset( $offer->$name ) ? (string) $offer->$name : '';
+		}
+		return '';
 	}
 
 	/**
