@@ -17,6 +17,9 @@
  *   supcomp_filter_in_stock_enabled — whether the "In stock only" checkbox renders
  *   supcomp_filter_third_party_enabled — whether the "Third-party tested only" checkbox renders
  *   supcomp_filter_coa_enabled      — whether the "COA available only" checkbox renders
+ *   supcomp_filter_search_enabled   — whether the search-ingredient input renders on the list view
+ *   supcomp_filter_form_enabled     — whether the "All forms" select renders on the list view
+ *   supcomp_filter_ingredient_enabled — whether the "All ingredients" select renders on the list view
  *
  * Note on two staleness thresholds: PROJECTBRIEF.md §1 Phase 1 mentions
  * "staleness threshold hours" in the singular, but §6 defines two distinct
@@ -108,6 +111,18 @@ class Supcomp_Settings {
 			);
 		}
 
+		foreach ( self::list_control_toggle_options() as $option_name => $_label ) {
+			register_setting(
+				self::OPTION_GROUP,
+				$option_name,
+				array(
+					'type'              => 'boolean',
+					'sanitize_callback' => array( __CLASS__, 'sanitize_bool' ),
+					'default'           => true,
+				)
+			);
+		}
+
 		add_settings_section(
 			self::SECTION_ID,
 			__( 'General', 'supplement-compare' ),
@@ -170,6 +185,14 @@ class Supcomp_Settings {
 			self::PAGE_SLUG,
 			self::SECTION_ID
 		);
+
+		add_settings_field(
+			'supcomp_list_control_toggles',
+			__( 'List view filter controls', 'supplement-compare' ),
+			array( __CLASS__, 'render_list_control_toggles_field' ),
+			self::PAGE_SLUG,
+			self::SECTION_ID
+		);
 	}
 
 	public static function filter_toggle_options() {
@@ -177,6 +200,14 @@ class Supcomp_Settings {
 			'supcomp_filter_in_stock_enabled'    => __( 'In stock only', 'supplement-compare' ),
 			'supcomp_filter_third_party_enabled' => __( 'Third-party tested only', 'supplement-compare' ),
 			'supcomp_filter_coa_enabled'         => __( 'COA available only', 'supplement-compare' ),
+		);
+	}
+
+	public static function list_control_toggle_options() {
+		return array(
+			'supcomp_filter_search_enabled'     => __( 'Search ingredient (text input)', 'supplement-compare' ),
+			'supcomp_filter_form_enabled'       => __( 'All forms (dropdown)', 'supplement-compare' ),
+			'supcomp_filter_ingredient_enabled' => __( 'All ingredients (dropdown)', 'supplement-compare' ),
 		);
 	}
 
@@ -250,6 +281,23 @@ class Supcomp_Settings {
 			</label>
 		<?php endforeach; ?>
 			<p class="description"><?php esc_html_e( 'Each enabled box appears on the public comparison filter bar (both list and detail views). Disable a box if your dataset doesn\'t populate that field — e.g. unchecking "COA available only" when no offers have COAs recorded keeps the filter bar uncluttered.', 'supplement-compare' ); ?></p>
+		</fieldset>
+		<?php
+	}
+
+	public static function render_list_control_toggles_field() {
+		?>
+		<fieldset>
+		<?php foreach ( self::list_control_toggle_options() as $option_name => $label ) :
+			$enabled = (bool) get_option( $option_name, true );
+		?>
+			<label style="display:block;margin-bottom:0.25em">
+				<input type="hidden" name="<?php echo esc_attr( $option_name ); ?>" value="0">
+				<input type="checkbox" name="<?php echo esc_attr( $option_name ); ?>" value="1" <?php checked( $enabled, true ); ?>>
+				<?php echo esc_html( $label ); ?>
+			</label>
+		<?php endforeach; ?>
+			<p class="description"><?php esc_html_e( 'Each enabled control appears above the main (list) table. Disable any of these to simplify the filter bar — useful when the dataset is small enough that a search field or form/ingredient dropdown is unnecessary. The detail view (per-canonical comparison) is unaffected. Pre-filtering via shortcode attributes (e.g. [supplement_compare ingredient="L-Theanine"]) still applies even when the matching control is hidden.', 'supplement-compare' ); ?></p>
 		</fieldset>
 		<?php
 	}
