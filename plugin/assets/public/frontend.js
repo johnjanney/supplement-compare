@@ -258,11 +258,18 @@
 			var showActive = state.detailView === 'cost_per_active_unit';
 			var showServing = state.detailView === 'cost_per_serving';
 
+			var totalHeader = unit
+				? (i18n.totalUnitColumn || 'Total %s').replace('%s', unit)
+				: (i18n.totalActiveColumn || 'Total active');
+			var costPerActiveHeader = unit
+				? (i18n.costPerUnitColumn || 'Cost / %s').replace('%s', unit)
+				: (i18n.costPerActiveColumn || 'Cost / active unit');
+
 			html += '<table class="supcomp-table supcomp-detail">';
 			html += '<thead><tr>';
 			html += '<th>' + escapeHtml(i18n.merchantColumn || 'Merchant') + '</th>';
 			if (showActive) {
-				html += '<th class="supcomp-num">' + escapeHtml(i18n.totalActiveColumn || 'Total active') + '</th>';
+				html += '<th class="supcomp-num">' + escapeHtml(totalHeader) + '</th>';
 			}
 			if (showServing) {
 				html += '<th class="supcomp-num">' + escapeHtml(i18n.servingSizeColumn || 'Serving size') + '</th>';
@@ -270,7 +277,7 @@
 				html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerServingColumn || 'Cost / serving') + '</th>';
 			}
 			if (showActive) {
-				html += '<th class="supcomp-num">' + escapeHtml(i18n.costPerActiveColumn || 'Cost / active unit') + '</th>';
+				html += '<th class="supcomp-num">' + escapeHtml(costPerActiveHeader) + '</th>';
 			}
 			html += '<th class="supcomp-num">' + escapeHtml(i18n.priceColumn || 'Price') + '</th>';
 			html += '<th>' + escapeHtml(i18n.couponCodeColumn || 'Coupon code') + '</th>';
