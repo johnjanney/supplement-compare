@@ -52,10 +52,6 @@
 	gap: 0.25em;
 	white-space: nowrap;
 }
-.supcomp-filters .supcomp-sort {
-	margin-left: auto;
-}
-
 .supcomp-view-toggle {
 	display: flex;
 	flex-wrap: wrap;
@@ -104,6 +100,28 @@
 	text-align: right;
 	font-variant-numeric: tabular-nums;
 	white-space: nowrap;
+}
+
+.supcomp-table th.supcomp-sortable {
+	cursor: pointer;
+	user-select: none;
+}
+.supcomp-table th.supcomp-sortable:hover {
+	background: #f0f0f0;
+	color: #222;
+}
+.supcomp-table th.supcomp-sortable:focus-visible {
+	outline: 2px solid #2271b1;
+	outline-offset: -2px;
+}
+.supcomp-table th.supcomp-sorted {
+	color: #222;
+}
+.supcomp-table .supcomp-sort-arrow {
+	display: inline-block;
+	margin-left: 0.25em;
+	font-size: 11px;
+	color: #2271b1;
 }
 
 .supcomp-list tbody tr:hover {
@@ -234,9 +252,6 @@ button.supcomp-coupon {
 	.supcomp-filters {
 		flex-direction: column;
 		align-items: stretch;
-	}
-	.supcomp-filters .supcomp-sort {
-		margin-left: 0;
 	}
 	.supcomp-table {
 		display: block;

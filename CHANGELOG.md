@@ -17,6 +17,14 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.14.0] — 2026-05-23
+
+### Changed
+- **Click-to-sort column headers replace the sort dropdown.** Sortable headers on both the list view (Product, Lowest cost / active unit, Merchants) and the per-canonical detail view (Merchant, Total active / Serving size / Servings / Cost / serving / Cost / active unit, Price) now sort on click. The first click on a column applies that column's natural direction — cost and price ascending (cheapest first), total active / servings / merchant count descending (most first), text ascending (A→Z) — and subsequent clicks on the same column toggle direction. The active column shows a small ▲/▼ indicator and gets `aria-sort` set for assistive tech. Headers are keyboard-accessible (Tab to focus, Enter or Space to activate). Empty cells stay at the bottom of the table regardless of direction — flipping ascending → descending doesn't drag nulls to the top.
+- **Stand-alone Sort dropdowns removed** from both filter bars. The list-view "Recently updated" sort option is dropped (no visible column to anchor it to); the data is still available in the JSON for any operator-side tooling that needs it. Six now-unused i18n keys (`sortBy`, `sortCostPerActive`, `sortPrice`, `sortTotalActive`, `sortMerchant`, `sortRecency`) are removed.
+
+---
+
 ## [1.13.0] — 2026-05-23
 
 ### Added
