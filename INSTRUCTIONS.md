@@ -675,8 +675,14 @@ shortcode there.
   to one ingredient.
 
 **What renders:**
-- Top filter bar: search, form, ingredient, in-stock-only, third-party-only,
-  COA-only, sort.
+- Top filter bar: search, form, ingredient, and (each independently
+  toggleable on the Settings page → **Filter checkboxes**) in-stock-only,
+  third-party-only, COA-only, plus the sort dropdown. Unchecking a filter
+  on the Settings page removes its checkbox from both the list and detail
+  filter bars — useful when your dataset doesn't populate that field
+  uniformly. The sort menu on the per-canonical detail view sorts by
+  cost-per-active-unit, price, total active (most compound per container
+  first), merchant, or recently updated.
 - On the detail (per-canonical) view: a **Show: Cost / Serving | Cost /
   Active Unit** radio toggle above the table. Both views show the same
   offer rows; the toggle swaps which columns are visible:
