@@ -17,6 +17,13 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.16.1] — 2026-05-24
+
+### Fixed
+- **Unchecking "Multi compare-table view" in Settings still left the radio toggle visible above the detail table.** Cause: `wp_localize_script` coerces top-level scalar values to strings before JSON-encoding them — PHP `(bool) true` arrives in JavaScript as the string `"1"`, `(bool) false` as `""`. The frontend's `config.multiCompareViewEnabled !== false` test was therefore always true (neither string strict-equals the boolean `false`). Fix: use a truthy check (`!!config.multiCompareViewEnabled`) in `frontend.js`, which correctly resolves `""` → false and `"1"` → true. Nested array values (like `filters.inStockOnly`) are unaffected by this quirk because `wp_localize_script` only string-coerces top-level scalars; the rest goes through `wp_json_encode` with types preserved.
+
+---
+
 ## [1.16.0] — 2026-05-24
 
 ### Added
