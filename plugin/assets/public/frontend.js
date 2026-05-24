@@ -316,11 +316,14 @@
 		if (canonicals.length === 0) {
 			html += '<p class="supcomp-empty">' + escapeHtml(i18n.noResults || 'No matches.') + '</p>';
 		} else {
+			var lowestCostLabel = i18n.lowestCost || 'Lowest cost / active unit';
+			var merchantsLabel = i18n.merchants || 'Merchants';
+
 			html += '<table class="supcomp-table supcomp-list">';
 			html += '<thead><tr>';
 			html += sortHeader('display_name', i18n.product || 'Product', state.listSort);
-			html += sortHeader('cost_per_active_unit', i18n.lowestCost || 'Lowest cost / active unit', state.listSort, { numeric: true });
-			html += sortHeader('merchant_count', i18n.merchants || 'Merchants', state.listSort, { numeric: true });
+			html += sortHeader('cost_per_active_unit', lowestCostLabel, state.listSort, { numeric: true });
+			html += sortHeader('merchant_count', merchantsLabel, state.listSort, { numeric: true });
 			html += '<th></th>';
 			html += '</tr></thead><tbody>';
 			canonicals.forEach(function (item) {
@@ -332,9 +335,9 @@
 						(item.cp.ingredient && item.cp.ingredient.category ? ' · ' + escapeHtml(item.cp.ingredient.category) : '') + '</span>';
 				}
 				html += '</td>';
-				html += '<td class="supcomp-num">' + formatCostPerActive(item.lowest, item.cp) + '</td>';
-				html += '<td class="supcomp-num">' + item.merchantCount + '</td>';
-				html += '<td><a class="supcomp-compare-btn" href="#/canonical/' + encodeURIComponent(item.cp.slug) + '">' +
+				html += '<td class="supcomp-num" data-label="' + escapeAttr(lowestCostLabel) + '">' + formatCostPerActive(item.lowest, item.cp) + '</td>';
+				html += '<td class="supcomp-num" data-label="' + escapeAttr(merchantsLabel) + '">' + item.merchantCount + '</td>';
+				html += '<td class="supcomp-cell-actions"><a class="supcomp-compare-btn" href="#/canonical/' + encodeURIComponent(item.cp.slug) + '">' +
 					escapeHtml(i18n.compare || 'Compare') + ' →</a></td>';
 				html += '</tr>';
 			});
@@ -402,6 +405,12 @@
 			var costPerActiveHeader = unitDisp
 				? (i18n.costPerUnitColumn || 'Cost / %s').replace('%s', unitDisp)
 				: (i18n.costPerActiveColumn || 'Cost / active unit');
+			var servingSizeLabel = i18n.servingSizeColumn || 'Serving size';
+			var servingsLabel = i18n.numServingsColumn || 'Servings';
+			var costPerServingLabel = i18n.costPerServingColumn || 'Cost / serving';
+			var priceLabel = i18n.priceColumn || 'Price';
+			var couponCodeLabel = i18n.couponCodeColumn || 'Coupon code';
+			var couponDetailsLabel = i18n.couponDetailsColumn || 'Coupon details';
 
 			html += '<table class="supcomp-table supcomp-detail">';
 			html += '<thead><tr>';
@@ -410,16 +419,16 @@
 				html += sortHeader('active_compound_total', totalHeader, state.detailSort, { numeric: true });
 			}
 			if (showServing) {
-				html += sortHeader('strength_per_serving', i18n.servingSizeColumn || 'Serving size', state.detailSort, { numeric: true });
-				html += sortHeader('servings_per_container', i18n.numServingsColumn || 'Servings', state.detailSort, { numeric: true });
-				html += sortHeader('cost_per_serving', i18n.costPerServingColumn || 'Cost / serving', state.detailSort, { numeric: true });
+				html += sortHeader('strength_per_serving', servingSizeLabel, state.detailSort, { numeric: true });
+				html += sortHeader('servings_per_container', servingsLabel, state.detailSort, { numeric: true });
+				html += sortHeader('cost_per_serving', costPerServingLabel, state.detailSort, { numeric: true });
 			}
 			if (showActive) {
 				html += sortHeader('cost_per_active_unit', costPerActiveHeader, state.detailSort, { numeric: true });
 			}
-			html += sortHeader('current_price', i18n.priceColumn || 'Price', state.detailSort, { numeric: true });
-			html += '<th>' + escapeHtml(i18n.couponCodeColumn || 'Coupon code') + '</th>';
-			html += '<th>' + escapeHtml(i18n.couponDetailsColumn || 'Coupon details') + '</th>';
+			html += sortHeader('current_price', priceLabel, state.detailSort, { numeric: true });
+			html += '<th>' + escapeHtml(couponCodeLabel) + '</th>';
+			html += '<th>' + escapeHtml(couponDetailsLabel) + '</th>';
 			html += '<th>' + escapeHtml(i18n.buyColumn || 'Buy') + '</th>';
 			html += '</tr></thead><tbody>';
 			offers.forEach(function (o) {
@@ -435,23 +444,23 @@
 				html += badges(o);
 				html += '</td>';
 				if (showActive) {
-					html += '<td class="supcomp-num">' + formatAmount(o.active_compound_total, cp) + '</td>';
+					html += '<td class="supcomp-num" data-label="' + escapeAttr(totalHeader) + '">' + formatAmount(o.active_compound_total, cp) + '</td>';
 				}
 				if (showServing) {
-					html += '<td class="supcomp-num">' + formatAmount(o.strength_per_serving, cp) + '</td>';
-					html += '<td class="supcomp-num">' + (o.servings_per_container != null ? o.servings_per_container : '—') + '</td>';
-					html += '<td class="supcomp-num">' + formatCostPerServing(o) + '</td>';
+					html += '<td class="supcomp-num" data-label="' + escapeAttr(servingSizeLabel) + '">' + formatAmount(o.strength_per_serving, cp) + '</td>';
+					html += '<td class="supcomp-num" data-label="' + escapeAttr(servingsLabel) + '">' + (o.servings_per_container != null ? o.servings_per_container : '—') + '</td>';
+					html += '<td class="supcomp-num" data-label="' + escapeAttr(costPerServingLabel) + '">' + formatCostPerServing(o) + '</td>';
 				}
 				if (showActive) {
-					html += '<td class="supcomp-num">' + formatCostPerActive(o, cp) + '</td>';
+					html += '<td class="supcomp-num" data-label="' + escapeAttr(costPerActiveHeader) + '">' + formatCostPerActive(o, cp) + '</td>';
 				}
-				html += '<td class="supcomp-num">';
+				html += '<td class="supcomp-num" data-label="' + escapeAttr(priceLabel) + '">';
 				html += formatPrice(o.current_price, o.currency);
 				if (o.on_sale && o.regular_price && o.regular_price > o.current_price) {
 					html += '<br><span class="supcomp-was">' + escapeHtml(formatPrice(o.regular_price, o.currency)) + '</span>';
 				}
 				html += '</td>';
-				html += '<td>';
+				html += '<td data-label="' + escapeAttr(couponCodeLabel) + '">';
 				var couponCode = o.merchant && o.merchant.coupon_code ? String(o.merchant.coupon_code) : '';
 				if (couponCode) {
 					html += '<button type="button" class="supcomp-coupon" data-role="copy-coupon" data-code="' + escapeAttr(couponCode) + '" title="' + escapeAttr(i18n.couponCopyHint || 'Click to copy') + '" aria-label="' + escapeAttr((i18n.couponCopyHint || 'Click to copy') + ': ' + couponCode) + '">' + escapeHtml(couponCode) + '</button>';
@@ -459,7 +468,7 @@
 					html += '<span class="supcomp-meta">—</span>';
 				}
 				html += '</td>';
-				html += '<td>';
+				html += '<td data-label="' + escapeAttr(couponDetailsLabel) + '">';
 				var couponDetails = o.merchant && o.merchant.coupon_details ? String(o.merchant.coupon_details) : '';
 				if (couponDetails) {
 					html += escapeHtml(couponDetails);
@@ -467,7 +476,7 @@
 					html += '<span class="supcomp-meta">—</span>';
 				}
 				html += '</td>';
-				html += '<td>';
+				html += '<td class="supcomp-cell-actions">';
 				if (o.stock_status === 'in_stock' || o.stock_status === 'backorder') {
 					html += '<a class="supcomp-buy" href="' + escapeAttr(o.buy_url) + '" target="_blank" rel="nofollow sponsored noopener">' +
 						escapeHtml(i18n.buyNow || 'Buy Now →') + '</a>';
