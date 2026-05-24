@@ -17,6 +17,17 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.12.0] — 2026-05-23
+
+### Added
+- **Click-to-copy coupon codes.** The coupon chip on the public comparison table is now a `<button>` instead of a static `<code>`. Clicking (desktop) or tapping (mobile) writes the code to the clipboard and flashes the chip green with **Copied!** for 1.5 seconds before restoring the code. Keyboard-accessible (Tab + Enter / Space). Uses `navigator.clipboard.writeText` on secure contexts; falls back to a hidden-textarea + `document.execCommand('copy')` shim for older browsers or http-only setups. If both paths fail (no permission, no support), the code text gets selected so visitors can copy it manually with Ctrl/Cmd-C. Hover and `:focus-visible` styling tells users the chip is interactive without changing the existing dashed-border aesthetic. Two new i18n keys: `couponCopyHint` ("Click to copy", used as the button's `title` and `aria-label`) and `couponCopied` ("Copied!").
+
+### Notes
+- The clipboard write happens on user-initiated click, which satisfies the `clipboard-write` permission requirement on every browser that ships the modern API. No prompt for visitors.
+- Visual feedback timer is per-button — clicking multiple chips in quick succession works without interference.
+
+---
+
 ## [1.11.3] — 2026-05-23
 
 ### Changed
