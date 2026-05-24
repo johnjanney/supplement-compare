@@ -764,6 +764,13 @@ shortcode there.
 - Below the table: the affiliate disclosure (configurable in Settings) and
   the "Data last updated" timestamp from the JSON's `generated_at`.
 
+**Mobile layout (≤720px):** the comparison tables automatically collapse
+into a stack of cards — one card per product (list view) or per merchant
+(detail view) — so visitors never scroll sideways. The primary action
+(Compare on list view, Buy Now on detail view) renders as a full-width
+tap target at the bottom of each card. Desktop layout is unchanged. No
+operator setting controls this; it's the default frontend behaviour.
+
 **Cache busting:** the shortcode appends `?ver={last-generated timestamp}`
 to the JSON URL, so visitors get the freshest data when the JSON
 regenerates. The browser caches per its normal rules between regenerations.

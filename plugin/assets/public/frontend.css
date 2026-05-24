@@ -246,16 +246,98 @@ button.supcomp-coupon {
 	margin: 0 0 0.5em;
 }
 
-/* Mobile: stack filters; let the table scroll horizontally rather than
-   cramping. */
+/* Mobile: stack filters; render each table row as a card so nothing scrolls
+   sideways and the Buy button is always reachable. Column labels are
+   injected via `td::before` from a `data-label` attribute set in frontend.js;
+   the first cell in each row is treated as the card title and the cell
+   carrying the primary action (Compare / Buy) gets `supcomp-cell-actions`
+   to render edge-to-edge. */
 @media (max-width: 720px) {
 	.supcomp-filters {
 		flex-direction: column;
 		align-items: stretch;
 	}
-	.supcomp-table {
+	.supcomp-table,
+	.supcomp-table thead,
+	.supcomp-table tbody,
+	.supcomp-table tr,
+	.supcomp-table td {
 		display: block;
-		overflow-x: auto;
-		white-space: nowrap;
+		width: auto;
+	}
+	/* Visually hide <thead> but keep it in the a11y tree so screen-reader
+	   users still get column semantics if they navigate the table. */
+	.supcomp-table thead {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		border: 0;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		clip-path: inset(50%);
+	}
+	.supcomp-table tbody tr {
+		border: 1px solid #e5e5e5;
+		border-radius: 4px;
+		margin: 0 0 0.75em;
+		padding: 0.5em 0.75em;
+		background: #fff;
+	}
+	.supcomp-table tbody tr:hover {
+		background: #fff;
+	}
+	.supcomp-table td {
+		border: 0;
+		padding: 0.35em 0;
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 1em;
+		text-align: right;
+		white-space: normal;
+	}
+	.supcomp-table td::before {
+		content: attr(data-label);
+		font-weight: 600;
+		font-size: 12px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		color: #555;
+		text-align: left;
+		flex: 0 0 auto;
+	}
+	.supcomp-table td:not([data-label])::before {
+		content: none;
+	}
+	.supcomp-table td.supcomp-num {
+		white-space: normal;
+	}
+	/* First cell is the card title (product name on list view, merchant
+	   on detail view). Already contains its own <br>-separated subhead. */
+	.supcomp-table tbody tr > td:first-child {
+		display: block;
+		text-align: left;
+		font-size: 17px;
+		padding: 0 0 0.5em;
+		margin-bottom: 0.4em;
+		border-bottom: 1px solid #f0f0f0;
+	}
+	/* Action cells (Compare link, Buy button) span the card width and
+	   center their child so the tap target is thumb-friendly. */
+	.supcomp-table td.supcomp-cell-actions {
+		display: block;
+		text-align: center;
+		padding-top: 0.6em;
+	}
+	.supcomp-table td.supcomp-cell-actions::before {
+		content: none;
+	}
+	.supcomp-table td.supcomp-cell-actions .supcomp-buy,
+	.supcomp-table td.supcomp-cell-actions .supcomp-compare-btn {
+		display: inline-block;
+		padding: 0.55em 1.1em;
+		font-size: 15px;
 	}
 }

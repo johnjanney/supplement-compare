@@ -17,6 +17,16 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.19.0] — 2026-05-24
+
+### Changed
+- **Mobile comparison tables now render as stacked cards** instead of horizontally-scrolling tables. At viewport widths ≤720px both the list view and the per-canonical detail view collapse each `<tr>` into a card with the merchant/product name as the title, the data fields shown as label:value rows, and the primary action (Compare on list view, Buy Now on detail view) rendered as an edge-to-edge tappable target at the bottom of the card. Nothing scrolls sideways and the Buy button is always reachable without horizontal panning.
+  - Implementation is CSS-only at the breakpoint; desktop layout is unchanged. Column labels are injected via `td::before { content: attr(data-label); }` from `data-label` attributes added to each data cell in `frontend.js`. The `<thead>` is visually hidden but kept in the accessibility tree.
+  - Action cells carry a `supcomp-cell-actions` class so the Compare link and Buy Now button can span the card width and centre their child for thumb-friendly tap targets.
+  - Affects both `[supplement_compare]`-rendered tables and the PHP-rendered `/compare/{slug}/` SEO landing page (which embeds the same shortcode).
+
+---
+
 ## [1.18.0] — 2026-05-24
 
 ### Added
