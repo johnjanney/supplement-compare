@@ -112,6 +112,7 @@ class Supcomp_Canonical_Page {
 		?>
 		<header class="supcomp-canonical-header">
 			<h1><?php echo esc_html( $canonical->display_name ); ?></h1>
+			<?php if ( (bool) get_option( 'supcomp_subhead_detail_enabled', true ) ) : ?>
 			<p class="supcomp-meta">
 				<?php
 				$bits = array();
@@ -141,6 +142,7 @@ class Supcomp_Canonical_Page {
 				echo implode( ' &middot; ', $bits );
 				?>
 			</p>
+			<?php endif; ?>
 			<?php if ( $show_edit ) : ?>
 				<p class="supcomp-meta">
 					<a href="<?php echo esc_url( admin_url( 'admin.php?page=supcomp-canonical&action=edit&id=' . (int) $canonical->id ) ); ?>"><?php esc_html_e( 'Edit canonical product', 'supplement-compare' ); ?></a>

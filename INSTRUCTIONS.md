@@ -729,6 +729,16 @@ shortcode there.
     COA-only. These appear on both the list and detail filter bars.
     Unchecking one is useful when your dataset doesn't populate that
     field uniformly (e.g. no offers have COAs recorded yet).
+  - **Product subhead** — two independent checkboxes:
+    - *Detail page subhead* hides the small grey meta-line under the
+      product title (`ingredient · category · form · active unit`).
+      Applies to both the shortcode-rendered detail view and the
+      dedicated `/compare/{slug}/` landing page, so the operator only
+      flips one switch.
+    - *List row subhead* hides the `ingredient · category` line that
+      renders under each product name in the main (list) table.
+    Disable either when the product title already communicates enough
+    on its own and the extra meta-text is just visual noise.
 - **Click-to-sort column headers.** Every numeric and text column on the
   list and detail tables is sortable by clicking its header. First click
   applies the column's natural direction (cost/price ascending — cheapest

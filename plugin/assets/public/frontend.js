@@ -41,6 +41,10 @@
 	var showForm = filterToggles.form !== false;
 	var showIngredient = filterToggles.ingredient !== false;
 
+	var subheadToggles = (config.subheads && typeof config.subheads === 'object') ? config.subheads : {};
+	var showDetailSubhead = subheadToggles.detail !== false;
+	var showListSubhead = subheadToggles.list !== false;
+
 	var data = null;
 	var state = {
 		view: parseHash() || initialView(),
@@ -323,8 +327,10 @@
 				html += '<tr data-slug="' + escapeHtml(item.cp.slug) + '">';
 				html += '<td>';
 				html += '<a class="supcomp-canon-link" href="#/canonical/' + encodeURIComponent(item.cp.slug) + '">' + escapeHtml(item.cp.display_name) + '</a>';
-				html += '<br><span class="supcomp-meta">' + escapeHtml((item.cp.ingredient && item.cp.ingredient.name) || '') +
-					(item.cp.ingredient && item.cp.ingredient.category ? ' · ' + escapeHtml(item.cp.ingredient.category) : '') + '</span>';
+				if (showListSubhead) {
+					html += '<br><span class="supcomp-meta">' + escapeHtml((item.cp.ingredient && item.cp.ingredient.name) || '') +
+						(item.cp.ingredient && item.cp.ingredient.category ? ' · ' + escapeHtml(item.cp.ingredient.category) : '') + '</span>';
+				}
 				html += '</td>';
 				html += '<td class="supcomp-num">' + formatCostPerActive(item.lowest, item.cp) + '</td>';
 				html += '<td class="supcomp-num">' + item.merchantCount + '</td>';
@@ -378,7 +384,9 @@
 		if (cp.standardization_compound && cp.standardization_percentage) {
 			metaBits.push(escapeHtml(formatNumber(cp.standardization_percentage) + '% ' + cp.standardization_compound));
 		}
-		html += '<p class="supcomp-meta">' + metaBits.join(' · ') + '</p>';
+		if (showDetailSubhead) {
+			html += '<p class="supcomp-meta">' + metaBits.join(' · ') + '</p>';
+		}
 
 		html += detailFilterBar();
 
