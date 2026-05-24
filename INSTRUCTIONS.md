@@ -100,14 +100,53 @@ any site running an SEO plugin like Yoast or Rank Math).
   shows the next scheduled run time. WP-Cron handles the trigger; on
   low-traffic sites add an external pinger (see WP-Cron caveat below).
 - New offers land in the **Pending Queue** for operator review, same as
-  CSV-uploaded offers. Existing offers update in place; operator edits
-  remain sticky (normalization does not re-run on updates).
+  CSV-uploaded offers. Existing offers update in place (see *"What
+  re-running does to existing offers"* below for what refreshes vs.
+  what stays sticky).
 
 **Viewing run history.** WP Admin → Supplement Compare → **Extractor
 Runs** lists the most recent 100 attempts with status badges, durations,
 offer counts, and error excerpts. Filter by status (failed-only is the
 common operator use). Click any attempt id for the full error log + the
 sibling attempts that shared its run_id.
+
+**What re-running does to existing offers.** Every offer is uniquely
+identified by the tuple `(merchant, source_product_id, source_variant_id)`.
+The database has a UNIQUE constraint on that tuple, so re-running an
+extractor against a merchant you've already imported **never creates
+duplicates** — it updates the existing row in place. The row's internal
+`id` is stable across runs (which is why click counters keep accumulating
+correctly).
+
+What every re-run **refreshes** from the merchant:
+
+- Product title, brand, SKU, barcode, source URLs
+- Regular price, sale price, current price, on-sale flag, currency
+- Stock status
+- `last_synced_at` timestamp
+- Derived fields (`cost_per_serving`, `cost_per_active_unit`, etc.) —
+  recomputed from the new price
+
+What every re-run **leaves alone** (your edits are sticky):
+
+- Canonical product assignment
+- Ingredient assignment, form, strength, serving size, standardization %
+- Trust signals: third-party tested, COA available, COA URL,
+  certifications
+- Curation status: `paused`, `rejected`, and `dead` are preserved across
+  runs. (Only `pending` / `active` / `needs_review` offers participate
+  in the stale-after-this-run sweep.)
+- Operator notes and match-confidence overrides
+
+**Stale → active resurrection.** If an offer dropped out of a previous
+run (the stale-detector marked it `stale` because the merchant temporarily
+delisted it) and then reappears in a later run, the plugin automatically
+restores it to `active` — no manual re-approval needed.
+
+**Price-history logging.** When a re-run updates an existing offer's
+price or stock, the change is logged to the `price_history` table. The
+operator-facing surfacing for that history isn't built yet, but the data
+is there for future analytics or sale-detection features.
 
 **WP-Cron caveat on low-traffic sites.** Action Scheduler ticks on
 visitor requests + WP-Cron. If your site sees hours between visits, a
@@ -474,16 +513,17 @@ about:
      matcher's suggestion. Pick a different one from the grouped dropdown
      if it got it wrong, or "— No canonical match —" if no canonical is
      right (you can revisit later).
-   - **Ingredient / Form / Active mass per serving / Servings / Total
-     active per container / Standardization** — the normalized fact set.
-     **Active mass per serving** and **Total active per container** are
-     tied to **Servings per container** by a live calculator: fill any
-     two and the third auto-fills. Use whichever pair the merchant's
-     supplement-facts panel makes easy — e.g. enter the container total
-     printed on the label plus servings/container, and let the form
-     derive per-serving. When you set Canonical product, the canonical's
-     values become authoritative (the form makes the offer's values
-     match it on save).
+   - **Ingredient / Form / Total active per container / Servings /
+     Active mass per serving / Standardization** — the normalized fact
+     set. **Total active per container is the primary input** as of
+     v1.15.0: enter it and the comparison table renders Total active and
+     Cost / active unit even when Servings per container is blank. When
+     you also enter Servings, the form derives Active mass per serving
+     from Total ÷ Servings on save. The legacy workflow still works —
+     entering Strength + Servings instead of Total computes Total
+     downstream via derivations. When you set Canonical product, the
+     canonical's values become authoritative (the form makes the offer's
+     values match it on save).
 3. Trust signals — `Third-party tested`, `COA available`, `COA URL`, and
    `Certifications`. These are operator-set; the CSV never carries them.
    Set them when you've personally verified the brand publishes their

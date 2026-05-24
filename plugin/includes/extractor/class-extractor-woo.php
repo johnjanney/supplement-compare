@@ -272,7 +272,14 @@ class Supcomp_Extractor_Woo {
 	}
 
 	/**
-	 * Fetch /products/{id}/variations and convert to Offer objects.
+	 * Fetch variation objects for a variable parent and convert to Offer
+	 * objects.
+	 *
+	 * Modern WooCommerce (Store API in Woo 8.x+) removed the per-product
+	 * /products/{id}/variations endpoint, which now returns 404. The
+	 * supported path is a filter on the products list:
+	 * /products?type=variation&parent={id}. We try the modern path first
+	 * and fall back to the legacy path for older stores.
 	 *
 	 * @return Supcomp_Extractor_Offer[]  Empty array on any failure.
 	 */
@@ -280,17 +287,34 @@ class Supcomp_Extractor_Woo {
 		$site, $store_name, $product_id, $parent, $raw_base, $brand, $product_type,
 		$currency_code, $minor_unit, $run_id, $exported_at
 	) {
-		$url = self::build_url(
-			$site,
-			'/wp-json/wc/store/v1/products/' . rawurlencode( $product_id ) . '/variations',
-			array( 'per_page' => 100 )
+		// Modern endpoint (Woo 8.x+).
+		$variations = self::request_variations(
+			self::build_url(
+				$site,
+				'/wp-json/wc/store/v1/products',
+				array(
+					'type'     => 'variation',
+					'parent'   => $product_id,
+					'per_page' => 100,
+				)
+			),
+			true
 		);
-		$response = Supcomp_Extractor_Http::get( $url );
-		if ( is_wp_error( $response ) || $response['status'] !== 200 ) {
-			return array();
+		// Legacy endpoint (older Woo). The modern endpoint returns null on
+		// hard failure (non-200, malformed body, or a payload that doesn't
+		// look like variations — older Woo can silently ignore unknown
+		// query params and return the products list instead).
+		if ( $variations === null ) {
+			$variations = self::request_variations(
+				self::build_url(
+					$site,
+					'/wp-json/wc/store/v1/products/' . rawurlencode( $product_id ) . '/variations',
+					array( 'per_page' => 100 )
+				),
+				false
+			);
 		}
-		$variations = json_decode( $response['body'], true );
-		if ( ! is_array( $variations ) || empty( $variations ) || self::is_assoc( $variations ) ) {
+		if ( ! is_array( $variations ) || empty( $variations ) ) {
 			return array();
 		}
 
@@ -356,6 +380,38 @@ class Supcomp_Extractor_Woo {
 		}
 
 		return $offers;
+	}
+
+	/**
+	 * GET a variation-list endpoint and return the parsed array on success,
+	 * or null on hard failure (non-200, malformed JSON, error envelope, or
+	 * — when $strict is true — a payload whose items don't look like
+	 * variation-typed products).
+	 *
+	 * $strict guards the modern endpoint against older Woo versions that
+	 * silently ignore unknown query params and would return the regular
+	 * products list instead of variations. The legacy endpoint doesn't
+	 * need that guard because it can only return variations or 404.
+	 */
+	private static function request_variations( $url, $strict ) {
+		$response = Supcomp_Extractor_Http::get( $url );
+		if ( is_wp_error( $response ) || $response['status'] !== 200 ) {
+			return null;
+		}
+		$body = json_decode( $response['body'], true );
+		if ( ! is_array( $body ) || self::is_assoc( $body ) ) {
+			return null;
+		}
+		if ( empty( $body ) ) {
+			return array();
+		}
+		if ( $strict ) {
+			$first = $body[0];
+			if ( ! is_array( $first ) || ( isset( $first['type'] ) && $first['type'] !== 'variation' ) ) {
+				return null;
+			}
+		}
+		return $body;
 	}
 
 	private static function variant_title_from_attrs( array $v_attrs ) {
