@@ -17,6 +17,13 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.11.2] — 2026-05-23
+
+### Changed
+- **Compare table headers now name the active unit.** "Total active" → "Total mg" / "Total mcg" / "Total g" / "Total IU" / etc., and "Cost / active unit" → "Cost / mg" / "Cost / mcg" / etc., using the canonical's `strength_unit` (falling back to the ingredient's `default_unit`). Same data, just a clearer header that tells the visitor what unit they're looking at without scanning the row. Two new i18n format keys (`totalUnitColumn` = `Total %s`, `costPerUnitColumn` = `Cost / %s`); the old static keys (`totalActiveColumn`, `costPerActiveColumn`) remain as fallbacks for canonicals with no unit set.
+
+---
+
 ## [1.11.1] — 2026-05-23
 
 ### Fixed
