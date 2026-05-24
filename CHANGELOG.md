@@ -17,6 +17,17 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.19.1] — 2026-05-24
+
+### Changed
+- **Mobile layout switched from stacked cards to a 2-row CSS Grid** so the sortable column headers stay tappable. The 1.19.0 stacked-card layout visually hid `<thead>`, which broke click-to-sort on phones. The replacement keeps `<thead>` visible: at ≤720px each row becomes a 2-row CSS Grid where row A holds the sortable comparison columns under their `<th>` headers, and row B holds coupon code | coupon details | Buy underneath. Visitors can still re-sort by tapping a column header (Price, Cost / mg, etc.), the Buy button stays reachable without horizontal scrolling, and the desktop layout is unchanged.
+  - The detail table now gets a `supcomp-cols-4` or `supcomp-cols-5` class from `frontend.js` so the grid sizes correctly to whichever compare view (cost-per-active vs cost-per-serving) is active.
+  - Row-B `<th>` cells (Coupon code, Coupon details, Buy) are hidden on mobile — they aren't sortable and the values below them are self-explanatory.
+  - The list view becomes a 3-column grid (product, lowest cost, merchants) with the Compare button wrapping to a full-width centred CTA on row 2.
+  - Removed the 1.19.0 `data-label` attribute injection and visually-hidden `<thead>` styling; neither is needed in the new layout.
+
+---
+
 ## [1.19.0] — 2026-05-24
 
 ### Changed
@@ -24,6 +35,7 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
   - Implementation is CSS-only at the breakpoint; desktop layout is unchanged. Column labels are injected via `td::before { content: attr(data-label); }` from `data-label` attributes added to each data cell in `frontend.js`. The `<thead>` is visually hidden but kept in the accessibility tree.
   - Action cells carry a `supcomp-cell-actions` class so the Compare link and Buy Now button can span the card width and centre their child for thumb-friendly tap targets.
   - Affects both `[supplement_compare]`-rendered tables and the PHP-rendered `/compare/{slug}/` SEO landing page (which embeds the same shortcode).
+  - *Superseded by 1.19.1 — the visually-hidden `<thead>` removed click-to-sort on phones.*
 
 ---
 
