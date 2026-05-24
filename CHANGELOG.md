@@ -17,6 +17,17 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.17.0] — 2026-05-24
+
+### Added
+- **New Settings field: "List view filter controls."** Three independent checkboxes let the operator hide the search input, the "All forms" dropdown, and the "All ingredients" dropdown from the main (list) table's filter bar.
+  - New options `supcomp_filter_search_enabled`, `supcomp_filter_form_enabled`, `supcomp_filter_ingredient_enabled` (all boolean, default `true` — preserves prior behavior on upgrade).
+  - Wired through the existing nested `supcompFrontend.filters` object so they survive `wp_localize_script` as real booleans (top-level scalar booleans get string-coerced — see 1.16.1).
+  - The detail (per-canonical) view is unaffected; these controls only exist on the list view.
+  - Shortcode pre-filter attributes (`[supplement_compare ingredient="L-Theanine"]`) still apply even when the matching control is hidden — the state survives, the visitor just can't change it from the bar.
+
+---
+
 ## [1.16.1] — 2026-05-24
 
 ### Fixed

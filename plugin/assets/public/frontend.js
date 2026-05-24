@@ -37,6 +37,9 @@
 	var showInStock = filterToggles.inStockOnly !== false;
 	var showThirdParty = filterToggles.thirdPartyOnly !== false;
 	var showCoa = filterToggles.coaOnly !== false;
+	var showSearch = filterToggles.search !== false;
+	var showForm = filterToggles.form !== false;
+	var showIngredient = filterToggles.ingredient !== false;
 
 	var data = null;
 	var state = {
@@ -478,23 +481,29 @@
 
 	function listFilterBar() {
 		var f = state.listFilters;
-		var forms = uniqueSorted(data.canonical_products.map(function (c) { return c.form; }));
-		var ingredients = uniqueIngredients(data.canonical_products);
+		var forms = showForm ? uniqueSorted(data.canonical_products.map(function (c) { return c.form; })) : [];
+		var ingredients = showIngredient ? uniqueIngredients(data.canonical_products) : [];
 
 		var h = '<div class="supcomp-filters">';
-		h += '<input type="search" data-role="search" value="' + escapeAttr(f.search) + '" placeholder="' + escapeAttr(i18n.search || 'Search') + '" class="supcomp-search">';
-		h += '<select data-field="form">';
-		h += '<option value="">' + escapeHtml(i18n.allForms || 'All forms') + '</option>';
-		forms.forEach(function (x) {
-			h += '<option value="' + escapeAttr(x) + '"' + (f.form === x ? ' selected' : '') + '>' + escapeHtml(x) + '</option>';
-		});
-		h += '</select>';
-		h += '<select data-field="ingredient">';
-		h += '<option value="">' + escapeHtml(i18n.allIngredients || 'All ingredients') + '</option>';
-		ingredients.forEach(function (ing) {
-			h += '<option value="' + escapeAttr(ing.name) + '"' + (f.ingredient === ing.name ? ' selected' : '') + '>' + escapeHtml(ing.name) + '</option>';
-		});
-		h += '</select>';
+		if (showSearch) {
+			h += '<input type="search" data-role="search" value="' + escapeAttr(f.search) + '" placeholder="' + escapeAttr(i18n.search || 'Search') + '" class="supcomp-search">';
+		}
+		if (showForm) {
+			h += '<select data-field="form">';
+			h += '<option value="">' + escapeHtml(i18n.allForms || 'All forms') + '</option>';
+			forms.forEach(function (x) {
+				h += '<option value="' + escapeAttr(x) + '"' + (f.form === x ? ' selected' : '') + '>' + escapeHtml(x) + '</option>';
+			});
+			h += '</select>';
+		}
+		if (showIngredient) {
+			h += '<select data-field="ingredient">';
+			h += '<option value="">' + escapeHtml(i18n.allIngredients || 'All ingredients') + '</option>';
+			ingredients.forEach(function (ing) {
+				h += '<option value="' + escapeAttr(ing.name) + '"' + (f.ingredient === ing.name ? ' selected' : '') + '>' + escapeHtml(ing.name) + '</option>';
+			});
+			h += '</select>';
+		}
 
 		if (showInStock) {
 			h += '<label><input type="checkbox" data-field="inStockOnly"' + (f.inStockOnly ? ' checked' : '') + '> ' + escapeHtml(i18n.inStockOnly || 'In stock only') + '</label>';

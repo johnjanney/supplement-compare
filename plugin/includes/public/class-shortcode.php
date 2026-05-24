@@ -115,6 +115,9 @@ class Supcomp_Shortcode {
 					'inStockOnly'    => (bool) get_option( 'supcomp_filter_in_stock_enabled', true ),
 					'thirdPartyOnly' => (bool) get_option( 'supcomp_filter_third_party_enabled', true ),
 					'coaOnly'        => (bool) get_option( 'supcomp_filter_coa_enabled', true ),
+					'search'         => (bool) get_option( 'supcomp_filter_search_enabled', true ),
+					'form'           => (bool) get_option( 'supcomp_filter_form_enabled', true ),
+					'ingredient'     => (bool) get_option( 'supcomp_filter_ingredient_enabled', true ),
 				),
 				'i18n'                    => self::i18n_strings(),
 			)

@@ -715,11 +715,20 @@ shortcode there.
   to one ingredient.
 
 **What renders:**
-- Top filter bar: search, form, ingredient, and (each independently
-  toggleable on the Settings page → **Filter checkboxes**) in-stock-only,
-  third-party-only, COA-only. Unchecking a filter on the Settings page
-  removes its checkbox from both the list and detail filter bars —
-  useful when your dataset doesn't populate that field uniformly.
+- Top filter bar (list view): search-ingredient input, "All forms"
+  dropdown, "All ingredients" dropdown, and the in-stock-only / 3PT /
+  COA checkboxes. Each control is independently toggleable on the
+  Settings page:
+  - **List view filter controls** — show/hide the search input, the
+    form dropdown, and the ingredient dropdown. Useful when the dataset
+    is small enough that a search field or one of the dropdowns is
+    unnecessary. Pre-filtering via shortcode attributes (e.g.
+    `[supplement_compare ingredient="L-Theanine"]`) still applies even
+    when the matching control is hidden.
+  - **Filter checkboxes** — show/hide in-stock-only, third-party-only,
+    COA-only. These appear on both the list and detail filter bars.
+    Unchecking one is useful when your dataset doesn't populate that
+    field uniformly (e.g. no offers have COAs recorded yet).
 - **Click-to-sort column headers.** Every numeric and text column on the
   list and detail tables is sortable by clicking its header. First click
   applies the column's natural direction (cost/price ascending — cheapest
