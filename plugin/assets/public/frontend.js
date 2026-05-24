@@ -29,7 +29,9 @@
 	var defaultDetailView = DETAIL_VIEWS.indexOf(config.defaultCompareView) >= 0
 		? config.defaultCompareView
 		: 'cost_per_active_unit';
-	var multiCompareViewEnabled = config.multiCompareViewEnabled !== false;
+	// wp_localize_script coerces top-level scalars to strings: PHP `true` → "1",
+	// `false` → "". Use a truthy check, not `!== false`, or the flag is always on.
+	var multiCompareViewEnabled = !!config.multiCompareViewEnabled;
 
 	var filterToggles = (config.filters && typeof config.filters === 'object') ? config.filters : {};
 	var showInStock = filterToggles.inStockOnly !== false;
