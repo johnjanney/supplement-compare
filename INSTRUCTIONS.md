@@ -764,12 +764,14 @@ shortcode there.
 - Below the table: the affiliate disclosure (configurable in Settings) and
   the "Data last updated" timestamp from the JSON's `generated_at`.
 
-**Mobile layout (≤720px):** the comparison tables automatically collapse
-into a stack of cards — one card per product (list view) or per merchant
-(detail view) — so visitors never scroll sideways. The primary action
-(Compare on list view, Buy Now on detail view) renders as a full-width
-tap target at the bottom of each card. Desktop layout is unchanged. No
-operator setting controls this; it's the default frontend behaviour.
+**Mobile layout (≤720px):** the comparison tables automatically reflow
+so nothing scrolls sideways. Each row becomes a 2-row CSS Grid: the
+sortable comparison columns sit under their tappable `<th>` headers on
+the top line, and the coupon code, coupon details, and Buy button wrap
+onto a second line underneath. Column headers stay visible and
+tappable so visitors can still re-sort by Price, Cost / unit, etc. on
+their phone. Desktop layout is unchanged. No operator setting controls
+this; it's the default frontend behaviour.
 
 **Cache busting:** the shortcode appends `?ver={last-generated timestamp}`
 to the JSON URL, so visitors get the freshest data when the JSON

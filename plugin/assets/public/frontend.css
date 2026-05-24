@@ -246,98 +246,123 @@ button.supcomp-coupon {
 	margin: 0 0 0.5em;
 }
 
-/* Mobile: stack filters; render each table row as a card so nothing scrolls
-   sideways and the Buy button is always reachable. Column labels are
-   injected via `td::before` from a `data-label` attribute set in frontend.js;
-   the first cell in each row is treated as the card title and the cell
-   carrying the primary action (Compare / Buy) gets `supcomp-cell-actions`
-   to render edge-to-edge. */
+/* Mobile (≤720px): each row becomes a 2-row CSS Grid. Row A holds the
+   sortable comparison columns under their (visible, tappable) `<th>`
+   headers; row B holds coupon code / coupon details / Buy underneath.
+   The `<th>` cells above row B are hidden — those columns aren't
+   sortable, the data below is self-explanatory. The detail table gets
+   a `supcomp-cols-4` or `supcomp-cols-5` class from frontend.js based
+   on which compare view is active, so the grid can size to either
+   four or five sortable columns. */
 @media (max-width: 720px) {
 	.supcomp-filters {
 		flex-direction: column;
 		align-items: stretch;
 	}
-	.supcomp-table,
-	.supcomp-table thead,
-	.supcomp-table tbody,
-	.supcomp-table tr,
-	.supcomp-table td {
-		display: block;
-		width: auto;
+
+	/* List view — 3 sortable columns (product, lowest cost, merchants)
+	   + Compare cell that wraps onto row 2 spanning full width. */
+	.supcomp-list thead tr,
+	.supcomp-list tbody tr {
+		display: grid;
+		grid-template-columns: 2fr 1fr 1fr;
+		column-gap: 0.6em;
+		align-items: baseline;
 	}
-	/* Visually hide <thead> but keep it in the a11y tree so screen-reader
-	   users still get column semantics if they navigate the table. */
-	.supcomp-table thead {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		margin: -1px;
-		padding: 0;
-		border: 0;
-		overflow: hidden;
-		clip: rect(0 0 0 0);
-		clip-path: inset(50%);
+	.supcomp-list thead th:last-child {
+		/* Empty <th> above the Compare cell. */
+		display: none;
 	}
-	.supcomp-table tbody tr {
+	.supcomp-list tbody tr {
+		padding: 0.6em 0.75em;
 		border: 1px solid #e5e5e5;
 		border-radius: 4px;
-		margin: 0 0 0.75em;
-		padding: 0.5em 0.75em;
+		margin: 0 0 0.6em;
 		background: #fff;
 	}
-	.supcomp-table tbody tr:hover {
+	.supcomp-list tbody tr:hover {
 		background: #fff;
 	}
-	.supcomp-table td {
-		border: 0;
-		padding: 0.35em 0;
-		display: flex;
-		justify-content: space-between;
+	.supcomp-list tbody td:last-child {
+		grid-column: 1 / -1;
+		grid-row: 2;
+		text-align: center;
+		padding-top: 0.6em;
+	}
+
+	/* Detail view — sortable comparison columns in row A, then
+	   coupon code | coupon details | buy in row B. */
+	.supcomp-detail thead tr,
+	.supcomp-detail tbody tr {
+		display: grid;
+		column-gap: 0.6em;
+		row-gap: 0.3em;
 		align-items: baseline;
-		gap: 1em;
-		text-align: right;
-		white-space: normal;
 	}
-	.supcomp-table td::before {
-		content: attr(data-label);
-		font-weight: 600;
-		font-size: 12px;
-		text-transform: uppercase;
-		letter-spacing: 0.5px;
+	.supcomp-detail.supcomp-cols-4 thead tr,
+	.supcomp-detail.supcomp-cols-4 tbody tr {
+		grid-template-columns: 1.6fr 1fr 1fr 1fr;
+	}
+	.supcomp-detail.supcomp-cols-5 thead tr,
+	.supcomp-detail.supcomp-cols-5 tbody tr {
+		grid-template-columns: 1.4fr 1fr 0.8fr 1fr 1fr;
+	}
+	.supcomp-detail tbody tr {
+		padding: 0.6em 0.75em;
+		border: 1px solid #e5e5e5;
+		border-radius: 4px;
+		margin: 0 0 0.6em;
+		background: #fff;
+	}
+	.supcomp-detail tbody tr:hover {
+		background: #fff;
+	}
+	.supcomp-detail thead th:nth-last-child(-n+3) {
+		display: none;
+	}
+	.supcomp-detail tbody td:nth-last-child(3) {
+		grid-row: 2;
+		grid-column: 1;
+		font-size: 13px;
+	}
+	.supcomp-detail tbody td:nth-last-child(2) {
+		grid-row: 2;
+		grid-column: 2 / -2;
+		font-size: 13px;
 		color: #555;
-		text-align: left;
-		flex: 0 0 auto;
 	}
-	.supcomp-table td:not([data-label])::before {
-		content: none;
+	.supcomp-detail tbody td:nth-last-child(1) {
+		grid-row: 2;
+		grid-column: -2 / -1;
+		text-align: right;
+	}
+
+	/* Shared cell tweaks on mobile. */
+	.supcomp-table thead th {
+		padding: 0.4em 0;
+		background: transparent;
+	}
+	.supcomp-table tbody td {
+		padding: 0.25em 0;
+		border: 0;
+		white-space: normal;
 	}
 	.supcomp-table td.supcomp-num {
 		white-space: normal;
 	}
-	/* First cell is the card title (product name on list view, merchant
-	   on detail view). Already contains its own <br>-separated subhead. */
-	.supcomp-table tbody tr > td:first-child {
-		display: block;
-		text-align: left;
-		font-size: 17px;
-		padding: 0 0 0.5em;
-		margin-bottom: 0.4em;
-		border-bottom: 1px solid #f0f0f0;
+	.supcomp-table .supcomp-buy {
+		padding: 0.45em 0.9em;
+		font-size: 14px;
 	}
-	/* Action cells (Compare link, Buy button) span the card width and
-	   center their child so the tap target is thumb-friendly. */
-	.supcomp-table td.supcomp-cell-actions {
-		display: block;
-		text-align: center;
-		padding-top: 0.6em;
-	}
-	.supcomp-table td.supcomp-cell-actions::before {
-		content: none;
-	}
-	.supcomp-table td.supcomp-cell-actions .supcomp-buy,
-	.supcomp-table td.supcomp-cell-actions .supcomp-compare-btn {
+	/* On desktop the Compare cell is just a text link; on mobile it
+	   becomes a full-width primary CTA at the bottom of each list card. */
+	.supcomp-list .supcomp-compare-btn {
 		display: inline-block;
-		padding: 0.55em 1.1em;
+		padding: 0.5em 1.1em;
 		font-size: 15px;
+		background: #2271b1;
+		color: #fff;
+		border-radius: 3px;
+		text-decoration: none;
 	}
 }
