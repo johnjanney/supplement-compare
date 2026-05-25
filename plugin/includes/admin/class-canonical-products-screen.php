@@ -8,11 +8,17 @@
  *   admin.php?page=supcomp-canonical&action=edit&id=N      — edit form
  *   admin.php?page=supcomp-canonical&action=import         — CSV upload form
  *
- * As of v1.1.1, strength_per_serving and servings_per_container are no
- * longer surfaced in this screen — those values live at the offer level
- * and drive the per-offer cost-per-active-unit math. The schema columns
- * remain (CSV import still accepts them, existing rows keep their values),
- * but the admin form no longer reads or writes them.
+ * From v1.1.1 through v1.19.1 strength_per_serving and
+ * servings_per_container were hidden from this screen — the intent was
+ * that strength lives at the offer level. But hiding the fields while the
+ * schema columns and the import-time canonical override both remained
+ * meant a pinned strength (from a pre-v1.1.1 row or a CSV import) became
+ * an invisible, un-clearable value that the public JSON still broadcasts
+ * as the product's strength. As of v1.20.0 the two fields are surfaced
+ * again as explicit *optional pins*: leave them blank to let the canonical
+ * group every brand-strength of the ingredient (the v1.1.0 default, and
+ * the recommended state), or pin a value to deliberately override matched
+ * offers. Blank now writes NULL, so the operator can clear a stale pin.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -179,6 +185,8 @@ class Supcomp_Canonical_Products_Screen {
 		$slug                       = $row ? $row->slug : '';
 		$ingredient_id              = $row ? (int) $row->ingredient_id : 0;
 		$ingredient_form            = $row ? (string) $row->ingredient_form : '';
+		$strength_per_serving       = $row && $row->strength_per_serving !== null ? self::trim_decimal( $row->strength_per_serving ) : '';
+		$servings_per_container     = $row && $row->servings_per_container !== null ? (int) $row->servings_per_container : '';
 		$standardization_compound   = $row ? (string) $row->standardization_compound : '';
 		$standardization_percentage = $row && $row->standardization_percentage !== null ? self::trim_decimal( $row->standardization_percentage ) : '';
 		$display_name               = $row ? $row->display_name : '';
@@ -246,6 +254,23 @@ class Supcomp_Canonical_Products_Screen {
 								<?php endforeach; ?>
 							</select>
 							<p class="description"><?php esc_html_e( 'Optional. Leave blank when the canonical groups multiple forms (capsule, powder, etc.) for the same ingredient. The form of each offer is still recorded at the offer level.', 'supplement-compare' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="supcomp-strength"><?php esc_html_e( 'Pinned strength (optional)', 'supplement-compare' ); ?></label></th>
+						<td>
+							<input type="number" id="supcomp-strength" name="strength_per_serving" value="<?php echo esc_attr( $strength_per_serving ); ?>" step="any" min="0" class="small-text">
+							<p class="description" style="color:#856404">
+								<strong><?php esc_html_e( 'Leave blank in almost all cases.', 'supplement-compare' ); ?></strong>
+								<?php esc_html_e( 'A blank strength lets the canonical group every brand-strength of the ingredient and shows each offer\'s own strength in the comparison table. If you enter a value here, it becomes the product\'s displayed strength on the public site AND overwrites the per-offer strength of every offer matched to this canonical on its next import — clear it to undo that.', 'supplement-compare' ); ?>
+							</p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="supcomp-servings"><?php esc_html_e( 'Pinned servings/container (optional)', 'supplement-compare' ); ?></label></th>
+						<td>
+							<input type="number" id="supcomp-servings" name="servings_per_container" value="<?php echo esc_attr( $servings_per_container ); ?>" step="1" min="0" class="small-text">
+							<p class="description"><?php esc_html_e( 'Optional. Only used with a pinned strength to derive a canonical-level total. Leave blank to keep servings at the offer level.', 'supplement-compare' ); ?></p>
 						</td>
 					</tr>
 					<tr>

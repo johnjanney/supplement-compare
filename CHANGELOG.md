@@ -17,6 +17,19 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.20.0] — 2026-05-25
+
+### Added
+- **Canonical edit screen re-surfaces "Pinned strength (optional)" and "Pinned servings/container (optional)" fields.** Hidden since v1.1.1, these schema columns kept being honored by the public JSON export and the import-time canonical override even though no admin UI exposed them. They are now editable, with **blank writing `NULL`** so an operator can clear a stale pin. The default and recommended state is blank (the canonical groups every brand-strength of the ingredient and the table shows each offer's own strength).
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **Fixed a stale pinned canonical strength leaking onto the public site as a phantom product strength.** A canonical row carrying a `strength_per_serving` value (from a pre-v1.1.1 edit or a CSV import) was exported by `class-json-exporter.php` as the product's displayed strength even when every active offer underneath had a different strength — e.g. a product shown as "100mg" while its only offers were 5mg and 10mg. The value was invisible in the admin (the form had dropped the field) and un-clearable (the save path fell back to the stored value for any field the form didn't submit), so the operator had no way to remove it without database access. Re-surfacing the field (see Added) makes such pins visible and clearable; clear the field and regenerate the public JSON to drop the phantom strength.
+### Security
+
+---
+
 ## [1.19.1] — 2026-05-24
 
 ### Changed
