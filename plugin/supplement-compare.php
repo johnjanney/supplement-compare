@@ -3,7 +3,7 @@
  * Plugin Name:       Supplement Compare
  * Plugin URI:        https://example.invalid/
  * Description:       Single-ingredient supplement affiliate comparison engine: CSV import, normalization, curation queue, click tracking, and static JSON export.
- * Version:           1.19.1
+ * Version:           1.20.0
  * Requires at least: 6.4
  * Requires PHP:      8.0
  * Author:            Cornflower
@@ -16,7 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SUPPLEMENT_COMPARE_VERSION', '1.19.1' );
+define( 'SUPPLEMENT_COMPARE_VERSION', '1.20.0' );
 define( 'SUPPLEMENT_COMPARE_PLUGIN_FILE', __FILE__ );
 define( 'SUPPLEMENT_COMPARE_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 

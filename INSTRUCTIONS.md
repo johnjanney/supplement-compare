@@ -460,12 +460,25 @@ Optional:
 - **Display name** — shown publicly. If blank, the system derives one from
   the ingredient (and form, when set).
 
-Active mass per serving and servings per container are **not** entered on
-the canonical screen as of v1.1.1 — those are per-offer values, set in the
-pending queue / offer edit form, and they drive the per-offer
-`cost_per_serving` and `cost_per_active_unit`. CSV import still accepts
-`strength_per_serving` / `servings_per_container` columns for legacy data;
-existing rows keep whatever values they already have.
+- **Pinned strength (optional)** and **Pinned servings/container (optional)** —
+  **leave blank in almost all cases.** Active mass per serving normally lives at
+  the offer level (set in the pending queue / offer edit form), where it drives
+  the per-offer `cost_per_serving` and `cost_per_active_unit`. A blank pin lets
+  one canonical group every brand-strength of the ingredient and shows each
+  offer's own strength on the comparison table. If you *do* enter a strength
+  here, it becomes the product's displayed strength on the public site **and**
+  overwrites the per-offer strength of every offer matched to this canonical on
+  its next import — so a stray pin can make a product read "100mg" even when its
+  only offers are 5mg and 10mg.
+
+  > **Clearing a stale pin.** These fields were hidden from v1.1.1 to v1.19.1,
+  > so a canonical created before v1.1.1 (or imported from a CSV that included a
+  > `strength_per_serving` value) may carry a pin you can't see. If a product
+  > shows a strength on the public site that none of its active offers have,
+  > open the canonical, blank the **Pinned strength** field, save, then
+  > regenerate the public JSON (Settings → **Regenerate now**, or wait for the
+  > next scheduled export). Existing offers keep their own correct strengths —
+  > only the canonical-level display changes.
 - **SEO indexable** — operator's explicit opt-in for the per-canonical SEO
   page (Phase 10). Phase 10 also requires ≥3 active offers before actually
   indexing.
