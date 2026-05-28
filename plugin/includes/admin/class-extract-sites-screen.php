@@ -273,7 +273,7 @@ class Supcomp_Extract_Sites_Screen {
 									<option value="<?php echo esc_attr( $h ); ?>" <?php selected( $hint, $h ); ?>><?php echo esc_html( $h ); ?></option>
 								<?php endforeach; ?>
 							</select>
-							<p class="description"><?php esc_html_e( 'Leave on "auto" to let the extractor try Shopify → Woo → generic in order. Pin a specific platform if a site supports multiple.', 'supplement-compare' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Leave on "auto" to let the extractor try Shopify → Woo → generic JSON-LD in order ("auto" also finds Wix sites via the generic step). Pin a specific platform if a site supports multiple. "wix" uses the generic JSON-LD engine but skips the Shopify/Woo probes and labels offers as "wix".', 'supplement-compare' ); ?></p>
 						</td>
 					</tr>
 					<tr>

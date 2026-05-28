@@ -17,6 +17,43 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.21.0] — 2026-05-26
+
+### Added
+- **Wix as a selectable Merchant Platform / extractor platform hint.** `wix`
+  now appears in the Merchants "Platform" field and the Extractor Sites
+  "Platform hint" dropdown. Pinning `wix` runs the existing generic JSON-LD
+  engine but skips the Shopify/Woo probes and labels the run and its offers
+  `source = wix`. Mechanically a Wix store is a generic JSON-LD site, so
+  `auto` already discovers Wix sites via its generic step (labeling them
+  `generic`, since auto can't prove a site is Wix); the `wix` pin is for when
+  the operator already knows the platform. Adapted from the tested
+  `aggregate_products-add-wix.py`.
+
+### Changed
+- **Generic JSON-LD handler hardened for Wix-style output (benefits all
+  generic/`auto` sites).** Two always-on robustness improvements ported from
+  the Python extractor:
+  - **Case-insensitive JSON-LD key lookups.** Wix emits non-standard
+    capitalization (`Offers`, `Availability`, `Seller`, …). Offer field reads
+    (`offers`, `price`/`lowPrice`, `priceCurrency`, `availability`, `sku`) now
+    match keys regardless of case. Strictly a superset of the prior exact-match
+    behavior, so it cannot change parsing of spec-compliant sites.
+  - **Store-name fallback.** When the homepage returns a generic default
+    (`My Site`, a stock WordPress title, blank), the handler now mines the
+    first product page's JSON-LD for an `offer.seller.name` / `brand.name`
+    instead of leaving the store name empty. Only fires when the homepage name
+    is generic, so normal sites pay no extra request.
+- `wix` added to the merchant-platform, extractor-platform-hint, and CSV
+  `source` allow-lists.
+
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
 ## [1.20.0] — 2026-05-25
 
 ### Added
