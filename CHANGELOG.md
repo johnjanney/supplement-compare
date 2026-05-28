@@ -17,6 +17,31 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.21.1] — 2026-05-28
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **Frontend search field — focus no longer drops after one keystroke.**
+  `restoreInputFocus()` had been left as a no-op (comment-only body), so each
+  keystroke triggered a full `innerHTML` rerender that destroyed the focused
+  `<input>` and left the user unable to type a second character. The handler
+  now captures the focused field's identity and caret position before the
+  rerender and reapplies both after, so typing into the Search box (and any
+  future re-rendered control) works continuously on desktop and mobile.
+- **Frontend search field — no longer renders ~12em tall on mobile.** The
+  desktop `.supcomp-search` rule sets `flex: 1 1 12em` so the field grows to
+  fill horizontal space; on mobile the `.supcomp-filters` container switches
+  to `flex-direction: column`, which made the `12em` basis apply to *height*
+  and produced a giant empty box (see `screenshots/search-not-working.jpeg`).
+  Mobile rule now resets the input to natural height (`flex: 0 0 auto`) and
+  lets it span the column width via `width: 100%; box-sizing: border-box`.
+### Security
+
+---
+
 ## [1.21.0] — 2026-05-26
 
 ### Added
