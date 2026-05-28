@@ -50,6 +50,17 @@ class Supcomp_Extractor_Generic {
 	const SITEMAP_NS = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 
 	/**
+	 * Weak / generic store names returned by various platforms' defaults
+	 * (lowercased). When the homepage yields one of these we treat it as
+	 * "not really set" and fall back to a product page's seller/brand name.
+	 * Wix homepages return "My Site"; a fresh WordPress returns the others.
+	 * Mirrors _GENERIC_STORE_NAMES in aggregate_products.py.
+	 */
+	const GENERIC_STORE_NAMES = array(
+		'', 'my site', 'my wordpress site', 'just another wordpress site',
+	);
+
+	/**
 	 * The generic handler depends on PHP's dom + simplexml extensions
 	 * (HTML parsing for JSON-LD; XML parsing for sitemaps). Both are part
 	 * of the default PHP installation and present on essentially every
@@ -152,15 +163,43 @@ class Supcomp_Extractor_Generic {
 	/**
 	 * Try to identify the store's name from the homepage. Priority:
 	 *   og:site_name → JSON-LD Organization/WebSite name → <title>.
+	 *
+	 * When the homepage yields a generic platform default (Wix's "My Site",
+	 * a stock WordPress title, etc.) and a $fallback_product_url is given,
+	 * additionally probe that product page's JSON-LD for an offer.seller /
+	 * brand name. Mirrors fetch_generic_store_name in aggregate_products.py.
+	 *
+	 * @param string      $site                 Site base URL.
+	 * @param string|null $fallback_product_url A product URL to mine for a
+	 *                                          seller/brand name when the
+	 *                                          homepage name is generic.
 	 */
-	public static function fetch_store_meta( $site ) {
+	public static function fetch_store_meta( $site, $fallback_product_url = null ) {
+		$name     = '';
 		$response = Supcomp_Extractor_Http::get( rtrim( $site, '/' ) . '/' );
-		if ( is_wp_error( $response ) || $response['status'] !== 200 ) {
-			return array( 'store_name' => '', 'currency' => '' );
+		if ( ! is_wp_error( $response ) && $response['status'] === 200 ) {
+			$name = self::store_name_from_html( $response['body'] );
 		}
-		$dom = self::load_html_dom( $response['body'] );
+
+		if ( $fallback_product_url && in_array( strtolower( $name ), self::GENERIC_STORE_NAMES, true ) ) {
+			$seller = self::store_name_from_product_page( $fallback_product_url );
+			if ( $seller !== '' ) {
+				$name = $seller;
+			}
+		}
+
+		return array( 'store_name' => $name, 'currency' => '' );
+	}
+
+	/**
+	 * Pull a store name from a homepage's HTML:
+	 *   og:site_name → JSON-LD Organization/WebSite name → <title>.
+	 * Returns '' if none found. Mirrors _store_name_from_html.
+	 */
+	private static function store_name_from_html( $html ) {
+		$dom = self::load_html_dom( $html );
 		if ( $dom === null ) {
-			return array( 'store_name' => '', 'currency' => '' );
+			return '';
 		}
 		$xpath = new DOMXPath( $dom );
 
@@ -169,7 +208,7 @@ class Supcomp_Extractor_Generic {
 		if ( $nodes && $nodes->length > 0 ) {
 			$val = trim( $nodes->item( 0 )->nodeValue );
 			if ( $val !== '' ) {
-				return array( 'store_name' => $val, 'currency' => '' );
+				return $val;
 			}
 		}
 
@@ -183,7 +222,7 @@ class Supcomp_Extractor_Generic {
 				}
 				$name = self::find_org_name( $data );
 				if ( $name !== '' ) {
-					return array( 'store_name' => $name, 'currency' => '' );
+					return $name;
 				}
 			}
 		}
@@ -193,11 +232,49 @@ class Supcomp_Extractor_Generic {
 		if ( $title_nodes && $title_nodes->length > 0 ) {
 			$title = trim( $title_nodes->item( 0 )->textContent );
 			if ( $title !== '' ) {
-				return array( 'store_name' => $title, 'currency' => '' );
+				return $title;
 			}
 		}
 
-		return array( 'store_name' => '', 'currency' => '' );
+		return '';
+	}
+
+	/**
+	 * Probe a single product page's JSON-LD for a seller or brand name.
+	 * Used as a fallback when the homepage store name is a generic default.
+	 * Mirrors _store_name_from_product_page. Returns '' on any miss.
+	 */
+	private static function store_name_from_product_page( $url ) {
+		$response = Supcomp_Extractor_Http::get( $url );
+		if ( is_wp_error( $response ) || $response['status'] !== 200 ) {
+			return '';
+		}
+		foreach ( self::extract_jsonld_products( $response['body'] ) as $item ) {
+			// offer.seller.name (case-insensitive: Wix may emit "Offers"/"Seller").
+			$offers_data = self::ci_get( $item, array( 'offers' ) );
+			$candidates  = array();
+			if ( is_array( $offers_data ) && self::is_list( $offers_data ) ) {
+				foreach ( $offers_data as $x ) {
+					if ( is_array( $x ) ) {
+						$candidates[] = $x;
+					}
+				}
+			} elseif ( is_array( $offers_data ) ) {
+				$candidates[] = $offers_data;
+			}
+			foreach ( $candidates as $o ) {
+				$seller = self::ci_get( $o, array( 'seller' ) );
+				if ( is_array( $seller ) && isset( $seller['name'] ) && $seller['name'] !== '' ) {
+					return trim( (string) $seller['name'] );
+				}
+			}
+			// product.brand.name as a secondary signal.
+			$brand = $item['brand'] ?? null;
+			if ( is_array( $brand ) && isset( $brand['name'] ) && $brand['name'] !== '' ) {
+				return trim( (string) $brand['name'] );
+			}
+		}
+		return '';
 	}
 
 	/**
@@ -205,9 +282,12 @@ class Supcomp_Extractor_Generic {
 	 * Offer rows (one per JSON-LD Offer/AggregateOffer encountered).
 	 *
 	 * @param string[] $url_slice
+	 * @param string   $source_label Value stamped on each row's `source`
+	 *                               column ('generic' by default; 'wix' when
+	 *                               the operator pinned the Wix platform).
 	 * @return array{rows:array, batch_size:int, status:string, http_status:int}
 	 */
-	public static function fetch_chunk( $site, array $url_slice, $run_id, $exported_at, $store_name ) {
+	public static function fetch_chunk( $site, array $url_slice, $run_id, $exported_at, $store_name, $source_label = 'generic' ) {
 		$rows = array();
 		foreach ( $url_slice as $url ) {
 			$response = Supcomp_Extractor_Http::get( $url );
@@ -215,7 +295,7 @@ class Supcomp_Extractor_Generic {
 				continue;
 			}
 			foreach ( self::extract_jsonld_products( $response['body'] ) as $product ) {
-				foreach ( self::jsonld_to_offers( $product, $site, $store_name, $url, $run_id, $exported_at ) as $offer ) {
+				foreach ( self::jsonld_to_offers( $product, $site, $store_name, $url, $run_id, $exported_at, $source_label ) as $offer ) {
 					$rows[] = $offer->to_row_dict();
 				}
 			}
@@ -316,7 +396,7 @@ class Supcomp_Extractor_Generic {
 	 *
 	 * @return Supcomp_Extractor_Offer[]
 	 */
-	private static function jsonld_to_offers( $item, $site, $store_name, $url, $run_id, $exported_at ) {
+	private static function jsonld_to_offers( $item, $site, $store_name, $url, $run_id, $exported_at, $source_label = 'generic' ) {
 		$name        = isset( $item['name'] ) ? (string) $item['name'] : '';
 		$description = self::strip_html( isset( $item['description'] ) ? (string) $item['description'] : '' );
 		$brand       = self::stringify( $item['brand'] ?? null );
@@ -330,15 +410,18 @@ class Supcomp_Extractor_Generic {
 			$item['gtin']   ?? null,
 		) );
 
-		$offers_data = $item['offers'] ?? null;
-		if ( is_array( $offers_data ) ) {
-			if ( self::is_list( $offers_data ) ) {
-				$offer_list = $offers_data;
-			} elseif ( isset( $offers_data['@type'] ) && self::type_matches( $offers_data['@type'], 'AggregateOffer' ) && isset( $offers_data['offers'] ) && self::is_list( $offers_data['offers'] ) ) {
-				$offer_list = $offers_data['offers'];
+		// Wix emits non-standard capitalization ("Offers", "Availability",
+		// etc.), so all offer-shaped lookups go through ci_get().
+		$offers_data = self::ci_get( $item, array( 'offers' ) );
+		if ( is_array( $offers_data ) && ! self::is_list( $offers_data ) ) {
+			$inner = self::ci_get( $offers_data, array( 'offers' ) );
+			if ( isset( $offers_data['@type'] ) && self::type_matches( $offers_data['@type'], 'AggregateOffer' ) && self::is_list( $inner ) ) {
+				$offer_list = $inner;
 			} else {
 				$offer_list = array( $offers_data );
 			}
+		} elseif ( is_array( $offers_data ) ) {
+			$offer_list = $offers_data;
 		} else {
 			$offer_list = array( array() );
 		}
@@ -348,9 +431,10 @@ class Supcomp_Extractor_Generic {
 			if ( ! is_array( $o ) ) {
 				continue;
 			}
-			$price = (string) ( $o['price'] ?? $o['lowPrice'] ?? '' );
-			$currency = (string) ( $o['priceCurrency'] ?? '' );
-			$avail = strtolower( (string) ( $o['availability'] ?? '' ) );
+			$price_val = self::ci_get( $o, array( 'price', 'lowPrice' ) );
+			$price     = $price_val === null ? '' : (string) $price_val;
+			$currency  = (string) self::ci_get( $o, array( 'priceCurrency' ) );
+			$avail     = strtolower( (string) self::ci_get( $o, array( 'availability' ) ) );
 			if ( strpos( $avail, 'instock' ) !== false ) {
 				$stock = 'in_stock';
 			} elseif ( strpos( $avail, 'outofstock' ) !== false ) {
@@ -361,10 +445,19 @@ class Supcomp_Extractor_Generic {
 				$stock = 'unknown';
 			}
 
-			$sku = isset( $o['sku'] ) && $o['sku'] !== '' ? (string) $o['sku'] : $sku_top;
+			$sku_val = self::ci_get( $o, array( 'sku' ) );
+			$sku     = ( $sku_val !== null && $sku_val !== '' ) ? (string) $sku_val : $sku_top;
 
-			$raw_offer = $o;
-			unset( $raw_offer['price'], $raw_offer['priceCurrency'], $raw_offer['availability'], $raw_offer['sku'] );
+			// Strip the fields we promoted to columns (case-insensitively, so a
+			// Wix "Availability" key doesn't survive into the raw blob twice).
+			$skip      = array( 'price', 'pricecurrency', 'availability', 'sku' );
+			$raw_offer = array();
+			foreach ( $o as $k => $v ) {
+				if ( is_string( $k ) && in_array( strtolower( $k ), $skip, true ) ) {
+					continue;
+				}
+				$raw_offer[ $k ] = $v;
+			}
 			$raw = array(
 				'jsonld_category' => $category,
 				'jsonld_offer'    => $raw_offer,
@@ -373,7 +466,7 @@ class Supcomp_Extractor_Generic {
 			$offer = new Supcomp_Extractor_Offer();
 			$offer->export_run_id              = $run_id;
 			$offer->exported_at                = $exported_at;
-			$offer->source                     = 'generic';
+			$offer->source                     = $source_label;
 			$offer->site                       = $site;
 			$offer->store_name                 = $store_name;
 			$offer->source_product_id          = $sku !== '' ? $sku : $url;
@@ -457,6 +550,38 @@ class Supcomp_Extractor_Generic {
 			return (string) ( $value['name'] ?? $value['@id'] ?? $value['url'] ?? '' );
 		}
 		return (string) $value;
+	}
+
+	/**
+	 * Case-insensitive lookup over a JSON-LD node. Returns the first value
+	 * whose key matches any of $keys (compared lowercased), else $default.
+	 * JSON-LD is case-sensitive per spec, but some generators — notably Wix —
+	 * emit "Offers"/"Availability"/etc. Mirrors _ci_get in
+	 * aggregate_products.py.
+	 *
+	 * @param mixed    $arr     Expected to be an associative array; anything
+	 *                          else returns $default.
+	 * @param string[] $keys    Candidate keys, in priority order.
+	 * @param mixed    $default Returned when nothing matches.
+	 * @return mixed
+	 */
+	private static function ci_get( $arr, array $keys, $default = null ) {
+		if ( ! is_array( $arr ) ) {
+			return $default;
+		}
+		$lower_map = array();
+		foreach ( $arr as $k => $v ) {
+			if ( is_string( $k ) ) {
+				$lower_map[ strtolower( $k ) ] = $k;
+			}
+		}
+		foreach ( $keys as $key ) {
+			$lk = strtolower( $key );
+			if ( array_key_exists( $lk, $lower_map ) ) {
+				return $arr[ $lower_map[ $lk ] ];
+			}
+		}
+		return $default;
 	}
 
 	private static function is_list( $value ) {

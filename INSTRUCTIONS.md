@@ -83,6 +83,12 @@ any site running an SEO plugin like Yoast or Rank Math).
      overhead. `generic` is the broadest match (any site with schema.org
      Product JSON-LD in their HTML and a discoverable XML sitemap) but
      also the slowest — each product is a separate HTML fetch and parse.
+     `wix` uses the same generic JSON-LD engine (Wix stores expose
+     schema.org Product data with quirky key casing the handler tolerates)
+     but skips the Shopify/Woo probes and labels offers `source = wix`.
+     You don't have to pin `wix` for the extractor to *find* a Wix site —
+     `auto` reaches it through the generic step — pin it only when you
+     already know the platform and want the offers labeled accordingly.
    - **Merchant** — pick the linked Merchants row. Required for
      `/out/{id}` to fire downstream.
    - **Enabled** — leave checked.
@@ -237,7 +243,7 @@ The validation gate prints each error keyed by 1-indexed spreadsheet row
 number (header = row 1):
 - `Required column "X" is empty` — the row is missing a value for a
   required field.
-- `source must be one of shopify, woocommerce, generic` — the script
+- `source must be one of shopify, woocommerce, generic, wix` — the script
   emitted an unknown platform. Bug in the script.
 - `on_sale must be true or false` — likewise a script bug; check the
   emit site.
@@ -299,8 +305,8 @@ Required fields:
   trailing slash stripped. Match it to the URL the Python script crawls.
 
 Other fields:
-- **Platform** — `shopify`, `woocommerce`, `generic`, or `manual`. Informational
-  in Phase 3; will gate import validation later.
+- **Platform** — `shopify`, `woocommerce`, `generic`, `wix`, or `manual`.
+  Informational in Phase 3; will gate import validation later.
 - **Default currency** — ISO 4217. Used when this merchant's CSV omits currency.
 - **Affiliate URL template** — see below.
 - **Coupon code** — see below.

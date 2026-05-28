@@ -36,7 +36,7 @@ class Supcomp_CSV_Validator {
 		'variation_retrieval_status',
 	);
 
-	const ALLOWED_SOURCES = array( 'shopify', 'woocommerce', 'generic' );
+	const ALLOWED_SOURCES = array( 'shopify', 'woocommerce', 'generic', 'wix' );
 
 	/**
 	 * @param string $filepath  Path to the uploaded CSV on disk.

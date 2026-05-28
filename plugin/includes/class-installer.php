@@ -28,7 +28,7 @@ class Supcomp_Installer {
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
 
-	const MERCHANT_PLATFORMS = array( 'shopify', 'woocommerce', 'generic', 'manual' );
+	const MERCHANT_PLATFORMS = array( 'shopify', 'woocommerce', 'generic', 'wix', 'manual' );
 	const MERCHANT_STATUSES  = array( 'active', 'paused', 'dead' );
 
 	const INGREDIENT_CATEGORIES = array(
@@ -62,7 +62,7 @@ class Supcomp_Installer {
 	);
 
 	const EXTRACT_SITE_PLATFORM_HINTS = array(
-		'auto', 'shopify', 'woocommerce', 'generic',
+		'auto', 'shopify', 'woocommerce', 'generic', 'wix',
 	);
 	const EXTRACT_RUN_STATUSES = array(
 		'pending', 'running', 'complete', 'failed', 'canceled',

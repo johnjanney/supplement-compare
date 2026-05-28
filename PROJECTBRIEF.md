@@ -85,7 +85,7 @@ id                       BIGINT, PK
 slug                     VARCHAR(64), UNIQUE        e.g. "nootropics-depot"
 name                     VARCHAR(255)               e.g. "Nootropics Depot"
 site_url                 VARCHAR(255)               the merchant URL (script's natural key)
-platform                 ENUM('shopify','woocommerce','generic','manual')
+platform                 ENUM('shopify','woocommerce','generic','wix','manual')
 default_currency         CHAR(3)                    ISO 4217, used when CSV doesn't supply
 affiliate_url_template   TEXT                       see section 3.7 for templating rules
 status                   ENUM('active','paused','dead')
@@ -277,7 +277,7 @@ The same row schema is produced by both ingestion paths described in §2: the in
 |---|---|---|
 | `export_run_id` | yes | UUID-like string identifying the export batch |
 | `exported_at` | yes | ISO 8601 UTC timestamp |
-| `source` | yes | `shopify` \| `woocommerce` \| `generic` |
+| `source` | yes | `shopify` \| `woocommerce` \| `generic` \| `wix` (in-plugin extractor only when the operator pins the Wix platform; the legacy Python script emits `generic` for Wix sites) |
 | `site` | yes | Merchant URL — natural key matched to `merchants.site_url` |
 | `source_product_id` | yes | Platform product ID |
 | `source_variant_id` | no | Blank if no variants |

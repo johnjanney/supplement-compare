@@ -97,7 +97,7 @@ class Supcomp_Extractor_Worker {
 
 		// Resolve handler. 'auto' tries Shopify → Woo → generic in order.
 		$hint = $state['platform_hint'] !== '' ? $state['platform_hint'] : 'auto';
-		if ( ! in_array( $hint, array( 'shopify', 'woocommerce', 'generic', 'auto' ), true ) ) {
+		if ( ! in_array( $hint, array( 'shopify', 'woocommerce', 'generic', 'wix', 'auto' ), true ) ) {
 			self::fail_attempt(
 				$state,
 				sprintf(
@@ -277,7 +277,13 @@ class Supcomp_Extractor_Worker {
 	 * Order is hinted by the operator's platform_hint:
 	 *   - 'shopify' → Shopify only.
 	 *   - 'woocommerce' → Woo only.
-	 *   - 'auto' → Shopify, then Woo. (Phase D will append generic.)
+	 *   - 'generic' → generic JSON-LD engine; rows labeled source='generic'.
+	 *   - 'wix' → same generic JSON-LD engine, but Shopify/Woo probes are
+	 *     skipped and rows are labeled source='wix'. Wix sites are mechanically
+	 *     generic JSON-LD with quirky key casing, which the generic handler
+	 *     tolerates regardless of label — so 'auto' also discovers Wix sites
+	 *     (it just labels them 'generic', since it can't prove a site is Wix).
+	 *   - 'auto' → Shopify, then Woo, then generic JSON-LD.
 	 *
 	 * @return array{
 	 *     platform_used:string,
@@ -289,7 +295,12 @@ class Supcomp_Extractor_Worker {
 	private static function detect_and_fetch_first_page( array &$state, $hint ) {
 		$try_shopify = ( $hint === 'shopify' || $hint === 'auto' );
 		$try_woo     = ( $hint === 'woocommerce' || $hint === 'auto' );
-		$try_generic = ( $hint === 'generic' || $hint === 'auto' );
+		$try_wix     = ( $hint === 'wix' );
+		$try_generic = ( $hint === 'generic' || $hint === 'auto' || $try_wix );
+
+		// The generic JSON-LD engine serves both 'generic' and 'wix'; the
+		// only difference is the label stamped on the run and its offers.
+		$generic_label = $try_wix ? 'wix' : 'generic';
 
 		$last_failure = '';
 
@@ -350,21 +361,25 @@ class Supcomp_Extractor_Worker {
 		if ( $try_generic ) {
 			$urls = Supcomp_Extractor_Generic::discover_product_urls( $state['site_url'] );
 			if ( ! empty( $urls ) ) {
-				$meta  = Supcomp_Extractor_Generic::fetch_store_meta( $state['site_url'] );
+				// Pass the first product URL so fetch_store_meta can recover a
+				// seller/brand name when the homepage returns a generic default
+				// (e.g. Wix's "My Site").
+				$meta  = Supcomp_Extractor_Generic::fetch_store_meta( $state['site_url'], $urls[0] );
 				$slice = array_slice( $urls, 0, Supcomp_Extractor_Generic::CHUNK_SIZE );
 				$page  = Supcomp_Extractor_Generic::fetch_chunk(
 					$state['site_url'],
 					$slice,
 					$state['export_run_id'],
 					$state['exported_at'],
-					$meta['store_name']
+					$meta['store_name'],
+					$generic_label
 				);
 				// Persist the full URL list so follow-on pages can slice into
 				// it without re-discovering from scratch.
 				set_transient( self::generic_url_transient_key( (int) $state['attempt_id'] ), $urls, 6 * HOUR_IN_SECONDS );
 				$state['url_count'] = count( $urls );
 				return array(
-					'platform_used' => 'generic',
+					'platform_used' => $generic_label,
 					'store_name'    => $meta['store_name'],
 					'currency'      => $meta['currency'],
 					'page_result'   => $page,
@@ -404,7 +419,9 @@ class Supcomp_Extractor_Worker {
 				$state['store_name']
 			);
 		}
-		if ( $state['platform_used'] === 'generic' ) {
+		// 'generic' and 'wix' share the JSON-LD engine; platform_used carries
+		// the label to stamp on each row's source column.
+		if ( $state['platform_used'] === 'generic' || $state['platform_used'] === 'wix' ) {
 			$urls = get_transient( self::generic_url_transient_key( (int) $state['attempt_id'] ) );
 			if ( ! is_array( $urls ) ) {
 				// Transient expired or evicted — gracefully end the run.
@@ -417,7 +434,8 @@ class Supcomp_Extractor_Worker {
 				$slice,
 				$state['export_run_id'],
 				$state['exported_at'],
-				$state['store_name']
+				$state['store_name'],
+				$state['platform_used']
 			);
 		}
 		// Default to Shopify (covers 'shopify' and legacy state without the field).
@@ -438,7 +456,7 @@ class Supcomp_Extractor_Worker {
 		if ( $platform_used === 'woocommerce' ) {
 			return array( Supcomp_Extractor_Woo::PAGE_SIZE, Supcomp_Extractor_Woo::MAX_PAGES );
 		}
-		if ( $platform_used === 'generic' ) {
+		if ( $platform_used === 'generic' || $platform_used === 'wix' ) {
 			return array( Supcomp_Extractor_Generic::CHUNK_SIZE, Supcomp_Extractor_Generic::MAX_PAGES );
 		}
 		return array( Supcomp_Extractor_Shopify::PAGE_SIZE, Supcomp_Extractor_Shopify::MAX_PAGES );
