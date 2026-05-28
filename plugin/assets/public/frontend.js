@@ -244,9 +244,30 @@
 		var t = ev.target;
 		if (!t || !t.dataset) return;
 		if (t.dataset.role === 'search') {
+			rememberFocus(t);
 			state.listFilters.search = t.value;
 			render();
 		}
+	}
+
+	var pendingFocus = null;
+
+	function rememberFocus(el) {
+		// Each keystroke triggers a full innerHTML rerender, which destroys the
+		// focused input. Capture the field identity + caret position here so
+		// restoreInputFocus() can put it back after the render.
+		var start = null, end = null;
+		try {
+			if (typeof el.selectionStart === 'number') start = el.selectionStart;
+			if (typeof el.selectionEnd === 'number') end = el.selectionEnd;
+		} catch (e) {}
+		pendingFocus = {
+			role: (el.dataset && el.dataset.role) || null,
+			field: (el.dataset && el.dataset.field) || null,
+			bag: (el.dataset && el.dataset.bag) || null,
+			selStart: start,
+			selEnd: end,
+		};
 	}
 
 	// ---------- routing ----------
@@ -808,14 +829,28 @@
 	}
 
 	function restoreInputFocus() {
-		// After an innerHTML replace, the search box loses focus. Re-focus it
-		// if the user was typing.
-		var search = root.querySelector('input[data-role="search"]');
-		if (search && state.listFilters.search && document.activeElement !== search) {
-			// Only refocus when the field was the actively-changing one.
-			// The change/input events bubble before we render, so this is a
-			// reasonable heuristic.
+		if (!pendingFocus) return;
+		var sel = '';
+		if (pendingFocus.role) {
+			sel = '[data-role="' + pendingFocus.role + '"]';
+		} else if (pendingFocus.field) {
+			sel = '[data-field="' + pendingFocus.field + '"]';
+			if (pendingFocus.bag) sel += '[data-bag="' + pendingFocus.bag + '"]';
 		}
+		if (sel) {
+			var el = root.querySelector(sel);
+			if (el) {
+				try {
+					el.focus();
+					var s = pendingFocus.selStart;
+					var e = pendingFocus.selEnd != null ? pendingFocus.selEnd : s;
+					if (s != null && el.setSelectionRange) {
+						el.setSelectionRange(s, e);
+					}
+				} catch (err) {}
+			}
+		}
+		pendingFocus = null;
 	}
 
 	// ---------- escaping ----------

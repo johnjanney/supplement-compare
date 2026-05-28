@@ -259,6 +259,15 @@ button.supcomp-coupon {
 		flex-direction: column;
 		align-items: stretch;
 	}
+	/* In column-direction flex, `flex: 1 1 12em` from the desktop rule sizes
+	   the *height* (main axis is vertical), turning the search field into a
+	   ~12em-tall block. Reset to natural height; let it span the column. */
+	.supcomp-filters input.supcomp-search {
+		flex: 0 0 auto;
+		min-width: 0;
+		width: 100%;
+		box-sizing: border-box;
+	}
 
 	/* List view — 3 sortable columns (product, lowest cost, merchants)
 	   + Compare cell that wraps onto row 2 spanning full width. */
