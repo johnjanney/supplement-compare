@@ -98,6 +98,10 @@ class Supcomp_Redirect {
 		);
 
 		$destination = self::resolve_affiliate_url( $offer );
+		// Only ever redirect to an http(s) URL. esc_url_raw with an explicit
+		// protocol allowlist drops anything else (javascript:, data:, a
+		// malformed host) to '' so we 410 rather than emit a hostile Location.
+		$destination = $destination ? esc_url_raw( $destination, array( 'http', 'https' ) ) : '';
 		if ( ! $destination ) {
 			status_header( 410 );
 			nocache_headers();

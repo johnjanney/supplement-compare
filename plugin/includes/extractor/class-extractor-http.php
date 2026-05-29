@@ -29,7 +29,62 @@ class Supcomp_Extractor_Http {
 	const POLITENESS_DELAY_SECONDS = 0.5;
 	const DEFAULT_TIMEOUT          = 20;
 
+	/**
+	 * Hard cap on the response body we will buffer into memory before the
+	 * transport aborts the transfer. Bounds a memory-exhaustion DoS from a
+	 * hostile merchant endpoint (a paginated products.json page or a single
+	 * sitemap is well under this; a 50k-URL sitemap is only a few MB).
+	 * Filterable so an operator with an unusually large feed can raise it.
+	 */
+	const MAX_RESPONSE_BYTES = 33554432; // 32 * 1024 * 1024
+
 	private static $retryable_statuses = array( 408, 429, 500, 502, 503, 504 );
+
+	/**
+	 * SSRF guard. Returns true when the URL is safe to fetch server-side, or a
+	 * WP_Error describing why not. Two checks:
+	 *
+	 *   1. Scheme must be http or https (no file://, ftp://, gopher://, etc.).
+	 *   2. The host must not resolve to a private, loopback, reserved, or
+	 *      link-local address — this is what blocks the cloud metadata endpoint
+	 *      (169.254.169.254) and internal services. We resolve the host
+	 *      ourselves because wp_http_validate_url() only rejects literal
+	 *      private IPs, not hostnames that *resolve* to one.
+	 *
+	 * Called at the single fetch chokepoint in get(), so every outbound
+	 * request — initial sitemap, recursive sitemap <loc>, product pages — is
+	 * covered in one place.
+	 *
+	 * Residual gap: a host could pass this check and then DNS-rebind to a
+	 * private IP for the actual connection (or on a redirect hop). Closing that
+	 * fully requires pinning the resolved IP into the request (cURL
+	 * CURLOPT_RESOLVE); wp_safe_remote_get() + this pre-check is the
+	 * proportionate mitigation for a self-hosted WordPress.
+	 *
+	 * @param string $url
+	 * @return true|WP_Error
+	 */
+	public static function is_safe_url( $url ) {
+		$scheme = strtolower( (string) wp_parse_url( $url, PHP_URL_SCHEME ) );
+		if ( ! in_array( $scheme, array( 'http', 'https' ), true ) ) {
+			return new WP_Error( 'supcomp_bad_scheme', __( 'Only http and https URLs may be fetched.', 'supplement-compare' ) );
+		}
+		$host = wp_parse_url( $url, PHP_URL_HOST );
+		if ( ! $host ) {
+			return new WP_Error( 'supcomp_bad_host', __( 'URL has no host.', 'supplement-compare' ) );
+		}
+		// A bare IP host is validated directly; a name is resolved first.
+		$ips = filter_var( $host, FILTER_VALIDATE_IP ) ? array( $host ) : gethostbynamel( $host );
+		if ( empty( $ips ) ) {
+			return new WP_Error( 'supcomp_unresolvable', __( 'Host could not be resolved.', 'supplement-compare' ) );
+		}
+		foreach ( $ips as $ip ) {
+			if ( ! filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE ) ) {
+				return new WP_Error( 'supcomp_private_host', __( 'Host resolves to a non-public (private/reserved) address.', 'supplement-compare' ) );
+			}
+		}
+		return true;
+	}
 
 	/**
 	 * GET a URL with retry + politeness semantics.
@@ -56,6 +111,13 @@ class Supcomp_Extractor_Http {
 			)
 		);
 
+		// SSRF guard: reject non-http(s) and hosts that resolve to a
+		// private/reserved address before we make any request.
+		$safe = self::is_safe_url( $url );
+		if ( is_wp_error( $safe ) ) {
+			return $safe;
+		}
+
 		$last_error = null;
 		$max        = max( 0, (int) $args['max_retries'] );
 
@@ -71,13 +133,21 @@ class Supcomp_Extractor_Http {
 				}
 			}
 
-			$response = wp_remote_get(
+			// wp_safe_remote_get() sets reject_unsafe_urls => true, which runs
+			// WP's own wp_http_validate_url() on the request URL and redirect
+			// targets. We keep redirection => 5 so merchants that legitimately
+			// redirect (http→https, CDN, locale) still resolve; the is_safe_url()
+			// pre-check above plus reject_unsafe_urls cover the SSRF surface.
+			// limit_response_size aborts an oversized body before it exhausts
+			// memory.
+			$response = wp_safe_remote_get(
 				$url,
 				array(
-					'headers'    => $args['headers'],
-					'timeout'    => (int) $args['timeout'],
-					'user-agent' => (string) $args['user_agent'],
-					'redirection'=> 5,
+					'headers'             => $args['headers'],
+					'timeout'             => (int) $args['timeout'],
+					'user-agent'          => (string) $args['user_agent'],
+					'redirection'         => 5,
+					'limit_response_size' => (int) apply_filters( 'supcomp_extractor_max_response_bytes', self::MAX_RESPONSE_BYTES ),
 				)
 			);
 

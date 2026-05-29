@@ -951,6 +951,15 @@ active, has offers, but no rows appeared in this run. Stale detection
 flipped them. Either the extractor's CSV is missing that merchant or the
 merchant's products genuinely vanished.
 
+**Extractor run fails with "Host resolves to a non-public address" (or
+"Only http and https URLs may be fetched").** As of v1.22.0 the in-plugin
+extractor refuses to fetch URLs that aren't `http(s)` or that resolve to a
+private / loopback / reserved IP — this is the SSRF guard and is working as
+intended. It only bites if you point an Extractor Site at a LAN host,
+`localhost`, an internal IP, or a `*.local` test store. To extract from a
+local development store, expose it on a public hostname (or a tunnel such as
+ngrok) and use that URL. Public merchant sites are unaffected.
+
 **Same offer keeps getting `match_confidence` reset to NULL on re-import.**
 Expected at v0.5.0 — Phase 5 (normalization + matching) hasn't been built
 yet. Matching scores arrive with Phase 5.

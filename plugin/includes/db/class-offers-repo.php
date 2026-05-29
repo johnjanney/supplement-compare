@@ -503,8 +503,8 @@ class Supcomp_Offers_Repo {
 			'on_sale'                     => self::bool_int( $row, 'on_sale' ),
 			'currency'                    => self::currency( $row ),
 			'stock_status'                => self::stock_status( $row ),
-			'source_product_url'          => self::trim_to( self::s( $row, 'source_product_url' ), 512 ),
-			'source_variant_url'          => self::trim_to_nullable( self::s( $row, 'source_variant_url' ), 512 ),
+			'source_product_url'          => self::trim_to( esc_url_raw( self::s( $row, 'source_product_url' ), array( 'http', 'https' ) ), 512 ),
+			'source_variant_url'          => self::trim_to_nullable( esc_url_raw( self::s( $row, 'source_variant_url' ), array( 'http', 'https' ) ), 512 ),
 			'variation_retrieval_status'  => self::variation_status( $row ),
 		);
 	}

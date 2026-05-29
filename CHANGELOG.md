@@ -17,6 +17,40 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.22.0] — 2026-05-29
+
+### Security
+- **Extractor SSRF hardening (was: unauthenticated server-side request
+  forgery via configured/merchant URLs).** Every outbound fetch now passes
+  through a single guard, `Supcomp_Extractor_Http::is_safe_url()`, which
+  rejects non-`http(s)` schemes and any host that resolves to a private,
+  loopback, reserved, or link-local address — closing access to the cloud
+  metadata endpoint (`169.254.169.254`) and internal services. The fetch
+  also switched from `wp_remote_get()` to `wp_safe_remote_get()`
+  (`reject_unsafe_urls`, which validates redirect targets too) and added a
+  `limit_response_size` cap (32 MB, filterable via
+  `supcomp_extractor_max_response_bytes`) to bound a memory-exhaustion DoS
+  from a hostile endpoint. Because the guard sits at the single chokepoint
+  in `get()`, it covers the initial sitemap fetch, recursive sitemap
+  `<loc>` fetches, and product-page fetches alike.
+  - *Note:* if you point the extractor at a LAN/localhost test store, fetches
+    now fail by design with "Host resolves to a non-public address." See
+    `INSTRUCTIONS.md`.
+- **Recursive sitemap parsing constrained.** `parse_sitemap()` now caps
+  sitemap-index recursion depth (`SITEMAP_MAX_DEPTH = 2`) and only follows a
+  child sitemap `<loc>` on the same host (or a subdomain) as the configured
+  site, so a merchant sitemap can no longer steer the server to an arbitrary
+  third-party host or amplify into an unbounded fetch loop. Sitemap XML is
+  parsed with `LIBXML_NONET` to block external-entity network fetches.
+- **Click-out redirect destination is scheme-validated.** `/out/{offer_id}`
+  now runs the resolved destination through
+  `esc_url_raw( $url, array( 'http', 'https' ) )` before `wp_redirect()`; a
+  non-http(s) or malformed destination yields a 410 instead of a hostile
+  `Location` header. Source product/variant URLs are additionally
+  scheme-sanitized on CSV/extractor ingest in `Supcomp_Offers_Repo`.
+
+---
+
 ## [1.21.1] — 2026-05-28
 
 ### Added

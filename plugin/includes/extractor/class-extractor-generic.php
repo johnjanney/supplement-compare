@@ -49,6 +49,11 @@ class Supcomp_Extractor_Generic {
 
 	const SITEMAP_NS = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 
+	// Max sitemap-index recursion depth. A store's product sitemaps sit one
+	// level under the index, so 2 is ample; the cap stops a malicious
+	// sitemap-index chain from amplifying into unbounded fetches.
+	const SITEMAP_MAX_DEPTH = 2;
+
 	/**
 	 * Weak / generic store names returned by various platforms' defaults
 	 * (lowercased). When the homepage yields one of these we treat it as
@@ -86,7 +91,8 @@ class Supcomp_Extractor_Generic {
 	 * a parseable list. Mirrors discover_product_urls in Python.
 	 */
 	public static function discover_product_urls( $site ) {
-		$seen = array();
+		$seen      = array();
+		$base_host = (string) wp_parse_url( $site, PHP_URL_HOST );
 		foreach ( self::SITEMAP_CANDIDATES as $path ) {
 			$url      = rtrim( $site, '/' ) . $path;
 			$response = Supcomp_Extractor_Http::get( $url );
@@ -97,7 +103,7 @@ class Supcomp_Extractor_Generic {
 				continue;
 			}
 			$trust_all = ( strpos( $path, 'product' ) !== false );
-			$urls = self::parse_sitemap( $response['body'], $trust_all );
+			$urls = self::parse_sitemap( $response['body'], $trust_all, $base_host, 0 );
 			foreach ( $urls as $u ) {
 				if ( $trust_all || self::matches_product_hint( $u ) ) {
 					$seen[ $u ] = true;
@@ -121,10 +127,12 @@ class Supcomp_Extractor_Generic {
 	 *
 	 * @return string[]
 	 */
-	private static function parse_sitemap( $xml_text, $trust_all = false ) {
+	private static function parse_sitemap( $xml_text, $trust_all = false, $base_host = '', $depth = 0 ) {
 		$urls = array();
 		libxml_use_internal_errors( true );
-		$root = simplexml_load_string( $xml_text );
+		// LIBXML_NONET blocks the parser from fetching external entities/DTDs
+		// over the network while reading an untrusted merchant sitemap.
+		$root = simplexml_load_string( $xml_text, 'SimpleXMLElement', LIBXML_NONET );
 		libxml_clear_errors();
 		if ( $root === false ) {
 			return $urls;
@@ -133,15 +141,26 @@ class Supcomp_Extractor_Generic {
 
 		// Sitemap-index: recurse into child sitemaps whose loc contains
 		// "product" or "shop". Other child sitemaps are ignored.
-		$child_sitemaps = $root->xpath( 'sm:sitemap/sm:loc' );
+		//
+		// SSRF / amplification guard: the <loc> values are merchant-controlled,
+		// so (1) cap recursion depth, and (2) only follow a child sitemap on the
+		// same host (or a subdomain of it) as the configured site. The internal-
+		// network case is already blocked by Supcomp_Extractor_Http::is_safe_url();
+		// this additionally stops a sitemap from steering us to an arbitrary
+		// third-party host or into an unbounded sitemap-index loop.
+		$child_sitemaps = $depth < self::SITEMAP_MAX_DEPTH ? $root->xpath( 'sm:sitemap/sm:loc' ) : array();
 		if ( $child_sitemaps ) {
 			foreach ( $child_sitemaps as $loc ) {
 				$loc_str = trim( (string) $loc );
-				if ( $loc_str !== '' && ( strpos( $loc_str, 'product' ) !== false || strpos( $loc_str, 'shop' ) !== false ) ) {
-					$response = Supcomp_Extractor_Http::get( $loc_str );
-					if ( ! is_wp_error( $response ) && $response['status'] === 200 ) {
-						$urls = array_merge( $urls, self::parse_sitemap( $response['body'], true ) );
-					}
+				if ( $loc_str === '' || ( strpos( $loc_str, 'product' ) === false && strpos( $loc_str, 'shop' ) === false ) ) {
+					continue;
+				}
+				if ( $base_host !== '' && ! self::host_matches( $loc_str, $base_host ) ) {
+					continue;
+				}
+				$response = Supcomp_Extractor_Http::get( $loc_str );
+				if ( ! is_wp_error( $response ) && $response['status'] === 200 ) {
+					$urls = array_merge( $urls, self::parse_sitemap( $response['body'], true, $base_host, $depth + 1 ) );
 				}
 			}
 		}
@@ -598,6 +617,21 @@ class Supcomp_Extractor_Generic {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * True when $url's host is the configured $base_host or a subdomain of it.
+	 * Used to keep recursive sitemap fetches on the merchant's own domain
+	 * (their product sitemaps always are) rather than following a <loc> to an
+	 * arbitrary third-party host.
+	 */
+	private static function host_matches( $url, $base_host ) {
+		$host = strtolower( (string) wp_parse_url( $url, PHP_URL_HOST ) );
+		$base = strtolower( (string) $base_host );
+		if ( $host === '' || $base === '' ) {
+			return false;
+		}
+		return $host === $base || substr( $host, -strlen( '.' . $base ) ) === '.' . $base;
 	}
 
 	private static function first_nonempty( array $candidates ) {
