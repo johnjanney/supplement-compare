@@ -171,10 +171,15 @@ class Supcomp_Redirect {
 	}
 
 	private static function client_ip() {
-		// Strip proxy chain. The leftmost X-Forwarded-For is the client. If a
-		// reverse proxy is misconfigured this can be spoofed — operator's
-		// server should set REMOTE_ADDR correctly.
-		if ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+		// Strip proxy chain. The leftmost X-Forwarded-For is the client. XFF is
+		// client-spoofable, so it is only trusted when the site actually sits
+		// behind a trusted reverse proxy / CDN. Operators NOT behind a proxy
+		// should return false from the `supcomp_trust_forwarded_for` filter to
+		// fall back to REMOTE_ADDR (defeats throttle-evasion via a forged
+		// header). Default stays true to preserve behavior for proxied sites.
+		// The value is only ever salted-hashed for bot/dedup detection — it
+		// never reaches a query or output sink.
+		if ( apply_filters( 'supcomp_trust_forwarded_for', true ) && ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
 			$xff   = (string) wp_unslash( $_SERVER['HTTP_X_FORWARDED_FOR'] );
 			$parts = array_map( 'trim', explode( ',', $xff ) );
 			if ( ! empty( $parts[0] ) ) {

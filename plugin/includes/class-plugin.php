@@ -24,8 +24,13 @@ class Supcomp_Plugin {
 		);
 
 		// Re-runs install() if the plugin was updated without a deactivate/
-		// reactivate cycle. Idempotent when up to date.
-		Supcomp_Installer::maybe_upgrade();
+		// reactivate cycle. Idempotent when up to date. Gated to admin + cron
+		// so anonymous front-end requests skip the option read + version
+		// compare; the operator updates the plugin from wp-admin (an is_admin()
+		// request), so the schema upgrade still fires immediately on update.
+		if ( is_admin() || wp_doing_cron() ) {
+			Supcomp_Installer::maybe_upgrade();
+		}
 
 		self::load_domain();
 
