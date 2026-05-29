@@ -142,6 +142,11 @@ class Supcomp_Canonical_CSV_Importer {
 			return new WP_Error( 'supcomp_csv_unreadable', __( 'Uploaded file could not be read.', 'supplement-compare' ) );
 		}
 
+		$unsafe = Supcomp_CSV_Validator::reject_unsafe_upload( $filepath );
+		if ( $unsafe !== null ) {
+			return new WP_Error( 'supcomp_csv_unsafe', $unsafe );
+		}
+
 		$fh = fopen( $filepath, 'r' );
 		if ( ! $fh ) {
 			return new WP_Error( 'supcomp_csv_unreadable', __( 'Could not open uploaded file.', 'supplement-compare' ) );
@@ -176,10 +181,22 @@ class Supcomp_Canonical_CSV_Importer {
 			);
 		}
 
-		$rows = array();
+		$rows     = array();
+		$max_rows = Supcomp_CSV_Validator::max_data_rows();
 		while ( ( $line = fgetcsv( $fh ) ) !== false ) {
 			if ( count( $line ) === 1 && trim( (string) $line[0] ) === '' ) {
 				continue; // blank line
+			}
+			if ( count( $rows ) >= $max_rows ) {
+				fclose( $fh );
+				return new WP_Error(
+					'supcomp_csv_too_large',
+					sprintf(
+						/* translators: %s is the row limit, e.g. 100,000 */
+						__( 'CSV exceeds the maximum of %s data rows; import aborted.', 'supplement-compare' ),
+						number_format_i18n( $max_rows )
+					)
+				);
 			}
 			$row = array();
 			foreach ( $header as $i => $col ) {

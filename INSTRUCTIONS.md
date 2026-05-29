@@ -987,3 +987,13 @@ is the responsible code path and it has an explicit allow-list.
 **Versioning reminder:** every functional change bumps the plugin version (see
 PROJECTBRIEF.md §11). The version visible in WP Admin → Plugins is the
 canonical "did I upload the right build" signal. Use `scripts/bump-version.sh`.
+
+---
+
+**Pre-release dependency check.** The only bundled third-party library is
+Action Scheduler (`plugin/vendor/action-scheduler/`), currently **3.9.3** (see
+its `action-scheduler.php` header). Before cutting a release, compare that
+version against the upstream releases and security advisories
+(<https://github.com/woocommerce/action-scheduler/releases>, WPScan / NVD) and
+re-vendor if a security release has shipped. No first-party code change is
+needed to update it — replace the `vendor/action-scheduler/` directory.

@@ -17,6 +17,42 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.22.2] — 2026-05-29
+
+### Security
+- **CSV imports are bounded and content-checked.** Both CSV readers
+  (`Supcomp_CSV_Validator`, `Supcomp_Canonical_CSV_Importer`) now abort above
+  a configurable row cap (`MAX_DATA_ROWS = 100000`, filter
+  `supcomp_csv_max_rows`) to bound a memory-exhaustion DoS, and reject an
+  upload whose real content sniffs as HTML / PHP / script / executable via
+  `Supcomp_CSV_Validator::reject_unsafe_upload()` (lenient — all text/CSV
+  variants pass; only genuinely dangerous content is blocked).
+- **Admin list-screen return URLs no longer reflect arbitrary query keys.**
+  `current_url()` on the pending-queue and active-offers screens now preserves
+  only an allowlist of known filter/sort/pagination params instead of echoing
+  every `$_GET` key, removing the query-key-pollution vector (output was
+  already escaped, so this is hardening, not a live fix).
+
+### Changed
+- **`X-Forwarded-For` trust is now filterable.** `Supcomp_Redirect::client_ip()`
+  still defaults to trusting the leftmost `X-Forwarded-For` (correct for sites
+  behind a reverse proxy / CDN), but operators not behind a trusted proxy can
+  return `false` from the new `supcomp_trust_forwarded_for` filter to use
+  `REMOTE_ADDR` and defeat throttle-evasion via a forged header. The IP is only
+  salted-hashed for bot/dedup detection; it never reaches a query or output.
+- **Schema-upgrade check skipped on anonymous front-end requests.**
+  `Supcomp_Installer::maybe_upgrade()` now runs only in `is_admin()` or cron
+  context (the operator updates the plugin from wp-admin, so upgrades still
+  fire immediately on update), removing a per-request option read from the
+  public hot path.
+
+### Documentation
+- `INSTRUCTIONS.md`: note the new CSV row cap / content rejection, the affiliate
+  template scheme rule, and a pre-release dependency-check step for the bundled
+  Action Scheduler (3.9.3).
+
+---
+
 ## [1.22.1] — 2026-05-29
 
 ### Security

@@ -211,8 +211,17 @@ class Supcomp_Active_Offers_Screen {
 	}
 
 	private static function current_url() {
-		$args = array_merge( array( 'page' => self::PAGE_SLUG ), $_GET );
-		return add_query_arg( array_map( 'sanitize_text_field', wp_unslash( $args ) ), admin_url( 'admin.php' ) );
+		// Preserve only the known filter/sort/pagination params rather than
+		// reflecting every $_GET key (keys are attacker-pollutable; the result
+		// is echoed back into the page).
+		$allowed = array( 's', 'merchant_id', 'ingredient_id', 'orderby', 'order', 'offset', 'paged' );
+		$args    = array( 'page' => self::PAGE_SLUG );
+		foreach ( $allowed as $key ) {
+			if ( isset( $_GET[ $key ] ) ) {
+				$args[ $key ] = sanitize_text_field( wp_unslash( $_GET[ $key ] ) );
+			}
+		}
+		return add_query_arg( $args, admin_url( 'admin.php' ) );
 	}
 
 	private static function query_args_from_request() {

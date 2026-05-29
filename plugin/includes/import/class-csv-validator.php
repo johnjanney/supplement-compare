@@ -39,6 +39,59 @@ class Supcomp_CSV_Validator {
 	const ALLOWED_SOURCES = array( 'shopify', 'woocommerce', 'generic', 'wix' );
 
 	/**
+	 * Default upper bound on data rows accepted from one upload. Bounds a
+	 * memory-exhaustion DoS (the parser accumulates rows in memory). Filterable
+	 * via `supcomp_csv_max_rows` for an operator with a genuinely large feed.
+	 */
+	const MAX_DATA_ROWS = 100000;
+
+	public static function max_data_rows() {
+		return (int) apply_filters( 'supcomp_csv_max_rows', self::MAX_DATA_ROWS );
+	}
+
+	/**
+	 * Defense-in-depth content check for uploaded CSVs. Lenient by design:
+	 * CSV MIME sniffing is unreliable (text/plain, application/csv,
+	 * application/vnd.ms-excel, application/octet-stream are all legitimate),
+	 * so we DENY only genuinely dangerous content (HTML / PHP / script /
+	 * executables) rather than allowlisting CSV types. The file is admin-only
+	 * and never executed by the plugin; this guards against a mis-served
+	 * polyglot. Returns an error message if the upload should be rejected, or
+	 * null if it is acceptable (including when finfo is unavailable).
+	 *
+	 * @param string $filepath
+	 * @return string|null
+	 */
+	public static function reject_unsafe_upload( $filepath ) {
+		if ( ! function_exists( 'finfo_open' ) ) {
+			return null; // Can't inspect; structural CSV validation still applies downstream.
+		}
+		$finfo = finfo_open( FILEINFO_MIME_TYPE );
+		if ( ! $finfo ) {
+			return null;
+		}
+		$mime = strtolower( (string) finfo_file( $finfo, $filepath ) );
+		finfo_close( $finfo );
+		$disallowed = array(
+			'text/html',
+			'application/xhtml+xml',
+			'application/x-httpd-php',
+			'application/x-php',
+			'text/x-php',
+			'application/javascript',
+			'text/javascript',
+			'application/x-dosexec',
+			'application/x-executable',
+			'application/x-mach-binary',
+			'application/x-sh',
+		);
+		if ( in_array( $mime, $disallowed, true ) || strpos( $mime, 'php' ) !== false ) {
+			return __( 'Uploaded file looks like a script or markup file, not a CSV. Export a plain CSV and try again.', 'supplement-compare' );
+		}
+		return null;
+	}
+
+	/**
 	 * @param string $filepath  Path to the uploaded CSV on disk.
 	 * @return array{
 	 *     ok: bool,
@@ -65,6 +118,12 @@ class Supcomp_CSV_Validator {
 
 		if ( ! is_string( $filepath ) || ! is_readable( $filepath ) ) {
 			$result['fatal'] = __( 'Uploaded file could not be read.', 'supplement-compare' );
+			return $result;
+		}
+
+		$unsafe = self::reject_unsafe_upload( $filepath );
+		if ( $unsafe !== null ) {
+			$result['fatal'] = $unsafe;
 			return $result;
 		}
 
@@ -112,8 +171,18 @@ class Supcomp_CSV_Validator {
 		$run_id_seen        = '';
 		$exported_at_seen   = '';
 
+		$max_rows = self::max_data_rows();
 		while ( ( $line = fgetcsv( $fh ) ) !== false ) {
 			++$row_num;
+
+			if ( ( $row_num - 1 ) > $max_rows ) {
+				$result['fatal'] = sprintf(
+					/* translators: %s is the row limit, e.g. 100,000 */
+					__( 'CSV exceeds the maximum of %s data rows; import aborted. Split the file or raise the supcomp_csv_max_rows filter.', 'supplement-compare' ),
+					number_format_i18n( $max_rows )
+				);
+				break;
+			}
 
 			if ( count( $line ) === 1 && trim( (string) $line[0] ) === '' ) {
 				continue;
@@ -183,7 +252,7 @@ class Supcomp_CSV_Validator {
 
 		$result['export_run_id'] = $run_id_seen;
 		$result['exported_at']   = $exported_at_seen;
-		$result['ok']            = empty( $result['errors'] );
+		$result['ok']            = empty( $result['errors'] ) && $result['fatal'] === null;
 		return $result;
 	}
 
