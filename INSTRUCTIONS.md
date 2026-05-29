@@ -340,6 +340,13 @@ The engine auto-detects when a `{product_url}` substitution would produce a
 double `?` (e.g. template `{product_url}?aff=john` against URL
 `https://store.com/p/foo?variant=42`) and flips the appended `?` to `&`.
 
+As of v1.22.1 a template must begin with `http://` or `https://` **or** with
+the `{product_url}` placeholder (which supplies the scheme itself). Saving a
+template that starts with anything else — `javascript:`, `data:`, or a
+protocol-relative `//host/...` — is rejected with "Template must begin with
+http:// or https://". This is a safety guard so a Buy button can never emit a
+non-web destination.
+
 ### Template tester
 
 The edit form has a Template Tester section right under the template field:

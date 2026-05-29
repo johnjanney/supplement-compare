@@ -17,6 +17,27 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.22.1] — 2026-05-29
+
+### Security
+- **JSON-LD can no longer be broken out of with `</script>`.** The schema.org
+  Product/AggregateOffer block on canonical pages is emitted inline in
+  `wp_head`; it now encodes with `JSON_HEX_TAG` (in addition to
+  `JSON_UNESCAPED_SLASHES`), so a literal `</script>` in operator-authored
+  `display_name` / `seo_content` is escaped as a unicode sequence and cannot
+  close the `<script>` element and inject markup on the public page. Closes a
+  stored-XSS-via-admin-content vector (defense-in-depth; the field is
+  operator-authored today).
+- **Affiliate URL templates are scheme-validated on save.**
+  `Supcomp_Affiliate_URL_Template::validate()` now requires the literal text
+  before the first `{placeholder}` to begin with `http://` or `https://`
+  (templates that start with the `{product_url}` placeholder are still allowed,
+  since that placeholder supplies the scheme). This rejects `javascript:`,
+  `data:`, and protocol-relative `//host` templates at authoring time, on top
+  of the v1.22.0 redirect-sink `esc_url_raw()` guard.
+
+---
+
 ## [1.22.0] — 2026-05-29
 
 ### Security
