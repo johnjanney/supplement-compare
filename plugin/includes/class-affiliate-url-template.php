@@ -77,12 +77,26 @@ class Supcomp_Affiliate_URL_Template {
 	}
 
 	/**
-	 * Quick structural check: must be a non-empty string and must not contain
-	 * unknown {placeholder} tokens. Returns true or WP_Error.
+	 * Quick structural check: must be a non-empty string, must begin with an
+	 * http(s):// scheme (or with the {product_url} placeholder, which is itself
+	 * a validated http(s) URL), and must not contain unknown {placeholder}
+	 * tokens. Returns true or WP_Error.
 	 */
 	public static function validate( $template ) {
 		if ( ! is_string( $template ) || trim( $template ) === '' ) {
 			return new WP_Error( 'supcomp_empty_template', __( 'Template is required.', 'supplement-compare' ) );
+		}
+		// Scheme guard: the literal text before the first {placeholder} must
+		// start with http:// or https://. A template that *starts* with a
+		// placeholder (e.g. "{product_url}?aff=1") is allowed because the
+		// substituted URL supplies the scheme. This blocks "javascript:…",
+		// "data:…", and protocol-relative "//host" templates at authoring time.
+		$literal_prefix = strstr( $template, '{', true );
+		if ( false === $literal_prefix ) {
+			$literal_prefix = $template;
+		}
+		if ( '' !== trim( $literal_prefix ) && ! preg_match( '#^\s*https?://#i', $literal_prefix ) ) {
+			return new WP_Error( 'supcomp_bad_template_scheme', __( 'Template must begin with http:// or https:// (or with the {product_url} placeholder).', 'supplement-compare' ) );
 		}
 		preg_match_all( '/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/', $template, $matches );
 		$used    = array_unique( $matches[1] );

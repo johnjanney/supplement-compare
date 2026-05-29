@@ -218,7 +218,11 @@ class Supcomp_Canonical_Page {
 			'availability'  => $availability,
 		);
 
-		$json = wp_json_encode( $payload, JSON_UNESCAPED_SLASHES );
+		// JSON_HEX_TAG escapes "<" and ">" as unicode sequences so a literal
+		// "</script>" in operator-authored display_name / seo_content cannot
+		// close this inline <script> element and break out into HTML. Slashes
+		// stay unescaped for readable schema.org URLs; JSON parsers handle both.
+		$json = wp_json_encode( $payload, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG );
 		return $json === false ? '' : $json;
 	}
 
