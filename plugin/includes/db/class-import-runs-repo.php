@@ -59,7 +59,7 @@ class Supcomp_Import_Runs_Repo {
 		$wpdb->update( self::table(), $data, array( 'id' => (int) $id ) );
 	}
 
-	public static function update_counts( $id, $inserted, $updated, $stale, $errored ) {
+	public static function update_counts( $id, $inserted, $updated, $stale, $errored, $suppressed = 0 ) {
 		global $wpdb;
 		$wpdb->update(
 			self::table(),
@@ -67,6 +67,7 @@ class Supcomp_Import_Runs_Repo {
 				'rows_inserted'     => (int) $inserted,
 				'rows_updated'      => (int) $updated,
 				'rows_marked_stale' => (int) $stale,
+				'rows_suppressed'   => (int) $suppressed,
 				'rows_errored'      => (int) $errored,
 			),
 			array( 'id' => (int) $id )

@@ -226,6 +226,7 @@ row_count                INT
 rows_inserted            INT
 rows_updated             INT
 rows_marked_stale        INT
+rows_suppressed          INT                      skipped — on the suppression list (§3.9)
 rows_errored             INT
 status                   ENUM('validating','importing','complete','failed','rolled_back')
 error_log                TEXT
@@ -265,6 +266,30 @@ utm_source               VARCHAR(128) NULL
 utm_medium               VARCHAR(128) NULL
 utm_campaign             VARCHAR(128) NULL
 is_bot_suspected         BOOLEAN
+```
+
+### 3.9 `offer_suppressions`
+
+Added v1.23.0. A durable "never re-add this product" record, keyed on the
+offer natural key independently of the offer row itself. The importer consults
+it before inserting and skips suppressed products. Created automatically when a
+**rejected** offer is hard-deleted (Cleanup), so a re-extracted product can't
+re-enter the pending queue once the rejected row is purged. `product_title` /
+`brand` are display snapshots (the offer row is gone by then). Operator lifts a
+suppression from the Suppression List screen to let the product back in.
+
+```
+id                       BIGINT, PK
+merchant_id              BIGINT
+source_product_id        VARCHAR(255)
+source_variant_id        VARCHAR(255)
+product_title            VARCHAR(512)              snapshot for the admin list
+brand                    VARCHAR(255)              snapshot for the admin list
+reason                   VARCHAR(32)               'rejected_cleanup'
+operator_notes           TEXT NULL
+source_offer_id          BIGINT NULL               id of the deleted offer, for reference
+created_at               DATETIME
+UNIQUE (merchant_id, source_product_id, source_variant_id)
 ```
 
 ---

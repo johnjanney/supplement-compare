@@ -171,6 +171,26 @@ class Supcomp_Deletion_Service {
 
 		$preview = self::preview_offer_deletion( $offer );
 
+		// Suppression list (v1.23.0): an operator-REJECTED offer that's now being
+		// purged must not silently revive as 'pending' the next time the extractor
+		// re-sees the product. Record the natural key before the row is gone.
+		// Scope is deliberately 'rejected' only — 'dead' offers disappeared from
+		// the merchant (stale detector), not an operator judgment, so they may
+		// legitimately return.
+		if ( $offer->visibility_status === 'rejected' ) {
+			Supcomp_Suppressions_Repo::record(
+				(int) $offer->merchant_id,
+				(string) $offer->source_product_id,
+				(string) $offer->source_variant_id,
+				array(
+					'product_title' => $offer->product_title,
+					'brand'         => $offer->brand,
+				),
+				'rejected_cleanup',
+				$id
+			);
+		}
+
 		$wpdb->delete( $prefix . 'price_history', array( 'offer_id' => $id ), array( '%d' ) );
 
 		$wpdb->query( $wpdb->prepare(

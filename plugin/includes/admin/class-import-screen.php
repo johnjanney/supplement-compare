@@ -69,13 +69,14 @@ class Supcomp_Import_Screen {
 						<th><?php esc_html_e( 'New', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'Updated', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'Stale', 'supplement-compare' ); ?></th>
+						<th title="<?php esc_attr_e( 'Skipped — on the suppression list', 'supplement-compare' ); ?>"><?php esc_html_e( 'Suppressed', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'Errored', 'supplement-compare' ); ?></th>
 						<th></th>
 					</tr>
 				</thead>
 				<tbody>
 					<?php if ( empty( $runs ) ) : ?>
-						<tr><td colspan="10"><?php esc_html_e( 'No imports yet. Upload a CSV to get started.', 'supplement-compare' ); ?></td></tr>
+						<tr><td colspan="11"><?php esc_html_e( 'No imports yet. Upload a CSV to get started.', 'supplement-compare' ); ?></td></tr>
 					<?php endif; ?>
 					<?php foreach ( $runs as $r ) : ?>
 						<tr>
@@ -87,6 +88,7 @@ class Supcomp_Import_Screen {
 							<td><?php echo (int) $r->rows_inserted; ?></td>
 							<td><?php echo (int) $r->rows_updated; ?></td>
 							<td><?php echo (int) $r->rows_marked_stale; ?></td>
+							<td><?php echo (int) $r->rows_suppressed; ?></td>
 							<td><?php echo (int) $r->rows_errored; ?></td>
 							<td><a href="<?php echo esc_url( self::url( array( 'action' => 'detail', 'run' => $r->id ) ) ); ?>"><?php esc_html_e( 'Detail', 'supplement-compare' ); ?></a></td>
 						</tr>
@@ -202,6 +204,7 @@ class Supcomp_Import_Screen {
 				<tr><th><?php esc_html_e( 'New offers (pending)', 'supplement-compare' ); ?></th><td><?php echo (int) $run->rows_inserted; ?></td></tr>
 				<tr><th><?php esc_html_e( 'Updated offers', 'supplement-compare' ); ?></th><td><?php echo (int) $run->rows_updated; ?></td></tr>
 				<tr><th><?php esc_html_e( 'Marked stale', 'supplement-compare' ); ?></th><td><?php echo (int) $run->rows_marked_stale; ?></td></tr>
+				<tr><th><?php esc_html_e( 'Suppressed (skipped)', 'supplement-compare' ); ?></th><td><?php echo (int) $run->rows_suppressed; ?></td></tr>
 				<tr><th><?php esc_html_e( 'Errored rows', 'supplement-compare' ); ?></th><td><?php echo (int) $run->rows_errored; ?></td></tr>
 			</table>
 

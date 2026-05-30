@@ -76,6 +76,7 @@ class Supcomp_Plugin {
 		require_once $inc . 'db/class-canonical-products-repo.php';
 		require_once $inc . 'db/class-import-runs-repo.php';
 		require_once $inc . 'db/class-price-history-repo.php';
+		require_once $inc . 'db/class-suppressions-repo.php';
 		require_once $inc . 'db/class-extract-sites-repo.php';
 		require_once $inc . 'db/class-extract-runs-repo.php';
 
@@ -131,6 +132,7 @@ class Supcomp_Plugin {
 		require_once $admin_dir . 'class-extract-runs-screen.php';
 		require_once $admin_dir . 'class-deletion-admin.php';
 		require_once $admin_dir . 'class-cleanup-screen.php';
+		require_once $admin_dir . 'class-suppression-screen.php';
 
 		add_action( 'admin_menu', array( 'Supcomp_Admin', 'register_menu' ) );
 		add_action( 'admin_init', array( 'Supcomp_Settings', 'register' ) );
@@ -148,5 +150,6 @@ class Supcomp_Plugin {
 		Supcomp_Extract_Sites_Screen::register_hooks();
 		Supcomp_Deletion_Admin::register_hooks();
 		Supcomp_Cleanup_Screen::register_hooks();
+		Supcomp_Suppression_Screen::register_hooks();
 	}
 }

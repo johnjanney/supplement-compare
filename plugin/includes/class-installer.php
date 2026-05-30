@@ -2,7 +2,7 @@
 /**
  * Database installer.
  *
- * Creates the eight tables from PROJECTBRIEF.md §3 via dbDelta and seeds the
+ * Creates the plugin tables (PROJECTBRIEF.md §3) via dbDelta and seeds the
  * Settings page defaults. dbDelta is idempotent — re-running install() will
  * add missing columns/indexes without disturbing existing data.
  *
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '8';
+	const SCHEMA_VERSION = '9';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -55,6 +55,10 @@ class Supcomp_Installer {
 
 	const VARIATION_RETRIEVAL_STATUSES = array(
 		'not_applicable', 'retrieved', 'failed', 'fallback_parent_only',
+	);
+
+	const SUPPRESSION_REASONS = array(
+		'rejected_cleanup',
 	);
 
 	const IMPORT_RUN_STATUSES = array(
@@ -94,6 +98,7 @@ class Supcomp_Installer {
 			self::click_log_sql( $prefix, $cc ),
 			self::extract_sites_sql( $prefix, $cc ),
 			self::extract_runs_sql( $prefix, $cc ),
+			self::offer_suppressions_sql( $prefix, $cc ),
 		);
 
 		foreach ( $statements as $sql ) {
@@ -210,6 +215,7 @@ class Supcomp_Installer {
 			rows_inserted INT NOT NULL DEFAULT 0,
 			rows_updated INT NOT NULL DEFAULT 0,
 			rows_marked_stale INT NOT NULL DEFAULT 0,
+			rows_suppressed INT NOT NULL DEFAULT 0,
 			rows_errored INT NOT NULL DEFAULT 0,
 			status VARCHAR(16) NOT NULL DEFAULT 'validating',
 			error_log LONGTEXT NULL,
@@ -350,6 +356,31 @@ class Supcomp_Installer {
 			KEY run_id (run_id),
 			KEY site_started (site_id, started_at),
 			KEY status_started (status, started_at)
+		) {$cc};";
+	}
+
+	private static function offer_suppressions_sql( $prefix, $cc ) {
+		// Suppression list (v1.23.0). A durable record, keyed on the offer
+		// natural key, that the importer consults BEFORE inserting. Survives the
+		// hard-delete of a rejected offer (Cleanup) so a re-extracted product
+		// does not walk back into the pending queue. product_title / brand are
+		// snapshots: by the time a suppression exists the offer row is gone, so
+		// the management screen needs a human-readable label stored locally.
+		return "CREATE TABLE {$prefix}offer_suppressions (
+			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			merchant_id BIGINT(20) UNSIGNED NOT NULL,
+			source_product_id VARCHAR(255) NOT NULL DEFAULT '',
+			source_variant_id VARCHAR(255) NOT NULL DEFAULT '',
+			product_title VARCHAR(512) NOT NULL DEFAULT '',
+			brand VARCHAR(255) NOT NULL DEFAULT '',
+			reason VARCHAR(32) NOT NULL DEFAULT 'rejected_cleanup',
+			operator_notes TEXT NULL,
+			source_offer_id BIGINT(20) UNSIGNED NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY suppress_natural (merchant_id, source_product_id, source_variant_id),
+			KEY merchant_id (merchant_id),
+			KEY created_at (created_at)
 		) {$cc};";
 	}
 

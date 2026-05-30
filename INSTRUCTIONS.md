@@ -559,7 +559,11 @@ about:
 **Other workflow states:**
 - **Reject** — operator decided this offer doesn't belong (e.g. not actually
   a single-ingredient product). Removed from the public site permanently.
-  Re-imports do NOT revive a rejected offer.
+  Re-imports do NOT revive a rejected offer: while the rejected row exists,
+  the importer refreshes its price/stock but leaves it rejected and hidden.
+  And if you later purge it on the Cleanup screen, the **suppression list**
+  (§16, added in v1.23.0) keeps it out of the queue even after the row is gone
+  — so the product stays gone whether or not you Clean Up.
 - **Pause** — operator wants this offer hidden temporarily without
   rejecting (out-of-stock that's expected to return, brand issue under
   investigation).
@@ -924,6 +928,27 @@ workflow (soft-trash → review → purge) is the safety net; once you
 press Delete the row is gone. Practical tip: glance at the cleanup
 counts on the screen before clicking "Delete all" to make sure the
 number matches what you expect.
+
+**Purging a rejected offer adds a suppression (v1.23.0).** When the
+cleanup deletes an offer that was in the **rejected** state, it leaves
+behind a row on the **Suppression List** (the natural key:
+merchant + source product/variant id). On the next extractor run or CSV
+import, that product is skipped — it does *not* come back into the
+Pending Queue, even though the merchant still lists it. This is what
+makes a rejection permanent: without it, Cleanup would delete the only
+record keeping the product out, and the next run would re-add it as
+pending. Note the scope — only **rejected** offers do this. Purging a
+**dead** offer (one that disappeared from the merchant and aged out) does
+*not* suppress it; if the merchant re-lists it, it returns as pending for
+you to judge fresh.
+
+**Lifting a suppression.** WP Admin → Supplement Compare → **Suppression
+List** shows everything currently suppressed, with the product title and
+merchant. Click **Lift** on a row to remove it; the product can then
+return to the Pending Queue on the next import. The list is view + lift
+only — entries are added automatically by Cleanup, not by hand. The
+Import screen's run stats include a **Suppressed** count so you can see
+how many products a given run skipped.
 
 ## 17. Troubleshooting
 
