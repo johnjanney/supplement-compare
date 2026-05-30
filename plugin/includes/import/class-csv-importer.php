@@ -35,6 +35,7 @@ class Supcomp_CSV_Importer {
 	 *     run_id: int,           // 0 for dry-run
 	 *     inserted: int,
 	 *     updated: int,
+	 *     suppressed: int,       // skipped because on the suppression list
 	 *     stale: int,
 	 *     errored: int,
 	 *     row_errors: array<int,string>,
@@ -93,6 +94,7 @@ class Supcomp_CSV_Importer {
 			array(
 				'inserted'   => $result['inserted'],
 				'updated'    => $result['updated'],
+				'suppressed' => $result['suppressed'],
 				'errored'    => $result['errored'],
 				'row_errors' => $result['row_errors'],
 			),
@@ -104,6 +106,7 @@ class Supcomp_CSV_Importer {
 			'run_id'     => $run_id,
 			'inserted'   => $result['inserted'],
 			'updated'    => $result['updated'],
+			'suppressed' => $result['suppressed'],
 			'stale'      => $final['stale'],
 			'errored'    => $result['errored'],
 			'row_errors' => $result['row_errors'],
@@ -137,11 +140,13 @@ class Supcomp_CSV_Importer {
 	 * accumulate across batches and hand to finalize_run).
 	 */
 	public static function ingest_rows_into_run( array $rows, $run_id ) {
-		$row_errors   = array();
-		$inserted     = 0;
-		$updated      = 0;
-		$errored      = 0;
-		$merchant_ids = array();
+		$row_errors      = array();
+		$inserted        = 0;
+		$updated         = 0;
+		$suppressed      = 0;
+		$errored         = 0;
+		$merchant_ids    = array();
+		$suppress_cache  = array(); // merchant_id => set of "pid|vid", lazy-loaded
 
 		$now = current_time( 'mysql', true );
 
@@ -150,6 +155,19 @@ class Supcomp_CSV_Importer {
 			$merchant_ids[ $merchant_id ] = true;
 
 			try {
+				// Suppression list (v1.23.0): a product the operator rejected and
+				// then purged via Cleanup must never re-enter the queue. Skip it
+				// before touching any table — no raw snapshot, no normalized row.
+				// Preload the merchant's suppressed keys once, not per row.
+				if ( ! isset( $suppress_cache[ $merchant_id ] ) ) {
+					$suppress_cache[ $merchant_id ] = Supcomp_Suppressions_Repo::keys_for_merchant( $merchant_id );
+				}
+				$natural_key = (string) $row['source_product_id'] . '|' . (string) ( $row['source_variant_id'] ?? '' );
+				if ( isset( $suppress_cache[ $merchant_id ][ $natural_key ] ) ) {
+					++$suppressed;
+					continue;
+				}
+
 				self::insert_raw( $merchant_id, $row, $run_id, $now );
 
 				$existing = Supcomp_Offers_Repo::find_by_natural_key(
@@ -194,6 +212,7 @@ class Supcomp_CSV_Importer {
 		return array(
 			'inserted'     => $inserted,
 			'updated'      => $updated,
+			'suppressed'   => $suppressed,
 			'errored'      => $errored,
 			'row_errors'   => $row_errors,
 			'merchant_ids' => $merchant_ids,
@@ -214,9 +233,10 @@ class Supcomp_CSV_Importer {
 	 */
 	public static function finalize_run( $run_id, array $totals, array $merchant_ids, $source_kind = 'csv_import' ) {
 		$run_id     = (int) $run_id;
-		$inserted   = isset( $totals['inserted'] ) ? (int) $totals['inserted'] : 0;
-		$updated    = isset( $totals['updated'] )  ? (int) $totals['updated']  : 0;
-		$errored    = isset( $totals['errored'] )  ? (int) $totals['errored']  : 0;
+		$inserted   = isset( $totals['inserted'] )   ? (int) $totals['inserted']   : 0;
+		$updated    = isset( $totals['updated'] )    ? (int) $totals['updated']    : 0;
+		$suppressed = isset( $totals['suppressed'] ) ? (int) $totals['suppressed'] : 0;
+		$errored    = isset( $totals['errored'] )    ? (int) $totals['errored']    : 0;
 		$row_errors = isset( $totals['row_errors'] ) && is_array( $totals['row_errors'] ) ? $totals['row_errors'] : array();
 
 		$stale = 0;
@@ -224,7 +244,7 @@ class Supcomp_CSV_Importer {
 			$stale = Supcomp_Stale_Detector::mark_stale( array_keys( $merchant_ids ), $run_id );
 		}
 
-		Supcomp_Import_Runs_Repo::update_counts( $run_id, $inserted, $updated, $stale, $errored );
+		Supcomp_Import_Runs_Repo::update_counts( $run_id, $inserted, $updated, $stale, $errored, $suppressed );
 		Supcomp_Import_Runs_Repo::set_status(
 			$run_id,
 			'complete',
@@ -234,11 +254,12 @@ class Supcomp_CSV_Importer {
 		do_action(
 			'supcomp_data_changed',
 			array(
-				'source'   => $source_kind,
-				'run_id'   => $run_id,
-				'inserted' => $inserted,
-				'updated'  => $updated,
-				'stale'    => $stale,
+				'source'     => $source_kind,
+				'run_id'     => $run_id,
+				'inserted'   => $inserted,
+				'updated'    => $updated,
+				'suppressed' => $suppressed,
+				'stale'      => $stale,
 			)
 		);
 
@@ -250,7 +271,7 @@ class Supcomp_CSV_Importer {
 	 * extractor workers after each batch so the operator can see progress
 	 * mid-run on the import-runs admin screen.
 	 */
-	public static function record_batch_counts( $run_id, $inserted_delta, $updated_delta, $errored_delta ) {
+	public static function record_batch_counts( $run_id, $inserted_delta, $updated_delta, $errored_delta, $suppressed_delta = 0 ) {
 		$run = Supcomp_Import_Runs_Repo::get( (int) $run_id );
 		if ( ! $run ) {
 			return;
@@ -260,7 +281,8 @@ class Supcomp_CSV_Importer {
 			(int) $run->rows_inserted + (int) $inserted_delta,
 			(int) $run->rows_updated  + (int) $updated_delta,
 			(int) $run->rows_marked_stale,
-			(int) $run->rows_errored  + (int) $errored_delta
+			(int) $run->rows_errored  + (int) $errored_delta,
+			(int) $run->rows_suppressed + (int) $suppressed_delta
 		);
 	}
 
@@ -300,6 +322,7 @@ class Supcomp_CSV_Importer {
 			'run_id'     => 0,
 			'inserted'   => $inserted,
 			'updated'    => $updated,
+			'suppressed' => 0,
 			'stale'      => 0,
 			'errored'    => 0,
 			'row_errors' => array(),

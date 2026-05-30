@@ -17,6 +17,41 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.23.0] — 2026-05-30
+
+### Added
+- **Suppression list — rejections now survive Cleanup.** New
+  `supcomp_offer_suppressions` table plus a **Supplement Compare → Suppression
+  List** admin screen. When a *rejected* offer is hard-deleted (Cleanup →
+  "Rejected offers", or a single-row delete of a rejected offer), its natural
+  key `(merchant_id, source_product_id, source_variant_id)` is recorded. The
+  importer (`Supcomp_CSV_Importer::ingest_rows_into_run`) consults the list
+  before inserting and skips suppressed products entirely — no raw snapshot, no
+  normalized row — so a re-extracted product can no longer walk back into the
+  Pending Queue. The screen is view + lift: lifting a suppression lets the
+  product return as `pending` on the next import.
+- **Import runs now report a "Suppressed" count.** New `rows_suppressed` column
+  on `import_runs`, surfaced on the Import screen list and run detail.
+
+### Changed
+- Scope is deliberately narrow: only operator-**rejected** offers auto-suppress
+  on hard-delete. `dead` offers (absent from the merchant, aged out by the
+  stale detector — never an operator judgment) are not suppressed and may
+  legitimately return as pending.
+
+### Fixed
+- **Closed the rejection-permanence gap.** `INSTRUCTIONS.md` promised
+  "re-imports do NOT revive a rejected offer," but that only held while the
+  rejected row survived. Running Cleanup hard-deleted the row and its
+  natural-key memory, so the next extractor run re-inserted the product as
+  pending. The suppression list makes the documented promise true in all paths.
+
+### Notes
+- Schema bumps `SCHEMA_VERSION` 8 → 9; applied automatically via the existing
+  idempotent `dbDelta` / `maybe_upgrade()` path on the next admin load.
+
+---
+
 ## [1.22.2] — 2026-05-29
 
 ### Security

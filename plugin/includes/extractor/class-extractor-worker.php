@@ -52,6 +52,7 @@ class Supcomp_Extractor_Worker {
 			'totals'         => array(
 				'inserted'          => 0,
 				'updated'           => 0,
+				'suppressed'        => 0,
 				'errored'           => 0,
 				'row_errors_sample' => array(),
 			),
@@ -154,9 +155,15 @@ class Supcomp_Extractor_Worker {
 
 		$batch = Supcomp_CSV_Importer::ingest_rows_into_run( $rows, (int) $state['import_run_id'] );
 
-		$state['totals']['inserted'] += (int) $batch['inserted'];
-		$state['totals']['updated']  += (int) $batch['updated'];
-		$state['totals']['errored']  += (int) $batch['errored'];
+		// Defensive: a chained action enqueued before the v1.23.0 deploy may lack
+		// the suppressed slot. Self-heals on the next full run.
+		if ( ! isset( $state['totals']['suppressed'] ) ) {
+			$state['totals']['suppressed'] = 0;
+		}
+		$state['totals']['inserted']   += (int) $batch['inserted'];
+		$state['totals']['updated']    += (int) $batch['updated'];
+		$state['totals']['suppressed'] += (int) ( $batch['suppressed'] ?? 0 );
+		$state['totals']['errored']    += (int) $batch['errored'];
 		// Keep only a sample of row errors so action args don't bloat.
 		if ( ! empty( $batch['row_errors'] ) ) {
 			$slots = self::ROW_ERROR_SAMPLE - count( $state['totals']['row_errors_sample'] );
@@ -174,7 +181,8 @@ class Supcomp_Extractor_Worker {
 			(int) $state['import_run_id'],
 			(int) $batch['inserted'],
 			(int) $batch['updated'],
-			(int) $batch['errored']
+			(int) $batch['errored'],
+			(int) ( $batch['suppressed'] ?? 0 )
 		);
 
 		// Continue paginating if the page came back full and we're under the cap.
@@ -203,6 +211,7 @@ class Supcomp_Extractor_Worker {
 			array(
 				'inserted'   => (int) $state['totals']['inserted'],
 				'updated'    => (int) $state['totals']['updated'],
+				'suppressed' => (int) ( $state['totals']['suppressed'] ?? 0 ),
 				'errored'    => (int) $state['totals']['errored'],
 				'row_errors' => $state['totals']['row_errors_sample'],
 			),
@@ -239,6 +248,7 @@ class Supcomp_Extractor_Worker {
 				array(
 					'inserted'   => (int) $state['totals']['inserted'],
 					'updated'    => (int) $state['totals']['updated'],
+					'suppressed' => (int) ( $state['totals']['suppressed'] ?? 0 ),
 					'errored'    => (int) $state['totals']['errored'],
 					'row_errors' => $state['totals']['row_errors_sample'],
 				),

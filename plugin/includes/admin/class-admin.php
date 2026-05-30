@@ -38,6 +38,7 @@ class Supcomp_Admin {
 			array( 'supcomp-canonical',      __( 'Canonical Products', 'supplement-compare' ),  array( 'Supcomp_Canonical_Products_Screen', 'render' ) ),
 			array( 'supcomp-clicks',         __( 'Clicks', 'supplement-compare' ),              array( 'Supcomp_Clicks_Screen', 'render' ) ),
 			array( 'supcomp-cleanup',        __( 'Cleanup', 'supplement-compare' ),             array( 'Supcomp_Cleanup_Screen', 'render' ) ),
+			array( 'supcomp-suppression',    __( 'Suppression List', 'supplement-compare' ),    array( 'Supcomp_Suppression_Screen', 'render' ) ),
 			array( 'supcomp-settings',       __( 'Settings', 'supplement-compare' ),            array( 'Supcomp_Settings', 'render' ) ),
 		);
 

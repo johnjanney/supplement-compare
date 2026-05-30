@@ -188,6 +188,31 @@ Until then, both paths coexist. The §4 row schema contract keeps them in lockst
 
 ## Resolved questions
 
+### Q-010: Does a rejection survive Cleanup + re-extraction?
+
+**Status:** resolved — **yes, via a suppression list (v1.23.0)**
+**Resolved:** 2026-05-30
+
+Surfaced while tracing the offer lifecycle. `INSTRUCTIONS.md` §9 promised
+"re-imports do NOT revive a rejected offer," but that only held while the
+rejected row physically survived. Cleanup hard-deletes a rejected offer **and**
+its natural-key memory, so the next extractor run that re-saw the product
+re-inserted it as `pending` — silently breaking the documented promise and the
+curation-not-aggregation principle (§1, §7).
+
+Resolution: an `offer_suppressions` table (PROJECTBRIEF §3.9) keyed on the offer
+natural key, written automatically when a **rejected** offer is hard-deleted,
+and consulted by the importer before insert. Decisions taken with the operator:
+
+- **Trigger:** automatic on hard-delete of a rejected offer — no new
+  pending-queue button.
+- **Scope:** rejected only. `dead` offers (disappeared from merchant, aged out
+  by the stale detector) are not an operator judgment and may legitimately
+  return as pending.
+- **Granularity:** exact natural key `(merchant_id, source_product_id,
+  source_variant_id)`, matching the importer's existing dedup key.
+- **Escape hatch:** a view + lift Suppression List admin screen.
+
 ### Q-003: Currency policy for v1
 
 **Status:** resolved — **USD only**
