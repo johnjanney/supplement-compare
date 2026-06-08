@@ -23,6 +23,47 @@
 	border-color: #d9534f;
 }
 
+/* Stat dashboard — square boxes above the table controls. Side-by-side on
+   desktop (capped width so they stay tidy on wide screens); stacked on
+   mobile via the ≤720px block below. */
+.supcomp-stats {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75em;
+	margin: 0 0 1.25em;
+}
+.supcomp-stat {
+	flex: 1 1 0;
+	min-width: 110px;
+	max-width: 200px;
+	aspect-ratio: 1 / 1;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	padding: 1em 0.75em;
+	box-sizing: border-box;
+	background: linear-gradient(135deg, #2a7ec0 0%, #135e96 100%);
+	color: #fff;
+	border-radius: 10px;
+	box-shadow: 0 2px 6px rgba(19, 94, 150, 0.18);
+}
+.supcomp-stat-label {
+	font-size: 13px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	opacity: 0.85;
+	margin-bottom: 0.3em;
+}
+.supcomp-stat-value {
+	font-size: 2.6em;
+	font-weight: 700;
+	line-height: 1.05;
+	font-variant-numeric: tabular-nums;
+}
+
 .supcomp-filters {
 	display: flex;
 	flex-wrap: wrap;
@@ -255,6 +296,29 @@ button.supcomp-coupon {
    on which compare view is active, so the grid can size to either
    four or five sortable columns. */
 @media (max-width: 720px) {
+	/* Stat boxes stack top-and-bottom. Full-width squares would be huge, so
+	   on mobile each becomes a compact horizontal band (label left, big
+	   number right) — stacked and still readable at a glance. */
+	.supcomp-stats {
+		flex-direction: column;
+	}
+	.supcomp-stat {
+		max-width: none;
+		aspect-ratio: auto;
+		flex: 0 0 auto;
+		flex-direction: row;
+		justify-content: space-between;
+		align-items: center;
+		padding: 0.85em 1.1em;
+	}
+	.supcomp-stat-label {
+		margin-bottom: 0;
+		font-size: 14px;
+	}
+	.supcomp-stat-value {
+		font-size: 1.9em;
+	}
+
 	.supcomp-filters {
 		flex-direction: column;
 		align-items: stretch;

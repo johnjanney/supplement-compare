@@ -111,6 +111,12 @@
 	window.addEventListener('hashchange', function () {
 		state.view = parseHash() || { type: 'list' };
 		render();
+		// Hash navigation (Compare / Back / browser back-forward) doesn't move
+		// the scroll position on its own — bring the app back to the top so the
+		// freshly-rendered view starts at the top of the viewport. Tied to
+		// navigation only; filter/search/sort re-renders go through render()
+		// directly and are intentionally left where the user is scrolled.
+		scrollAppToTop();
 	});
 
 	root.addEventListener('change', onControlChange);
@@ -332,6 +338,11 @@
 			.sort(listSortCompare);
 
 		var html = '';
+		html += statsDashboard({
+			products: canonicals.length,
+			offers: offers.length,
+			merchants: countUnique(offers, function (o) { return o.merchant && o.merchant.id; }),
+		});
 		html += listFilterBar();
 
 		if (canonicals.length === 0) {
@@ -408,6 +419,15 @@
 		if (showDetailSubhead) {
 			html += '<p class="supcomp-meta">' + metaBits.join(' · ') + '</p>';
 		}
+
+		// Stats reflect the filtered offers for this one canonical, so the
+		// Products box reads 1 while any offer matches and 0 once filters
+		// empty the table.
+		html += statsDashboard({
+			products: offers.length > 0 ? 1 : 0,
+			offers: offers.length,
+			merchants: countUnique(offers, function (o) { return o.merchant && o.merchant.id; }),
+		});
 
 		html += detailFilterBar();
 
@@ -509,6 +529,28 @@
 		html += footer();
 		root.innerHTML = html;
 		restoreInputFocus();
+	}
+
+	// ---------- stats dashboard ----------
+
+	// Three at-a-glance stat boxes above the table controls. Values are
+	// computed from the currently-filtered offer set by the caller, so they
+	// react to search / filters in lockstep with the table.
+	function statsDashboard(stats) {
+		var items = [
+			[i18n.statProducts || 'Products', stats.products],
+			[i18n.statOffers || 'Offers', stats.offers],
+			[i18n.statMerchants || 'Merchants', stats.merchants],
+		];
+		var h = '<div class="supcomp-stats">';
+		items.forEach(function (it) {
+			h += '<div class="supcomp-stat">' +
+				'<span class="supcomp-stat-label">' + escapeHtml(it[0]) + '</span>' +
+				'<span class="supcomp-stat-value">' + escapeHtml(String(it[1])) + '</span>' +
+				'</div>';
+		});
+		h += '</div>';
+		return h;
 	}
 
 	// ---------- filter bars ----------
@@ -826,6 +868,17 @@
 		}
 		h += '</div>';
 		return h;
+	}
+
+	// Align the top of the app container with the top of the viewport. Targets
+	// the container (not absolute 0) so page chrome above the embedded shortcode
+	// isn't scrolled past. Instant jump, like a #top anchor.
+	function scrollAppToTop() {
+		try {
+			root.scrollIntoView({ block: 'start' });
+		} catch (e) {
+			window.scrollTo(0, 0);
+		}
 	}
 
 	function restoreInputFocus() {
