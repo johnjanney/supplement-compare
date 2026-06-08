@@ -17,6 +17,41 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.24.1] — 2026-06-08
+
+### Fixed
+- **Comparison view now scrolls to the top on navigation.** Clicking a
+  **Compare** link or **← Back to all products** swaps the table via hash
+  routing, which previously left the visitor's scroll position unchanged —
+  stranding them in the middle of a freshly-rendered (often shorter) view. The
+  frontend now scrolls the app container to the top of the viewport on view
+  navigation (and on browser back/forward). Hooked to the `hashchange` event
+  only, so search/filter/sort re-renders deliberately stay where the visitor is
+  scrolled. Instant jump (like a `#top` anchor); targets the `#supcomp-app`
+  container rather than absolute top, so page chrome above an embedded shortcode
+  isn't scrolled past. No payload or PHP changes (`frontend.js` only).
+
+---
+
+## [1.24.0] — 2026-06-08
+
+### Added
+- **Stats dashboard above the comparison table.** Three at-a-glance stat
+  boxes now sit above the search/filter controls on both the list view and
+  each product's detail view: **Products** (distinct canonical products),
+  **Offers** (active offers), and **Merchants** (merchants with active
+  offers). The numbers are reactive — they recompute from the currently
+  matching offer set as the visitor searches and filters, so they always
+  describe what's on screen. On the detail view the boxes scope to the one
+  canonical being viewed (Products reads 1 while any offer matches, 0 once
+  filters empty the table). Square boxes sit side-by-side on desktop and
+  stack into compact full-width bands on mobile. Implemented entirely in the
+  existing no-build frontend (`frontend.js` / `frontend.css`); labels added
+  to the shortcode i18n strings. No new payload fields — values derive from
+  the data the frontend already loads.
+
+---
+
 ## [1.23.0] — 2026-05-30
 
 ### Added

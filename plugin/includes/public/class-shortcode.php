@@ -140,6 +140,9 @@ class Supcomp_Shortcode {
 
 	private static function i18n_strings() {
 		return array(
+			'statProducts'           => __( 'Products', 'supplement-compare' ),
+			'statOffers'             => __( 'Offers', 'supplement-compare' ),
+			'statMerchants'          => __( 'Merchants', 'supplement-compare' ),
 			'loading'                => __( 'Loading comparison…', 'supplement-compare' ),
 			'loadError'              => __( 'Could not load comparison data. Please try again later.', 'supplement-compare' ),
 			'emptyData'              => __( 'No comparison data is published yet. Check back soon.', 'supplement-compare' ),
