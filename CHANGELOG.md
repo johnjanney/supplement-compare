@@ -17,6 +17,19 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.24.2] — 2026-06-11
+
+### Changed
+- **Desktop stat dashboard now renders as horizontal bands instead of
+  squares.** The desktop stat tiles previously used a square (`aspect-ratio:
+  1 / 1`) layout with the label stacked above the value. They now match the
+  mobile render — a horizontal rectangle with the label on the left and the
+  big number on the right — but stay side-by-side across the row rather than
+  stacking. CSS-only change (`frontend.css`); the mobile (≤720px) render is
+  unchanged.
+
+---
+
 ## [1.24.1] — 2026-06-08
 
 ### Fixed
