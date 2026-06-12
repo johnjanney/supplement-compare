@@ -23,9 +23,10 @@
 	border-color: #d9534f;
 }
 
-/* Stat dashboard — square boxes above the table controls. Side-by-side on
-   desktop (capped width so they stay tidy on wide screens); stacked on
-   mobile via the ≤720px block below. */
+/* Stat dashboard — horizontal bands above the table controls (label left,
+   big number right), same shape as the mobile render but kept side-by-side
+   on desktop instead of stacked. Capped width so they stay tidy on wide
+   screens; the ≤720px block below stacks them. */
 .supcomp-stats {
 	display: flex;
 	flex-wrap: wrap;
@@ -34,15 +35,15 @@
 }
 .supcomp-stat {
 	flex: 1 1 0;
-	min-width: 110px;
-	max-width: 200px;
-	aspect-ratio: 1 / 1;
+	min-width: 180px;
+	max-width: 320px;
 	display: flex;
-	flex-direction: column;
+	flex-direction: row;
 	align-items: center;
-	justify-content: center;
-	text-align: center;
-	padding: 1em 0.75em;
+	justify-content: space-between;
+	text-align: left;
+	gap: 0.75em;
+	padding: 0.85em 1.1em;
 	box-sizing: border-box;
 	background: linear-gradient(135deg, #2a7ec0 0%, #135e96 100%);
 	color: #fff;
@@ -55,10 +56,10 @@
 	text-transform: uppercase;
 	letter-spacing: 0.5px;
 	opacity: 0.85;
-	margin-bottom: 0.3em;
+	margin-bottom: 0;
 }
 .supcomp-stat-value {
-	font-size: 2.6em;
+	font-size: 2.2em;
 	font-weight: 700;
 	line-height: 1.05;
 	font-variant-numeric: tabular-nums;
