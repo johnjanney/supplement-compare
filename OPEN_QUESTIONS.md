@@ -186,6 +186,149 @@ Until then, both paths coexist. The §4 row schema contract keeps them in lockst
 
 ---
 
+### Q-011: Public price-trend graphs per canonical product
+
+**Status:** Phase 1 (price-direction arrows) **shipped v1.25.0**; full chart
+(Phase 2) still deferred — design locked, **build plan in `ADD_CHARTS.md`**.
+Decision (2026-06-13): the lighter per-offer arrow + % indicator shipped first
+(it degrades gracefully on sparse data); the full interactive chart waits until
+real merchants have accumulated ~2–3 months of `price_history` and prices are
+shown to actually move. Data is already being collected, so deferring the chart
+costs no history.
+**Blocks:** nothing; net-new public-facing feature
+**Raised:** 2026-06-13
+**Last touched:** 2026-06-13
+
+**Decisions locked with operator (2026-06-13):**
+
+1. Public-facing, factual-history framing (no hype copy).
+2. No pruning — `price_history` retained indefinitely; revisit only if the
+   table grows large in production.
+3. Average **and** lowest series. The series selector is **always shown**,
+   including single-offer canonicals where avg == lowest (no special-casing).
+4. Site-wide admin enable/disable Settings toggle.
+5. **Layout: option (b) only** — a single graph with **two reader toggles**:
+   timeframe (90 / 30 / 7-day) and series (average / lowest). No admin
+   layout-mode setting; the side-by-side / hybrid options (a)/(c) are dropped.
+
+**Implementation decisions locked (2026-06-13):**
+
+- **Default toggle state on load:** 90-day + average price.
+- **Charting approach:** hand-rolled inline SVG (no charting library).
+- **Watch price:** `current_price` (the effective buyer-facing price the
+  comparison table already surfaces) — not `regular_price`.
+
+- **Scope:** compare/detail pages only. **No list-page chart** (decided
+  2026-06-13) — a site-wide blended average across heterogeneous ingredients
+  would be statistically meaningless and conflict with the apples-to-apples /
+  no-hype positioning. Per-canonical compute over that canonical's offers only,
+  independent of the table filters.
+- **UI placement:** detail view only (`/compare/{slug}/`), inserted **after the
+  stats dashboard, before the filter bar** — new order: title → specs → stats →
+  **chart** → filters → table. Rationale: groups with the read-only overview
+  band; sits above the filters to signal the chart is canonical-level and
+  **not** affected by the table's filters (avg/lowest across all offers, which
+  is why filtered live-recompute is explicitly out of scope); its own two
+  toggles stay visually separate from the filter controls. Full-width block
+  (like `.supcomp-stats`), so it stacks on mobile for free. Not shown on the
+  list view (chart is per-canonical).
+
+Still-open: payload shape (precompute into static JSON vs. read endpoint) and
+empty/sparse-history copy.
+
+Add a public-facing price-history chart to each canonical product page showing
+price movement over time. Operator framing captured during scoping:
+
+- **Public-facing**, not admin-only. A buyer trust signal ("here's how this
+  price has actually moved"), which fits the "price ledger, not hype"
+  positioning **provided** it stays factual — a literal history of observed
+  prices, no editorializing, no "lowest ever!" hype framing.
+- **Timeframe selector:** 90 / 30 / 7-day views, reader-switchable.
+- **Series selector:** "average price" or "lowest price" across the offers
+  under that canonical.
+- **Admin enable/disable** toggle (site-wide Settings option) so the graph can
+  be turned off without a code change.
+- **Admin layout mode** (see options below).
+
+**The data is already being collected — this is a "draw it" task, not a
+"start recording" task.** `supcomp_price_history` (installer schema) has logged
+old/new `regular_price` + `sale_price` + `stock_status` with a `changed_at`
+timestamp and `import_run_id` on every import since it shipped. Offers link to
+canonicals via `normalized_offers.canonical_product_id`, indexed
+`(canonical_product_id, …)`, so per-canonical rollup is a straightforward join.
+
+**The one real subtlety: `price_history` is a change-log, not a snapshot-log.**
+Rows are written only when a price *moves*. So you can't `GROUP BY day` and
+plot — you reconstruct a step function per offer ("offer held $19.99 from
+`changed_at` A until B"), then sample every offer in the canonical on each
+date to compute the avg-line and min-line. Standard price-tracker shape
+(CamelCamelCamel-style), just more than a trivial query. Two anchoring details:
+
+- The **baseline** (an offer's first observed price) lives on the offer row
+  (`current_price` + `first_seen_at`), not in `price_history` — the first
+  history row only appears on the first *change*. Reconstruction must seed from
+  the offer's first-seen state.
+- **History depth = how long the site has been importing.** Early graphs are
+  short and get richer over time. A 90-day view on a 3-week-old site shows
+  3 weeks.
+
+**Pruning (operator question):** if the public UI never exposes >90 days, the
+table will still accumulate change rows indefinitely (it has no pruning today).
+Two defensible positions:
+
+- **Don't prune.** Change-log rows are tiny (one row per price *move*, not per
+  import), so even years of low-churn history is cheap. Keeping raw history
+  preserves the option to add a 1-year or all-time view later, or to answer
+  "was this price ever lower?" Recommended default.
+- **Prune > ~100 days** (90 + a margin) via a scheduled cleanup, if storage or
+  a "we only retain 90 days" privacy/positioning stance matters. Reversible
+  decision either way, but pruning is destructive — favor keeping data until
+  there's a concrete reason not to.
+
+Recommendation: **don't prune for v1**; revisit only if the table actually grows
+large in production. Decouples the storage decision from the UI decision.
+
+**Layout — decided: option (b).** A single graph with two reader-facing
+toggles: timeframe (90 / 30 / 7-day) and series (average / lowest). The
+side-by-side (a) and hybrid (c) options are dropped. This is the lightest
+build and the same chart works across breakpoints — the only responsive work
+is making one chart + its two toggle controls reflow on narrow screens.
+
+**Open sub-questions to settle before building:**
+
+- **Default toggle positions.** What does a reader see on first load?
+  Recommendation: **90-day + average price** (widest context, the "typical
+  price" series). Reader can switch from there. Confirm before coding.
+
+- **Charting approach.** Inline hand-rolled SVG/`<canvas>` sparkline keeps the
+  plugin dependency-free and matches the no-bloat tone; a charting library
+  (Chart.js etc.) is faster to build but adds front-end weight and a supply-
+  chain surface. Lean SVG given the rest of the plugin's posture.
+- **Payload shape.** Does the reconstructed series ship in the static JSON
+  payload (precomputed at export time — keeps the front end dumb, bloats the
+  JSON), or via a small read endpoint queried on demand (keeps JSON lean, adds
+  a runtime query path)? Precomputing 3 windows × 2 series per canonical into
+  the JSON is probably fine and stays consistent with the static-JSON
+  architecture — verify payload-size impact at real catalog scale.
+- **Single-offer canonicals.** Decided: avg == lowest, but the series selector
+  is **still shown** (no special-casing) — both options just render the same
+  line. Keeps the UI consistent across all canonicals.
+- **Empty/sparse history.** A canonical with no price moves yet (only a
+  baseline) renders a flat line or an "not enough history yet" state. Pick the
+  empty-state copy.
+- **Sale vs regular.** Plot `current_price` (the buyer-relevant effective
+  price), `regular_price`, or both? `current_price` matches what the
+  comparison table already surfaces.
+
+**Likely code touchpoints (rough):** a price-history repo method to fetch +
+reconstruct per-canonical series; exporter changes (or a new read endpoint);
+one new Settings option (enable/disable); frontend chart render + two toggle
+controls + CSS + i18n; INSTRUCTIONS §-update; CHANGELOG; version bump (MINOR —
+new feature). PROJECTBRIEF gets a note only if the payload/endpoint decision is
+architectural.
+
+---
+
 ## Resolved questions
 
 ### Q-010: Does a rejection survive Cleanup + re-extraction?

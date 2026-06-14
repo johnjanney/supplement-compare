@@ -69,6 +69,16 @@ class Supcomp_JSON_Exporter {
 
 		$rows = Supcomp_Offers_Repo::for_export( $hide_threshold );
 
+		// Per-offer price-direction signal (last effective-price move within the
+		// operator-set window). Computed in one batched query keyed by offer id,
+		// then stitched onto each offer entry below. Window of 0 disables it.
+		$move_window = (int) get_option( 'supcomp_price_move_window_days', 30 );
+		$offer_ids   = array();
+		foreach ( $rows as $row ) {
+			$offer_ids[] = (int) $row->id;
+		}
+		$price_moves = Supcomp_Price_History_Repo::price_moves_for_offers( $offer_ids, $move_window );
+
 		$canonicals_by_id = array();
 		$offers_payload   = array();
 
@@ -78,7 +88,12 @@ class Supcomp_JSON_Exporter {
 				continue;
 			}
 
-			$offer_entry      = self::offer_entry( $row, $warn_threshold );
+			$offer_entry = self::offer_entry( $row, $warn_threshold );
+			// Only attach when there's a recent move — keeps the payload lean and
+			// lets the frontend treat "absent" as "no indicator".
+			if ( isset( $price_moves[ (int) $row->id ] ) ) {
+				$offer_entry['price_move'] = $price_moves[ (int) $row->id ];
+			}
 			$offers_payload[] = $offer_entry;
 
 			if ( ! isset( $canonicals_by_id[ $cp_id ] ) ) {
