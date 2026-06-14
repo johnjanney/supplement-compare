@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '9';
+	const SCHEMA_VERSION = '10';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -127,6 +127,7 @@ class Supcomp_Installer {
 		add_option( 'supcomp_staleness_warn_hours', 48 );
 		add_option( 'supcomp_staleness_hide_hours', 168 );
 		add_option( 'supcomp_default_compare_view', 'cost_per_active_unit' );
+		add_option( 'supcomp_price_move_window_days', 30 );
 		add_option(
 			'supcomp_affiliate_disclosure',
 			'This site contains affiliate links. When you click a "Buy Now" button and complete a purchase, we may earn a commission at no additional cost to you. Prices are sourced from each merchant\'s public listings and may not reflect current promotions. This site does not make therapeutic or health claims about any product listed.'
@@ -306,6 +307,8 @@ class Supcomp_Installer {
 			new_regular_price DECIMAL(10,4) NULL,
 			old_sale_price DECIMAL(10,4) NULL,
 			new_sale_price DECIMAL(10,4) NULL,
+			old_current_price DECIMAL(10,4) NULL,
+			new_current_price DECIMAL(10,4) NULL,
 			old_stock_status VARCHAR(32) NULL,
 			new_stock_status VARCHAR(32) NULL,
 			import_run_id BIGINT(20) UNSIGNED NULL,
