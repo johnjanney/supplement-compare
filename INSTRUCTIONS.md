@@ -100,6 +100,11 @@ any site running an SEO plugin like Yoast or Rank Math).
   returns immediately. Refresh the page after a minute to see the row's
   Last run / Status / Offers count populate. Sites with in-flight
   attempts get a light-blue highlight and a "in flight" status badge.
+  Re-clicking **Run now** on a row that's already in flight is safe — as of
+  v1.27.0 the run is deduped, so it won't stack a second attempt on top of a
+  live one. (Before re-running, the plugin also reaps any dead orphan for that
+  site, so a crashed run never blocks a fresh trigger.) If a run looks
+  genuinely stuck, see *"Runs stuck at 'in flight'"* below.
 - **All enabled sites**: click **Refresh all enabled** at the top.
 - **Scheduled**: set the **Scheduled runs** dropdown at the top of the
   Extractor Sites screen to daily / twice daily / weekly. The schedule
@@ -162,6 +167,35 @@ queued multi-page run will progress slowly. Fix: sign up for a free
 heartbeat service (cron-job.org or UptimeRobot) and have it hit
 `https://yoursite.com/wp-cron.php` every 5 minutes. Standard workaround
 for web-only WP installs.
+
+**Runs stuck at "in flight"** (as of v1.26.0). A run is shown "in flight"
+while at least one of its attempts is still open. Normally an attempt
+closes itself (complete or failed) when its last page finishes. But if the
+host kills the worker mid-run — a PHP timeout or out-of-memory on a big
+catalog — the attempt row can be left open with no job behind it, so the
+site shows "in flight" forever and the "N attempt(s)" count climbs each
+time you re-trigger it.
+
+The plugin now self-heals this:
+
+- A **stale-run reaper** marks such orphaned attempts failed automatically.
+  It runs hourly and also sweeps every time you open the Extractor Sites
+  screen — so a stuck row usually clears itself the next time you look. A
+  run that is genuinely still working (its next page is queued in Action
+  Scheduler) is **never** reaped, however long it takes.
+- The timeout is configurable: **Settings → _Extractor: stale-run timeout
+  (minutes)_** (default 30, range 5–1440). Lower it if you want stuck rows
+  cleared faster; raise it if you run very large catalogs on a slow queue.
+- To clear orphans immediately, go to **Supplement Compare → Database
+  Cleanup → Stuck extractor runs → _Clear stuck runs now_**. It fails every
+  dead attempt on the spot and leaves any live run alone. It marks attempts
+  failed only — it deletes no offers.
+
+A reaped run shows status `failed` with a "Reaped by the stale-run safety
+net…" note. Just hit **Run now** again; if it keeps dying mid-run, the
+catalog is likely too large for the host's per-request limits — set up the
+5-minute pinger above so the queue drains in smaller bites, or split the
+work by running fewer sites at once.
 
 **What can go wrong:**
 

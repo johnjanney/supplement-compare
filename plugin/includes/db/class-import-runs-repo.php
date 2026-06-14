@@ -80,6 +80,29 @@ class Supcomp_Import_Runs_Repo {
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", absint( $id ) ) );
 	}
 
+	/**
+	 * Fail any still-open import_run (validating/importing) tied to a given
+	 * extractor attempt via its export_run_id. Used by the stale-run reaper:
+	 * the extract_runs row doesn't carry its import_run_id, but an extractor
+	 * import_run is stamped with export_run_id = the attempt's run_id, so we
+	 * can close the orphaned import row from that linkage. Returns rows updated.
+	 */
+	public static function fail_open_for_export_run( $export_run_id, $error_log = '' ) {
+		global $wpdb;
+		$export_run_id = (string) $export_run_id;
+		if ( $export_run_id === '' ) {
+			return 0;
+		}
+		$table = self::table();
+		return (int) $wpdb->query( $wpdb->prepare(
+			"UPDATE {$table}
+			 SET status = 'failed', error_log = %s
+			 WHERE export_run_id = %s AND status IN ('validating','importing')",
+			(string) $error_log,
+			$export_run_id
+		) );
+	}
+
 	public static function recent( $limit = 50 ) {
 		global $wpdb;
 		$table = self::table();

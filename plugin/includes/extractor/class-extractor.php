@@ -31,20 +31,41 @@ class Supcomp_Extractor {
 	/**
 	 * Kick off a new extractor run.
 	 *
+	 * Dedupe guard: a site that already has a *live* run in flight is skipped
+	 * rather than stacking a duplicate attempt on top of it. To make sure only
+	 * genuinely live runs block, we first reap dead orphans (the liveness-
+	 * guarded reaper spares anything with a queued Action Scheduler action), so
+	 * a crashed run never wedges a site out of being re-triggered.
+	 *
 	 * @param int[]  $site_ids       Optional. If empty, all enabled sites.
 	 * @param string $triggered_by   'manual' (admin button) | 'schedule' | 'api'.
-	 * @return array{run_id:string, attempt_ids:int[], skipped:int}
+	 * @return array{run_id:string, attempt_ids:int[], skipped:int, skipped_in_flight:int}
 	 */
 	public static function run( array $site_ids = array(), $triggered_by = 'manual' ) {
-		$sites = self::resolve_sites( $site_ids );
+		// Clear dead orphans up front so the in-flight check below only sees
+		// runs that are genuinely still advancing. reap(0) considers every open
+		// attempt; its live-action guard leaves queued chains untouched.
+		if ( class_exists( 'Supcomp_Extractor_Reaper' ) ) {
+			Supcomp_Extractor_Reaper::reap( 0 );
+		}
 
-		$run_id      = Supcomp_Extract_Runs_Repo::generate_run_id();
-		$attempt_ids = array();
-		$skipped     = 0;
+		$sites = self::resolve_sites( $site_ids );
+		$open  = Supcomp_Extract_Runs_Repo::open_attempts_by_site();
+
+		$run_id            = Supcomp_Extract_Runs_Repo::generate_run_id();
+		$attempt_ids       = array();
+		$skipped           = 0;
+		$skipped_in_flight = 0;
 
 		foreach ( $sites as $site ) {
 			if ( (int) $site->enabled !== 1 && empty( $site_ids ) ) {
 				++$skipped;
+				continue;
+			}
+			// A still-open attempt after the reap means a live run is in flight —
+			// don't queue a duplicate on top of it.
+			if ( ! empty( $open[ (int) $site->id ] ) ) {
+				++$skipped_in_flight;
 				continue;
 			}
 			$attempt_id = Supcomp_Extract_Runs_Repo::create_attempt( $run_id, (int) $site->id, $triggered_by );
@@ -80,9 +101,10 @@ class Supcomp_Extractor {
 		);
 
 		return array(
-			'run_id'      => $run_id,
-			'attempt_ids' => $attempt_ids,
-			'skipped'     => $skipped,
+			'run_id'            => $run_id,
+			'attempt_ids'       => $attempt_ids,
+			'skipped'           => $skipped,
+			'skipped_in_flight' => $skipped_in_flight,
 		);
 	}
 
