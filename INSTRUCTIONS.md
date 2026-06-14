@@ -199,6 +199,22 @@ work by running fewer sites at once.
 
 **What can go wrong:**
 
+- *Run completes but pulls **0 offers**, and visiting the site bounces you
+  to an "are you 21?" / age-verification landing page* → the merchant is
+  behind a **JavaScript age gate** that redirects every server-side request
+  to a landing page, so the extractor never sees products. Fix: get past the
+  gate in your browser, then copy the verification cookie into the site's
+  **Request cookies** field (Extractor Sites → Edit). Steps:
+  1. Visit the site in your browser and click through the age gate.
+  2. Open DevTools → **Application → Cookies** (Chrome) and find the gate's
+     cookie. For the common **Age Gate** WordPress plugin it's named
+     `age_gate`. (Alternatively, on the Network tab copy the request
+     **Cookie** header.)
+  3. Paste it into **Request cookies** as `name=value` (multiple pairs
+     separated by `; `), e.g. `age_gate=ab12cd…`, then save and re-run.
+  - The cookie's value is usually a hash, so you can't just type
+    `age_gate=1` — capture the real value. Age Gate cookies last ~90 days;
+    when offers drop back to 0, the cookie has expired — re-capture it.
 - *"Site has no merchant linked"* on the row → link a Merchants row in
   the site edit form and re-run.
 - *"Auto-detect failed: Shopify, WooCommerce, and generic JSON-LD
