@@ -183,6 +183,11 @@ class Supcomp_Shortcode {
 			'trust3PT'               => __( '3PT', 'supplement-compare' ),
 			'trustCOA'               => __( 'COA', 'supplement-compare' ),
 			'staleNote'              => __( 'data may be outdated', 'supplement-compare' ),
+			// Screen-reader-only labels for the price-direction indicator. The
+			// visible cell shows just the arrow + %, per spec; these give
+			// assistive tech the meaning behind the glyph.
+			'priceUp'                => __( 'price up', 'supplement-compare' ),
+			'priceDown'              => __( 'price down', 'supplement-compare' ),
 			'lastUpdated'            => __( 'Data last updated', 'supplement-compare' ),
 			'offerCountLabel'        => __( '%d offers', 'supplement-compare' ),
 			'inStock'                => __( 'In stock', 'supplement-compare' ),

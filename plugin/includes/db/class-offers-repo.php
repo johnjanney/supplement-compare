@@ -635,25 +635,34 @@ class Supcomp_Offers_Repo {
 	public static function diff_for_price_history( $existing, $new_data ) {
 		$old_regular = self::decimal_or_null_value( $existing->regular_price );
 		$old_sale    = self::decimal_or_null_value( $existing->sale_price );
+		$old_current = self::decimal_or_null_value( $existing->current_price );
 		$old_stock   = (string) $existing->stock_status;
 
 		$new_regular = $new_data['regular_price'];
 		$new_sale    = $new_data['sale_price'];
+		$new_current = $new_data['current_price'];
 		$new_stock   = (string) $new_data['stock_status'];
 
 		$regular_changed = self::decimal_changed( $old_regular, $new_regular );
 		$sale_changed    = self::decimal_changed( $old_sale, $new_sale );
+		$current_changed = self::decimal_changed( $old_current, $new_current );
 		$stock_changed   = $old_stock !== $new_stock;
 
-		if ( ! $regular_changed && ! $sale_changed && ! $stock_changed ) {
+		if ( ! $regular_changed && ! $sale_changed && ! $current_changed && ! $stock_changed ) {
 			return null;
 		}
 
+		// old_current_price / new_current_price are the effective buyer-facing
+		// price (sale-aware) and drive the public price-direction indicator.
+		// They're snapshotted here alongside regular/sale so the public site
+		// never has to re-derive "what was the price last week".
 		return array(
 			'old_regular_price' => $old_regular,
 			'new_regular_price' => $new_regular,
 			'old_sale_price'    => $old_sale,
 			'new_sale_price'    => $new_sale,
+			'old_current_price' => $old_current,
+			'new_current_price' => $new_current,
 			'old_stock_status'  => $old_stock,
 			'new_stock_status'  => $new_stock,
 		);
