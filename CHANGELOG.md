@@ -17,6 +17,33 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.28.0] — 2026-06-14
+
+### Added
+- **Per-site "Request cookies" field on Extractor Sites.** An optional Cookie
+  header sent with every request the extractor makes to that site. The motivating
+  case: merchants behind a JavaScript **age-verification gate** (e.g. the "Age
+  Gate" WordPress plugin) edge-redirect every uncredentialed request to a landing
+  page, so a server-side fetch never sees products and the run completes with 0
+  offers. Pasting the verification cookie captured from a browser (e.g.
+  `age_gate=<value>`) lets the extractor through. Sent at the single HTTP
+  chokepoint so it covers sitemap discovery, `products.json`, the Woo Store API,
+  and product-page fetches alike; cleared between attempts so it never leaks
+  across sites sharing a queue-runner process. An explicit `Cookie` header passed
+  by a handler still wins.
+  - **Schema:** `SCHEMA_VERSION` 10 → 11 adds the nullable `request_cookies`
+    column to `extract_sites` (applied automatically via `dbDelta` on upgrade —
+    no manual migration).
+
+### Notes
+- This addresses the Example Labs (example-labs.com) "0 offers" case observed
+  after v1.27.0 — a WooCommerce store behind the Age Gate plugin. The run was
+  already *completing cleanly* (the v1.26.0 reaper/finalize work); this lets it
+  actually pull offers. The Age Gate cookie is persistent (~90 days) but
+  re-capture is needed when it expires.
+
+---
+
 ## [1.27.0] — 2026-06-14
 
 Extractor run-dashboard fix, part 2 of the
