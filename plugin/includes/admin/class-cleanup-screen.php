@@ -88,6 +88,23 @@ class Supcomp_Cleanup_Screen {
 				</tbody>
 			</table>
 
+			<h2 style="margin-top:2em"><?php esc_html_e( 'Stuck extractor runs', 'supplement-compare' ); ?></h2>
+			<?php $stuck = Supcomp_Extract_Runs_Repo::count_open_attempts(); ?>
+			<p class="description" style="max-width:70em">
+				<?php esc_html_e( 'Extractor attempts still flagged "in flight" whose Action Scheduler job died mid-run (host timeout / out-of-memory). They normally self-heal once they pass the stale-run threshold (Settings → "Extractor: stale-run timeout"), and the Extractor Sites screen sweeps them on load — but you can clear the orphans immediately here. Runs that still have a live job queued are left untouched. This marks the attempt failed; it deletes no offers.', 'supplement-compare' ); ?>
+			</p>
+			<p>
+				<strong><?php echo (int) $stuck; ?></strong> <?php esc_html_e( 'open attempt(s) currently in flight.', 'supplement-compare' ); ?>
+				<?php if ( $stuck > 0 ) : ?>
+					<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline;margin-left:.5em" onsubmit="return confirm('<?php echo esc_js( __( 'Mark all orphaned (dead) extractor runs as failed? Runs with a live job still queued are left untouched.', 'supplement-compare' ) ); ?>');">
+						<input type="hidden" name="action" value="supcomp_run_cleanup">
+						<input type="hidden" name="op" value="stuck_extract_runs">
+						<?php wp_nonce_field( self::NONCE ); ?>
+						<button type="submit" class="button"><?php esc_html_e( 'Clear stuck runs now', 'supplement-compare' ); ?></button>
+					</form>
+				<?php endif; ?>
+			</p>
+
 			<h2 style="margin-top:2em"><?php esc_html_e( 'How to soft-trash a row', 'supplement-compare' ); ?></h2>
 			<ul style="list-style:disc;margin-left:2em">
 				<li><?php echo wp_kses( __( '<strong>Offer:</strong> Pending Queue → open the row → Save &amp; Reject. Or batch via the bulk actions dropdown.', 'supplement-compare' ), array( 'strong' => array() ) ); ?></li>
@@ -149,6 +166,12 @@ class Supcomp_Cleanup_Screen {
 			case 'empty_retired_ingredients':
 				$result = Supcomp_Deletion_Service::bulk_delete_empty_retired_ingredients();
 				break;
+			case 'stuck_extract_runs':
+				// Threshold 0 = consider every open attempt; the reaper's
+				// live-action guard still spares in-flight chains.
+				$reap   = Supcomp_Extractor_Reaper::reap( 0 );
+				$result = array( 'deleted' => (int) $reap['deleted'], 'considered' => (int) $reap['considered'] );
+				break;
 			default:
 				wp_safe_redirect( add_query_arg( 'supcomp_notice', 'cleanup_unknown', $base ) );
 				exit;
@@ -174,6 +197,22 @@ class Supcomp_Cleanup_Screen {
 		$op         = isset( $_GET['supcomp_cleanup_op'] )         ? sanitize_key( wp_unslash( $_GET['supcomp_cleanup_op'] ) ) : '';
 		$deleted    = isset( $_GET['supcomp_cleanup_deleted'] )    ? absint( $_GET['supcomp_cleanup_deleted'] )                : 0;
 		$considered = isset( $_GET['supcomp_cleanup_considered'] ) ? absint( $_GET['supcomp_cleanup_considered'] )             : 0;
+
+		// The stuck-run reaper isn't a delete cascade — its "skipped" count
+		// means "still had a live job, left alone", so give it its own copy.
+		if ( $op === 'stuck_extract_runs' ) {
+			$left = max( 0, $considered - $deleted );
+			printf(
+				'<div class="notice notice-success is-dismissible"><p>%s</p></div>',
+				esc_html( sprintf(
+					/* translators: 1: count reaped, 2: count left in flight */
+					__( 'Cleared %1$d stuck extractor run(s). %2$d still had a live job queued and were left alone.', 'supplement-compare' ),
+					$deleted,
+					$left
+				) )
+			);
+			return;
+		}
 
 		$op_labels = array(
 			'rejected_offers'           => __( 'rejected offers', 'supplement-compare' ),

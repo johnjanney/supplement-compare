@@ -54,6 +54,11 @@ class Supcomp_Extract_Sites_Screen {
 	// ---------- list ----------
 
 	private static function render_list() {
+		// Self-heal: fail any orphaned "in flight" attempts (dead chains older
+		// than the configured threshold) before reading state, so the table
+		// below reflects reality. Throttled internally.
+		Supcomp_Extractor_Reaper::maybe_reap_on_load();
+
 		$sites          = Supcomp_Extract_Sites_Repo::list_all();
 		$open_attempts  = Supcomp_Extract_Runs_Repo::open_attempts_by_site();
 		$current_freq   = Supcomp_Extractor_Scheduler::get_schedule();
@@ -368,19 +373,26 @@ class Supcomp_Extract_Sites_Screen {
 		}
 		// 'all' → pass empty $site_ids, orchestrator picks up all enabled.
 
-		$result = Supcomp_Extractor::run( $site_ids, 'manual' );
+		$result   = Supcomp_Extractor::run( $site_ids, 'manual' );
+		$queued   = count( $result['attempt_ids'] );
+		$inflight = isset( $result['skipped_in_flight'] ) ? (int) $result['skipped_in_flight'] : 0;
 
-		if ( empty( $result['attempt_ids'] ) ) {
-			wp_safe_redirect( add_query_arg( 'supcomp_notice', 'queued_none', $base ) );
+		if ( $queued === 0 && $inflight === 0 ) {
+			$notice = 'queued_none';
+		} elseif ( $queued === 0 ) {
+			$notice = 'queued_inflight';
 		} else {
-			wp_safe_redirect( add_query_arg(
-				array(
-					'supcomp_notice'        => 'queued',
-					'supcomp_queued_count'  => count( $result['attempt_ids'] ),
-				),
-				$base
-			) );
+			$notice = 'queued';
 		}
+
+		wp_safe_redirect( add_query_arg(
+			array(
+				'supcomp_notice'           => $notice,
+				'supcomp_queued_count'     => $queued,
+				'supcomp_skipped_inflight' => $inflight,
+			),
+			$base
+		) );
 		exit;
 	}
 
@@ -417,6 +429,7 @@ class Supcomp_Extract_Sites_Screen {
 		}
 		$type     = sanitize_key( wp_unslash( $_GET['supcomp_notice'] ) );
 		$queued_count = isset( $_GET['supcomp_queued_count'] ) ? absint( $_GET['supcomp_queued_count'] ) : 0;
+		$inflight     = isset( $_GET['supcomp_skipped_inflight'] ) ? absint( $_GET['supcomp_skipped_inflight'] ) : 0;
 		$queued_text  = sprintf(
 			/* translators: %d = number of sites queued */
 			_n(
@@ -427,15 +440,38 @@ class Supcomp_Extract_Sites_Screen {
 			),
 			$queued_count
 		);
+		// A run can both queue some sites and skip others that are already in
+		// flight — append the dedupe note so the operator knows nothing stacked.
+		if ( $inflight > 0 ) {
+			$queued_text .= ' ' . sprintf(
+				/* translators: %d = number of sites skipped because a run was already in flight */
+				_n(
+					'%d site already had a run in flight and was skipped.',
+					'%d sites already had a run in flight and were skipped.',
+					$inflight,
+					'supplement-compare'
+				),
+				$inflight
+			);
+		}
+
+		$inflight_only_text = ( $inflight === 1 )
+			? __( 'No new run queued — that site already has a run in flight. Re-clicking "Run now" while a run is in flight is safely ignored; it no longer stacks duplicate attempts.', 'supplement-compare' )
+			: sprintf(
+				/* translators: %d = number of sites already in flight */
+				__( 'No new run queued — all %d targeted sites already have a run in flight. Re-running while a run is in flight is safely ignored; it no longer stacks duplicate attempts.', 'supplement-compare' ),
+				$inflight
+			);
 
 		$messages = array(
-			'saved'          => array( 'success', __( 'Site updated.', 'supplement-compare' ) ),
-			'created'        => array( 'success', __( 'Site added.', 'supplement-compare' ) ),
-			'deleted'        => array( 'success', __( 'Site deleted.', 'supplement-compare' ) ),
-			'queued'         => array( 'success', $queued_text ),
-			'queued_none'    => array( 'warning', __( 'No sites were queued — check that at least one site is enabled and that Action Scheduler is loaded.', 'supplement-compare' ) ),
-			'schedule_saved' => array( 'success', __( 'Schedule updated. WP-Cron reconciled.', 'supplement-compare' ) ),
-			'error'          => array( 'error',   __( 'Something went wrong — check that slug is unique and URL is well-formed.', 'supplement-compare' ) ),
+			'saved'           => array( 'success', __( 'Site updated.', 'supplement-compare' ) ),
+			'created'         => array( 'success', __( 'Site added.', 'supplement-compare' ) ),
+			'deleted'         => array( 'success', __( 'Site deleted.', 'supplement-compare' ) ),
+			'queued'          => array( 'success', $queued_text ),
+			'queued_none'     => array( 'warning', __( 'No sites were queued — check that at least one site is enabled and that Action Scheduler is loaded.', 'supplement-compare' ) ),
+			'queued_inflight' => array( 'info', $inflight_only_text ),
+			'schedule_saved'  => array( 'success', __( 'Schedule updated. WP-Cron reconciled.', 'supplement-compare' ) ),
+			'error'           => array( 'error',   __( 'Something went wrong — check that slug is unique and URL is well-formed.', 'supplement-compare' ) ),
 		);
 		if ( ! isset( $messages[ $type ] ) ) {
 			return;

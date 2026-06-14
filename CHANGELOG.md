@@ -17,6 +17,73 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.27.0] — 2026-06-14
+
+Extractor run-dashboard fix, part 2 of the
+[`EXTRACTOR_RUN_DASHBOARD_FIX_PLAN.md`](EXTRACTOR_RUN_DASHBOARD_FIX_PLAN.md)
+(Phase 2 — prevent recurrence). v1.26.0 made stuck runs self-heal; this stops
+them stacking up in the first place.
+
+### Added
+- **Dedupe guard on `Supcomp_Extractor::run()`.** A site that already has a
+  *live* run in flight is now skipped instead of having a duplicate attempt
+  queued on top of it — so "Run now" (or a scheduled fire landing while the
+  previous one is still going) can no longer pile up the 5–12 attempts that
+  made the dashboard unreadable. To make sure only genuinely live runs block a
+  re-trigger, `run()` first reaps dead orphans (the liveness-guarded reaper
+  spares anything with a queued Action Scheduler action), so a crashed run
+  never wedges a site out of being re-run. `run()` now returns
+  `skipped_in_flight`, surfaced in the Extractor Sites admin notice ("N sites
+  already had a run in flight and were skipped" / "No new run queued — already
+  in flight").
+
+### Changed
+- Re-clicking **Run now** on an in-flight site is now a safe no-op (deduped)
+  rather than queuing another attempt. `INSTRUCTIONS.md` updated to match.
+
+---
+
+## [1.26.0] — 2026-06-14
+
+Extractor run-dashboard fix, part 1 of the
+[`EXTRACTOR_RUN_DASHBOARD_FIX_PLAN.md`](EXTRACTOR_RUN_DASHBOARD_FIX_PLAN.md)
+(Phase 1 — self-healing). Background: several Extractor Sites were stuck
+showing **"in flight"** with 5–12 "attempt(s)" even though Action Scheduler's
+queue was healthy (jobs completing, ~nothing pending/failed). Root cause: an
+extractor attempt's `extract_runs` row was only ever closed on the worker's
+happy path — a hard PHP fatal (host timeout / out-of-memory) mid-run left the
+row `running`/`pending` forever, there was no reaper to clean it up, and every
+re-trigger created a fresh attempt, so orphans piled up. This release makes the
+dashboard self-healing.
+
+### Added
+- **Stale-run reaper (`Supcomp_Extractor_Reaper`).** Fails any open extractor
+  attempt that is both (a) older than a configurable threshold and (b) has no
+  live Action Scheduler page action still queued for it. The live-action check
+  is what distinguishes a *dead* chain (orphan → reap) from a *slow-but-live*
+  one (still paginating → leave alone), so a long legitimate run is never
+  killed no matter how long it takes. Runs on two triggers: an hourly recurring
+  Action Scheduler action, and a throttled lazy sweep whenever the Extractor
+  Sites screen is loaded (so the dashboard self-heals on view). When the reaper
+  closes an attempt it also fails the orphaned `import_run` (matched via
+  `export_run_id`) and drops the generic-handler URL transient.
+- **New Settings option: _Extractor: stale-run timeout (minutes)_** (default
+  **30**, range 5–1440). Controls the reaper threshold. Lives next to the
+  staleness thresholds on the Settings page.
+- **"Clear stuck runs now" action on the Database Cleanup screen.** Shows the
+  current open-attempt count and, on confirm, reaps every orphaned (dead)
+  attempt immediately regardless of age. In-flight chains with a live queued
+  job are still spared. Marks attempts failed; deletes no offers.
+
+### Fixed
+- **Extractor attempts can no longer get stuck "in flight".** `execute_page()`
+  is now wrapped in `try/catch/finally`: any uncaught error, or any code path
+  that exits without handing off to a follow-on page or finalizing, now fails
+  the attempt (closing its `import_run`) instead of orphaning the row. The
+  reaper backstops the one case `finally` can't cover — a hard process kill.
+
+---
+
 ## [1.25.0] — 2026-06-13
 
 ### Added
