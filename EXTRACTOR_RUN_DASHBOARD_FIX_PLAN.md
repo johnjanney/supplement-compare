@@ -219,3 +219,11 @@ Only after the dashboard is trustworthy and run durations are measurable:
   full end-to-end needs John's real captured cookie. Files: installer, extract-sites
   repo, extractor-http, worker, extract-sites-screen, version + CHANGELOG + README +
   INSTRUCTIONS. `php -l` clean.
+- **2026‑06‑14** — Probed all 16 merchants. **14 work with no cookie** (Woo Store API
+  or Shopify endpoint answers a plain request; several "age gates" are browser-only
+  overlays). Two exceptions: **example-chems.is** blocks the crawler UA (403) but allows
+  a browser UA → shipped **v1.29.0**: HTTP client auto-retries a 403 once with a
+  browser User-Agent (`class-extractor-http.php`, no schema/config). **example-labs.com**
+  is a hard target (REST API 401-locked + edge age-gate); `age_gate=21` does not
+  bypass — deprioritized. Action for operator: remove the bogus Example Labs cookie; set
+  no cookies on the other sites. `php -l` clean.

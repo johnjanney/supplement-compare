@@ -17,6 +17,29 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.29.0] — 2026-06-14
+
+### Added
+- **Automatic browser User-Agent fallback on HTTP 403.** When a request is
+  refused with a 403 — typically a Cloudflare/WAF rule that blocks the
+  extractor's honest `Supcomp-Extractor/…` crawler UA but allows a normal
+  browser — the HTTP client retries the request **once** with a browser
+  User-Agent before giving up. The retry is immediate (no backoff) and doesn't
+  consume a retry-budget slot. Discovered while probing the merchant list:
+  example-chems.is returns 403 to the crawler UA but 200 (real products) to a
+  browser UA. No configuration needed; covers any future UA-blocked site.
+
+### Notes
+- Probe of the 16 configured merchants found **14 work with no special config**
+  (their Woo Store API / Shopify endpoint answers a plain server request; the
+  age gates on several are browser-only overlays that don't block the API).
+  example-chems.is needed this UA fallback. example-labs.com remains a hard
+  target (it locks its WordPress REST API with a 401 *and* edge-gates pages) —
+  the per-site cookie (v1.28.0) can only help its generic-scrape path, if its
+  product pages expose JSON-LD.
+
+---
+
 ## [1.28.0] — 2026-06-14
 
 ### Added

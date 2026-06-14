@@ -30,6 +30,14 @@ class Supcomp_Extractor_Http {
 	const DEFAULT_TIMEOUT          = 20;
 
 	/**
+	 * Fallback User-Agent used for a one-shot retry when a request is refused
+	 * with 403 — typically a Cloudflare/WAF rule that blocks our honest
+	 * crawler UA but lets a normal browser through (e.g. example-chems.is). We
+	 * try the honest UA first and only fall back on an outright block.
+	 */
+	const BROWSER_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+	/**
 	 * Hard cap on the response body we will buffer into memory before the
 	 * transport aborts the transfer. Bounds a memory-exhaustion DoS from a
 	 * hostile merchant endpoint (a paginated products.json page or a single
@@ -140,11 +148,14 @@ class Supcomp_Extractor_Http {
 			return $safe;
 		}
 
-		$last_error = null;
-		$max        = max( 0, (int) $args['max_retries'] );
+		$last_error       = null;
+		$max              = max( 0, (int) $args['max_retries'] );
+		$ua               = (string) $args['user_agent'];
+		$browser_ua_tried = false;
+		$skip_backoff     = false;
 
 		for ( $attempt = 0; $attempt <= $max; $attempt++ ) {
-			if ( $attempt > 0 ) {
+			if ( $attempt > 0 && ! $skip_backoff ) {
 				$delay = (int) pow( 2, $attempt );
 				if ( $last_error instanceof WP_Error === false && isset( $last_error['retry_after'] ) ) {
 					$delay = max( $delay, (int) $last_error['retry_after'] );
@@ -154,6 +165,7 @@ class Supcomp_Extractor_Http {
 					sleep( $delay );
 				}
 			}
+			$skip_backoff = false;
 
 			// wp_safe_remote_get() sets reject_unsafe_urls => true, which runs
 			// WP's own wp_http_validate_url() on the request URL and redirect
@@ -167,7 +179,7 @@ class Supcomp_Extractor_Http {
 				array(
 					'headers'             => $args['headers'],
 					'timeout'             => (int) $args['timeout'],
-					'user-agent'          => (string) $args['user_agent'],
+					'user-agent'          => $ua,
 					'redirection'         => 5,
 					'limit_response_size' => (int) apply_filters( 'supcomp_extractor_max_response_bytes', self::MAX_RESPONSE_BYTES ),
 				)
@@ -179,6 +191,17 @@ class Supcomp_Extractor_Http {
 			}
 
 			$status = (int) wp_remote_retrieve_response_code( $response );
+
+			// One-shot User-Agent upgrade on a bot-block 403: many WAFs refuse
+			// our honest crawler UA but allow a browser. Retry immediately with
+			// a browser UA (no backoff, doesn't consume a retry-budget slot).
+			if ( $status === 403 && ! $browser_ua_tried && $ua !== self::BROWSER_USER_AGENT ) {
+				$browser_ua_tried = true;
+				$ua               = self::BROWSER_USER_AGENT;
+				$skip_backoff     = true;
+				--$attempt;
+				continue;
+			}
 
 			if ( in_array( $status, self::$retryable_statuses, true ) ) {
 				$retry_after_header = wp_remote_retrieve_header( $response, 'retry-after' );
