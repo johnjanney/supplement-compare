@@ -231,6 +231,7 @@ class Supcomp_Extract_Sites_Screen {
 		$url     = $is_edit ? $site->site_url : '';
 		$hint    = $is_edit ? $site->platform_hint : 'auto';
 		$merch   = $is_edit ? (int) $site->merchant_id : 0;
+		$cookies = $is_edit && isset( $site->request_cookies ) ? (string) $site->request_cookies : '';
 		$enabled = $is_edit ? (int) $site->enabled : 1;
 
 		$merchants = Supcomp_Merchants_Repo::active_for_select();
@@ -294,6 +295,13 @@ class Supcomp_Extract_Sites_Screen {
 						</td>
 					</tr>
 					<tr>
+						<th><label for="supcomp-site-cookies"><?php esc_html_e( 'Request cookies', 'supplement-compare' ); ?></label></th>
+						<td>
+							<input type="text" id="supcomp-site-cookies" name="request_cookies" value="<?php echo esc_attr( $cookies ); ?>" class="large-text code" placeholder="age_gate=1; age_gate_birthdate=1990-01-01">
+							<p class="description"><?php esc_html_e( 'Optional. A Cookie header sent with every request to this site — use it to get past an age-verification gate that redirects the extractor to a landing page (the run otherwise completes with 0 offers). Capture it from your browser after you click through the gate: DevTools → Application → Cookies (or copy the request "Cookie" header from the Network tab), then paste the relevant name=value pairs here, separated by "; ". Leave blank for normal sites.', 'supplement-compare' ); ?></p>
+						</td>
+					</tr>
+					<tr>
 						<th><?php esc_html_e( 'Enabled', 'supplement-compare' ); ?></th>
 						<td>
 							<label><input type="checkbox" name="enabled" value="1" <?php checked( $enabled, 1 ); ?>> <?php esc_html_e( 'Include in scheduled extractor runs', 'supplement-compare' ); ?></label>
@@ -323,9 +331,10 @@ class Supcomp_Extract_Sites_Screen {
 			'slug'          => isset( $_POST['slug'] ) ? wp_unslash( $_POST['slug'] ) : '',
 			'label'         => isset( $_POST['label'] ) ? wp_unslash( $_POST['label'] ) : '',
 			'site_url'      => isset( $_POST['site_url'] ) ? wp_unslash( $_POST['site_url'] ) : '',
-			'platform_hint' => isset( $_POST['platform_hint'] ) ? wp_unslash( $_POST['platform_hint'] ) : 'auto',
-			'merchant_id'   => isset( $_POST['merchant_id'] ) ? absint( $_POST['merchant_id'] ) : 0,
-			'enabled'       => isset( $_POST['enabled'] ),
+			'platform_hint'   => isset( $_POST['platform_hint'] ) ? wp_unslash( $_POST['platform_hint'] ) : 'auto',
+			'merchant_id'     => isset( $_POST['merchant_id'] ) ? absint( $_POST['merchant_id'] ) : 0,
+			'request_cookies' => isset( $_POST['request_cookies'] ) ? wp_unslash( $_POST['request_cookies'] ) : '',
+			'enabled'         => isset( $_POST['enabled'] ),
 		);
 
 		$base = admin_url( 'admin.php?page=' . self::PAGE_SLUG );

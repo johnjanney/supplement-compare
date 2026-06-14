@@ -109,6 +109,13 @@ class Supcomp_Extract_Sites_Repo {
 			$mid = absint( $data['merchant_id'] );
 			$clean['merchant_id'] = $mid > 0 ? $mid : null;
 		}
+		if ( array_key_exists( 'request_cookies', $data ) ) {
+			// Stored verbatim as a Cookie header value (e.g. an age-gate bypass
+			// cookie). Collapse CR/LF to spaces as a header-injection guard,
+			// strip tags, trim, and cap length.
+			$raw = preg_replace( '/[\r\n]+/', ' ', (string) $data['request_cookies'] );
+			$clean['request_cookies'] = self::trim_to( trim( wp_strip_all_tags( $raw ) ), 2048 );
+		}
 		if ( array_key_exists( 'enabled', $data ) ) {
 			$clean['enabled'] = self::truthy( $data['enabled'] ) ? 1 : 0;
 		}

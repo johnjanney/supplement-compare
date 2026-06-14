@@ -40,6 +40,7 @@ class Supcomp_Extractor_Worker {
 			'site_url'       => (string) $site_row->site_url,
 			'platform_hint'  => (string) $site_row->platform_hint,
 			'merchant_id'    => (int) $site_row->merchant_id,
+			'request_cookies'=> isset( $site_row->request_cookies ) ? (string) $site_row->request_cookies : '',
 			'triggered_by'   => $triggered_by,
 			'page'           => 1,
 			'platform_used'  => '', // filled in on page 1 once a handler succeeds
@@ -91,6 +92,11 @@ class Supcomp_Extractor_Worker {
 
 		$handed_off = false;
 		try {
+			// Send any per-site cookie (e.g. an age-gate bypass) with every HTTP
+			// request this attempt makes. Cleared in finally so it can't leak to
+			// another site sharing the queue-runner process.
+			Supcomp_Extractor_Http::set_request_cookies( isset( $state['request_cookies'] ) ? (string) $state['request_cookies'] : '' );
+
 			if ( (int) $state['page'] === 1 && $attempt->status === 'pending' ) {
 				Supcomp_Extract_Runs_Repo::set_running( (int) $state['attempt_id'] );
 			}
@@ -225,6 +231,10 @@ class Supcomp_Extractor_Worker {
 			);
 			$handed_off = true;
 		} finally {
+			// Clear the per-attempt cookie so the next action in this process
+			// starts clean.
+			Supcomp_Extractor_Http::set_request_cookies( '' );
+
 			if ( ! $handed_off ) {
 				self::finalize_attempt_failed(
 					$state,
