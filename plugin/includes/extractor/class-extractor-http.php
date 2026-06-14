@@ -41,6 +41,21 @@ class Supcomp_Extractor_Http {
 	private static $retryable_statuses = array( 408, 429, 500, 502, 503, 504 );
 
 	/**
+	 * Cookie header value sent with every request for the current attempt
+	 * (e.g. an age-gate bypass cookie configured on the site). Set per-attempt
+	 * by the worker and cleared when the attempt ends, so it never leaks across
+	 * sites sharing a queue-runner process.
+	 */
+	private static $request_cookies = '';
+
+	/**
+	 * Set (or clear, with '') the Cookie header for subsequent get() calls.
+	 */
+	public static function set_request_cookies( $cookies ) {
+		self::$request_cookies = trim( (string) $cookies );
+	}
+
+	/**
 	 * SSRF guard. Returns true when the URL is safe to fetch server-side, or a
 	 * WP_Error describing why not. Two checks:
 	 *
@@ -110,6 +125,13 @@ class Supcomp_Extractor_Http {
 				'max_retries' => self::MAX_RETRIES,
 			)
 		);
+
+		// Attach the per-attempt cookie (age-gate bypass etc.) at this single
+		// chokepoint so every request — sitemap, products.json, product pages —
+		// carries it. An explicit Cookie header passed in $args always wins.
+		if ( self::$request_cookies !== '' && ! self::has_header( $args['headers'], 'cookie' ) ) {
+			$args['headers']['Cookie'] = self::$request_cookies;
+		}
 
 		// SSRF guard: reject non-http(s) and hosts that resolve to a
 		// private/reserved address before we make any request.
@@ -238,6 +260,15 @@ class Supcomp_Extractor_Http {
 		}
 		$delta = $ts - time();
 		return max( 0, min( $delta, self::RETRY_AFTER_CAP_SECONDS ) );
+	}
+
+	private static function has_header( array $headers, $name ) {
+		foreach ( array_keys( $headers ) as $key ) {
+			if ( strcasecmp( (string) $key, (string) $name ) === 0 ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static function headers_to_array( $headers ) {

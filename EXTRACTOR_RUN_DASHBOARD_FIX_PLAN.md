@@ -124,10 +124,15 @@ reaper is the safety net; the `try/finally` and dedupe reduce orphans at the sou
       lost transient, so it is no longer a correctness risk, only an efficiency one
       (a large generic site may re-discover URLs). Revisit if generic sites prove slow.
 
-### Phase 3 — Visibility
-- [ ] **3a.** Surface **last error / last finished status** per site on the Extractor
-      Sites screen (and/or Extractor Runs screen) so failures are visible in-admin.
-- [ ] **3b.** Clean up the 66 stale **failed** Action Scheduler actions (housekeeping).
+### Phase 3 — Visibility — **already satisfied; no code shipped**
+- [-] **3a.** Already covered by existing screens. Extractor Runs has status filters,
+      a 24h summary, per-attempt platform/duration/offers/error-excerpt, and a detail
+      view with the full error log + sibling attempts; Extractor Sites shows each
+      site's last error in a red row. Reaped runs surface their failure message there.
+      No new code needed.
+- [-] **3b.** No code needed — Action Scheduler auto-purges completed/failed actions on
+      its built-in ~30-day retention, so the 66 stale failures clear themselves. To
+      remove them now: **Tools → Scheduled Actions → Failed → bulk delete**.
 
 ### Phase 4 — Reliability (ops, mostly non-code)
 - [ ] **4a.** Set up a reliable cron trigger for `wp-cron.php`:
@@ -194,3 +199,23 @@ Only after the dashboard is trustworthy and run durations are measurable:
   clean. 2b deferred (same call as Q1). Phase 1 + 2a now cover the dashboard fully:
   orphans self-heal AND can't re-accumulate. Remaining: Phase 3 (visibility),
   Phase 4 (operator pinger/cron).
+- **2026‑06‑14** — **Phase 4 done** (operator): Hostinger hPanel cron runs
+  `wget -q -O /dev/null "https://example.com/wp-cron.php?doing_wp_cron"` every 5 min.
+  Queue confirmed draining live (pending backlog cleared; runs moving
+  pending→running→complete with offers/platform populating). See [[extractor-cron-pinger]].
+- **2026‑06‑14** — **PR #3 merged to `main`** (`5eb88c3`); `v1.27.0` tagged; branch
+  deleted. **Phase 3 found already satisfied** by existing admin screens + AS
+  auto-retention — no code shipped. **Project complete.** Separately diagnosed
+  **Example Labs = WooCommerce site behind a JS age-verification gate** (edge-redirects
+  uncredentialed requests to /landing-page/; verification cookie set client-side post-
+  click). Our fix works (it completes cleanly, 0 offers = access not bug). A general
+  fix (per-site request-cookie field) is NEW scope, decision pending — not in this plan.
+- **2026‑06‑14** — Operator chose to build the per-site cookie field. **Shipped as
+  v1.28.0** (separate from this plan): optional "Request cookies" field on Extractor
+  Sites → injected at the HTTP `get()` chokepoint → covers all handlers; schema
+  bump 10→11 (`request_cookies` column, auto-migrated). Probed Example Labs: confirmed
+  the "Age Gate" WP plugin, cookie `age_gate`, 90-day lifetime, hashed value (must
+  be browser-captured). Mechanism validated (edge gate is cookie-conditional);
+  full end-to-end needs John's real captured cookie. Files: installer, extract-sites
+  repo, extractor-http, worker, extract-sites-screen, version + CHANGELOG + README +
+  INSTRUCTIONS. `php -l` clean.
