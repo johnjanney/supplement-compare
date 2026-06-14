@@ -17,6 +17,45 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.25.0] — 2026-06-13
+
+### Added
+- **Price-direction indicator on the compare table.** To the right of each
+  merchant's current price on the per-canonical detail view, a small coloured
+  arrow + % change shows which way that merchant's price last moved — **green
+  ▼** for a drop, **red ▲** for a rise (inverted from stock-market convention
+  because, for a buyer, a price drop is the good outcome). The arrow shape
+  carries the meaning so the signal still reads without colour, and a
+  screen-reader-only label ("price down 4%") backs the glyph. The visible cell
+  shows only the arrow and the percentage — no dates or narrative text.
+  - **"Last move" semantics with a drop-off window.** The indicator reflects
+    an offer's single most recent effective-price change, shown only when that
+    change happened within an operator-set number of days. Prices that have
+    been flat longer than the window — or have no recorded history — show
+    nothing.
+  - **New Settings option: _Price-direction indicator (days)_** (default
+    **30**, editable, `0` disables the feature entirely). Lives next to the
+    staleness thresholds on the Settings page.
+
+### Changed
+- **`price_history` now snapshots the effective (current) price on every logged
+  change.** Two columns were added — `old_current_price` / `new_current_price`
+  — and a `current_price` change now independently triggers a history row (it
+  previously keyed on regular/sale/stock only). This is what lets the public
+  site render a price-direction signal without re-deriving past prices.
+  Schema version bumped to `10`; the change applies automatically via the
+  `dbDelta` upgrade path on the next admin page load. Rows written before this
+  release have NULL current-price columns and are skipped by the indicator —
+  it lights up as fresh history accrues.
+
+### Notes
+- Pre-launch caveat: like any history-based signal, the indicator only appears
+  once an offer's price has actually moved at least once since this release.
+  See `ADD_CHARTS.md` (Phase 1) for the rationale and the relationship to the
+  deferred full price-trend chart.
+
+---
+
 ## [1.24.2] — 2026-06-11
 
 ### Changed

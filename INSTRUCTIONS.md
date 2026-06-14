@@ -150,9 +150,11 @@ delisted it) and then reappears in a later run, the plugin automatically
 restores it to `active` — no manual re-approval needed.
 
 **Price-history logging.** When a re-run updates an existing offer's
-price or stock, the change is logged to the `price_history` table. The
-operator-facing surfacing for that history isn't built yet, but the data
-is there for future analytics or sale-detection features.
+price or stock, the change is logged to the `price_history` table —
+including the old/new effective (current) price as of v1.25.0. The first
+public surfacing of that history is the **price-direction indicator** on
+the compare table (see §14); the table also remains a foundation for
+future analytics or a fuller price-trend chart.
 
 **WP-Cron caveat on low-traffic sites.** Action Scheduler ticks on
 visitor requests + WP-Cron. If your site sees hours between visits, a
@@ -789,6 +791,18 @@ shortcode there.
   (**Default compare-table view**). When **Multi compare-table view** is
   unchecked, the toggle is hidden and the Default view is the only view
   visitors see.
+- **Price-direction indicator (detail view).** To the right of each
+  merchant's current price, a small coloured arrow + % change shows which
+  way that merchant's price last moved — **green ▼** for a drop, **red ▲**
+  for a rise (deliberately buyer's-eye: a price drop is the good outcome).
+  It appears only when the price last changed within the window set on the
+  Settings page (**Price-direction indicator (days)**, default 30); a price
+  that has been flat longer than that, or has no recorded history, shows
+  nothing. Set the window to **0** to turn the indicator off entirely. The
+  arrow reflects the single most recent change (not a 30-day net move), and
+  reads the old/new effective price captured in `price_history`, so it only
+  starts appearing once an offer's price has actually moved at least once
+  since v1.25.0.
 - A list-or-detail table, hash-routed (`#/` for list, `#/canonical/<slug>`
   for detail).
 - Below the table: the affiliate disclosure (configurable in Settings) and

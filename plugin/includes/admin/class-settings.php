@@ -7,6 +7,10 @@
  *   supcomp_default_currency        — ISO 4217, defaults to USD
  *   supcomp_staleness_warn_hours    — soft threshold (offer visually downgraded)
  *   supcomp_staleness_hide_hours    — hard threshold (offer excluded from public JSON)
+ *   supcomp_price_move_window_days  — on the compare table, show a price-direction
+ *                                     arrow + % change to the right of a merchant's
+ *                                     price when that price last moved within this
+ *                                     many days. 0 disables the indicator.
  *   supcomp_affiliate_disclosure    — disclosure text rendered on every comparison page
  *   supcomp_default_compare_view    — which compare-table column set loads by default
  *                                     ('cost_per_serving' | 'cost_per_active_unit')
@@ -72,6 +76,16 @@ class Supcomp_Settings {
 				'type'              => 'integer',
 				'sanitize_callback' => 'absint',
 				'default'           => 168,
+			)
+		);
+
+		register_setting(
+			self::OPTION_GROUP,
+			'supcomp_price_move_window_days',
+			array(
+				'type'              => 'integer',
+				'sanitize_callback' => array( __CLASS__, 'sanitize_price_move_window' ),
+				'default'           => 30,
 			)
 		);
 
@@ -173,6 +187,14 @@ class Supcomp_Settings {
 		);
 
 		add_settings_field(
+			'supcomp_price_move_window_days',
+			__( 'Price-direction indicator (days)', 'supplement-compare' ),
+			array( __CLASS__, 'render_price_move_window_field' ),
+			self::PAGE_SLUG,
+			self::SECTION_ID
+		);
+
+		add_settings_field(
 			'supcomp_affiliate_disclosure',
 			__( 'Affiliate disclosure text', 'supplement-compare' ),
 			array( __CLASS__, 'render_disclosure_field' ),
@@ -248,6 +270,12 @@ class Supcomp_Settings {
 		return (bool) $value;
 	}
 
+	public static function sanitize_price_move_window( $value ) {
+		// 0 disables the indicator; cap at ~10 years so a fat-fingered entry
+		// can't make "within the window" meaningless.
+		return min( absint( $value ), 3650 );
+	}
+
 	public static function sanitize_currency( $value ) {
 		$value = strtoupper( preg_replace( '/[^A-Za-z]/', '', (string) $value ) );
 		$value = substr( $value, 0, 3 );
@@ -289,6 +317,15 @@ class Supcomp_Settings {
 			'<input type="number" min="1" name="supcomp_staleness_hide_hours" value="%d" class="small-text" /> <p class="description">%s</p>',
 			$value,
 			esc_html__( 'Offers older than this are excluded from the public JSON entirely. Default 168 hours (7 days).', 'supplement-compare' )
+		);
+	}
+
+	public static function render_price_move_window_field() {
+		$value = (int) get_option( 'supcomp_price_move_window_days', 30 );
+		printf(
+			'<input type="number" min="0" max="3650" name="supcomp_price_move_window_days" value="%d" class="small-text" /> <p class="description">%s</p>',
+			$value,
+			esc_html__( 'On the per-product compare table, show a coloured arrow and % change to the right of a merchant\'s price when that price last changed within this many days (green ▼ for a drop, red ▲ for a rise). Prices that last moved before the window show no indicator. Default 30 days. Set to 0 to turn it off entirely.', 'supplement-compare' )
 		);
 	}
 

@@ -199,6 +199,25 @@
 	font-size: 12px;
 }
 
+/* Price-direction indicator (arrow + % to the right of the price). Down = green
+   (a price drop is good for the buyer), up = red — deliberately inverted from
+   stock-market convention. The arrow glyph carries the meaning so the signal
+   still reads without colour. */
+.supcomp-pricemove {
+	display: inline-block;
+	margin-left: 5px;
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.supcomp-pricemove-down {
+	color: #1a7f37;
+}
+.supcomp-pricemove-up {
+	color: #c4314b;
+}
+
 .supcomp-coupon {
 	display: inline-block;
 	padding: 2px 6px;

@@ -493,6 +493,7 @@
 				}
 				html += '<td class="supcomp-num">';
 				html += formatPrice(o.current_price, o.currency);
+				html += priceMoveIndicator(o);
 				if (o.on_sale && o.regular_price && o.regular_price > o.current_price) {
 					html += '<br><span class="supcomp-was">' + escapeHtml(formatPrice(o.regular_price, o.currency)) + '</span>';
 				}
@@ -799,6 +800,31 @@
 		var unit = displayUnit((canonical && canonical.active_unit_label) || (canonical && canonical.strength_unit) || '');
 		var fmt = formatPrice(offer.cost_per_active_unit, offer.currency) + (unit ? ' / ' + escapeHtml(unit) : '');
 		return fmt;
+	}
+
+	// Price-direction indicator: a coloured arrow + % change shown to the right
+	// of a merchant's current price. Reflects that offer's most recent
+	// effective-price move, but only when it's recent enough — the exporter
+	// already applied the operator's drop-off window and omits price_move when
+	// the last move is stale (or the feature is disabled), so absence here means
+	// "show nothing". Down = green (good for the buyer), up = red — inverted
+	// from stock-market convention. The arrow shape carries the meaning; colour
+	// only reinforces it.
+	function priceMoveIndicator(offer) {
+		var pm = offer && offer.price_move;
+		if (!pm || (pm.dir !== 'up' && pm.dir !== 'down')) return '';
+		var pct = Number(pm.pct);
+		if (!isFinite(pct) || pct <= 0) return '';
+		var down = pm.dir === 'down';
+		var arrow = down ? '▼' : '▲';
+		var cls = down ? 'supcomp-pricemove-down' : 'supcomp-pricemove-up';
+		var pctNum = formatNumber(pct.toFixed(1));
+		// A move under ~0.05% rounds to "0" — show nothing rather than "▼ 0%".
+		if (pctNum === '0' || pctNum === '') return '';
+		var pctText = pctNum + '%';
+		var label = (down ? (i18n.priceDown || 'price down') : (i18n.priceUp || 'price up')) + ' ' + pctText;
+		return ' <span class="supcomp-pricemove ' + cls + '" aria-label="' + escapeAttr(label) + '">' +
+			arrow + ' ' + escapeHtml(pctText) + '</span>';
 	}
 
 	function formatCostPerServing(offer) {
