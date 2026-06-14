@@ -70,6 +70,13 @@ class Supcomp_Extractor_Worker {
 	/**
 	 * AS callback. Runs in a separate request via AS's queue runner so it's
 	 * NOT bounded by the user's web-request execution time.
+	 *
+	 * Every page either hands the attempt off to a follow-on page or finalizes
+	 * it (complete/failed). The try/finally below guarantees that invariant: if
+	 * the body throws, or returns down a path that forgot to close the row, the
+	 * attempt is failed instead of being left stuck "in flight". A hard PHP
+	 * fatal (OOM, memory_limit) can still skip the finally — the stale-run
+	 * reaper (Supcomp_Extractor_Reaper) is the backstop for that.
 	 */
 	public static function execute_page( $state ) {
 		// AS occasionally re-fires with a stale or partial state; defensive parse.
@@ -82,123 +89,192 @@ class Supcomp_Extractor_Worker {
 			return;
 		}
 
-		if ( (int) $state['page'] === 1 && $attempt->status === 'pending' ) {
-			Supcomp_Extract_Runs_Repo::set_running( (int) $state['attempt_id'] );
-		}
+		$handed_off = false;
+		try {
+			if ( (int) $state['page'] === 1 && $attempt->status === 'pending' ) {
+				Supcomp_Extract_Runs_Repo::set_running( (int) $state['attempt_id'] );
+			}
 
-		// Merchant must be linked on the site row — without it /out/{id} can't
-		// fire the affiliate template downstream.
-		if ( (int) $state['merchant_id'] <= 0 ) {
-			self::fail_attempt(
-				$state,
-				__( 'Site has no merchant linked. Edit the Extractor Sites row and pick a Merchant before re-running.', 'supplement-compare' )
-			);
-			return;
-		}
-
-		// Resolve handler. 'auto' tries Shopify → Woo → generic in order.
-		$hint = $state['platform_hint'] !== '' ? $state['platform_hint'] : 'auto';
-		if ( ! in_array( $hint, array( 'shopify', 'woocommerce', 'generic', 'wix', 'auto' ), true ) ) {
-			self::fail_attempt(
-				$state,
-				sprintf(
-					/* translators: %s = platform name */
-					__( 'Platform "%s" is not supported.', 'supplement-compare' ),
-					$hint
-				)
-			);
-			return;
-		}
-
-		// On page 1: pick the platform, fetch store meta, open import_run.
-		// Follow-on pages inherit state['platform_used'] from the first page
-		// so the cascade only runs once per attempt.
-		if ( (int) $state['page'] === 1 ) {
-			$state['export_run_id'] = (string) $attempt->run_id;
-			$state['exported_at']   = current_time( 'c', true );
-
-			$detect = self::detect_and_fetch_first_page( $state, $hint );
-			if ( $detect === null ) {
-				// Detection failed — finalize_attempt_failed was called inside.
+			// Merchant must be linked on the site row — without it /out/{id} can't
+			// fire the affiliate template downstream.
+			if ( (int) $state['merchant_id'] <= 0 ) {
+				self::fail_attempt(
+					$state,
+					__( 'Site has no merchant linked. Edit the Extractor Sites row and pick a Merchant before re-running.', 'supplement-compare' )
+				);
+				$handed_off = true;
 				return;
 			}
-			$state['platform_used'] = $detect['platform_used'];
-			$state['store_name']    = $detect['store_name'];
-			$state['currency']      = $detect['currency'];
-			$state['import_run_id'] = (int) Supcomp_CSV_Importer::begin_run(
-				array(
-					'filename'      => sprintf( 'extractor:%s', $state['site_slug'] ),
-					'export_run_id' => $state['export_run_id'],
-					'exported_at'   => $state['exported_at'],
-					'source_kind'   => 'extractor',
+
+			// Resolve handler. 'auto' tries Shopify → Woo → generic in order.
+			$hint = $state['platform_hint'] !== '' ? $state['platform_hint'] : 'auto';
+			if ( ! in_array( $hint, array( 'shopify', 'woocommerce', 'generic', 'wix', 'auto' ), true ) ) {
+				self::fail_attempt(
+					$state,
+					sprintf(
+						/* translators: %s = platform name */
+						__( 'Platform "%s" is not supported.', 'supplement-compare' ),
+						$hint
+					)
+				);
+				$handed_off = true;
+				return;
+			}
+
+			// On page 1: pick the platform, fetch store meta, open import_run.
+			// Follow-on pages inherit state['platform_used'] from the first page
+			// so the cascade only runs once per attempt.
+			if ( (int) $state['page'] === 1 ) {
+				$state['export_run_id'] = (string) $attempt->run_id;
+				$state['exported_at']   = current_time( 'c', true );
+
+				$detect = self::detect_and_fetch_first_page( $state, $hint );
+				if ( $detect === null ) {
+					// Detection failed — finalize_attempt_failed was called inside.
+					$handed_off = true;
+					return;
+				}
+				$state['platform_used'] = $detect['platform_used'];
+				$state['store_name']    = $detect['store_name'];
+				$state['currency']      = $detect['currency'];
+				$state['import_run_id'] = (int) Supcomp_CSV_Importer::begin_run(
+					array(
+						'filename'      => sprintf( 'extractor:%s', $state['site_slug'] ),
+						'export_run_id' => $state['export_run_id'],
+						'exported_at'   => $state['exported_at'],
+						'source_kind'   => 'extractor',
+					)
+				);
+				$page_result = $detect['page_result'];
+			} else {
+				// Follow-on page: dispatch to the locked-in platform.
+				$page_result = self::fetch_page_for_platform( $state );
+			}
+
+			// Inject _merchant_id into every row so the importer can persist them.
+			$rows = array();
+			foreach ( $page_result['rows'] as $row ) {
+				$row['_merchant_id'] = (int) $state['merchant_id'];
+				$rows[] = $row;
+			}
+
+			// Empty page = final-page marker for Shopify (when batch came back empty
+			// but the run already saw products earlier). Skip ingest, jump to finalize.
+			if ( empty( $rows ) ) {
+				self::finalize_attempt_complete( $state );
+				$handed_off = true;
+				return;
+			}
+
+			$batch = Supcomp_CSV_Importer::ingest_rows_into_run( $rows, (int) $state['import_run_id'] );
+
+			// Defensive: a chained action enqueued before the v1.23.0 deploy may lack
+			// the suppressed slot. Self-heals on the next full run.
+			if ( ! isset( $state['totals']['suppressed'] ) ) {
+				$state['totals']['suppressed'] = 0;
+			}
+			$state['totals']['inserted']   += (int) $batch['inserted'];
+			$state['totals']['updated']    += (int) $batch['updated'];
+			$state['totals']['suppressed'] += (int) ( $batch['suppressed'] ?? 0 );
+			$state['totals']['errored']    += (int) $batch['errored'];
+			// Keep only a sample of row errors so action args don't bloat.
+			if ( ! empty( $batch['row_errors'] ) ) {
+				$slots = self::ROW_ERROR_SAMPLE - count( $state['totals']['row_errors_sample'] );
+				if ( $slots > 0 ) {
+					foreach ( array_slice( $batch['row_errors'], 0, $slots, true ) as $rn => $msg ) {
+						$state['totals']['row_errors_sample'][ 'p' . $state['page'] . '_' . $rn ] = $msg;
+					}
+				}
+			}
+
+			// Flush per-batch counts so the operator can see progress mid-run on
+			// the import-runs admin screen (Phase E will surface this in the
+			// extractor-runs screen too).
+			Supcomp_CSV_Importer::record_batch_counts(
+				(int) $state['import_run_id'],
+				(int) $batch['inserted'],
+				(int) $batch['updated'],
+				(int) $batch['errored'],
+				(int) ( $batch['suppressed'] ?? 0 )
+			);
+
+			// Continue paginating if the page came back full and we're under the cap.
+			list( $page_size, $max_pages ) = self::pagination_for( $state['platform_used'] );
+			$is_final_page = (
+				(int) $page_result['batch_size'] < $page_size
+				|| (int) $state['page'] >= $max_pages
+			);
+
+			if ( ! $is_final_page ) {
+				$state['page'] = (int) $state['page'] + 1;
+				self::enqueue_state( $state );
+				$handed_off = true;
+				return;
+			}
+
+			self::finalize_attempt_complete( $state );
+			$handed_off = true;
+		} catch ( \Throwable $e ) {
+			self::finalize_attempt_failed(
+				$state,
+				sprintf(
+					/* translators: %s = PHP error message */
+					__( 'Run aborted by an unexpected error: %s', 'supplement-compare' ),
+					$e->getMessage()
 				)
 			);
-			$page_result = $detect['page_result'];
-		} else {
-			// Follow-on page: dispatch to the locked-in platform.
-			$page_result = self::fetch_page_for_platform( $state );
+			$handed_off = true;
+		} finally {
+			if ( ! $handed_off ) {
+				self::finalize_attempt_failed(
+					$state,
+					__( 'Run ended without finalizing — the worker exited before this page closed out. Marked failed by the safety net; re-run the site.', 'supplement-compare' )
+				);
+			}
 		}
+	}
 
-		// Inject _merchant_id into every row so the importer can persist them.
-		$rows = array();
-		foreach ( $page_result['rows'] as $row ) {
-			$row['_merchant_id'] = (int) $state['merchant_id'];
-			$rows[] = $row;
+	/**
+	 * Attempt ids that still have a live (pending or in-progress) Action
+	 * Scheduler page action queued — i.e. chains that are genuinely still
+	 * advancing. The reaper uses this to avoid failing a slow-but-live run:
+	 * an open attempt with NO live action is an orphan (its chain died), one
+	 * WITH a live action is just mid-pagination.
+	 *
+	 * Returns an array keyed by attempt_id (values true), or null if Action
+	 * Scheduler isn't queryable — null tells callers to stay conservative and
+	 * skip reaping rather than risk a false positive.
+	 *
+	 * @return array<int,bool>|null
+	 */
+	public static function live_attempt_ids() {
+		if ( ! function_exists( 'as_get_scheduled_actions' ) ) {
+			return null;
 		}
-
-		// Empty page = final-page marker for Shopify (when batch came back empty
-		// but the run already saw products earlier). Skip ingest, jump to finalize.
-		if ( empty( $rows ) ) {
-			self::finalize_attempt_complete( $state );
-			return;
-		}
-
-		$batch = Supcomp_CSV_Importer::ingest_rows_into_run( $rows, (int) $state['import_run_id'] );
-
-		// Defensive: a chained action enqueued before the v1.23.0 deploy may lack
-		// the suppressed slot. Self-heals on the next full run.
-		if ( ! isset( $state['totals']['suppressed'] ) ) {
-			$state['totals']['suppressed'] = 0;
-		}
-		$state['totals']['inserted']   += (int) $batch['inserted'];
-		$state['totals']['updated']    += (int) $batch['updated'];
-		$state['totals']['suppressed'] += (int) ( $batch['suppressed'] ?? 0 );
-		$state['totals']['errored']    += (int) $batch['errored'];
-		// Keep only a sample of row errors so action args don't bloat.
-		if ( ! empty( $batch['row_errors'] ) ) {
-			$slots = self::ROW_ERROR_SAMPLE - count( $state['totals']['row_errors_sample'] );
-			if ( $slots > 0 ) {
-				foreach ( array_slice( $batch['row_errors'], 0, $slots, true ) as $rn => $msg ) {
-					$state['totals']['row_errors_sample'][ 'p' . $state['page'] . '_' . $rn ] = $msg;
+		$ids = array();
+		foreach ( array( 'pending', 'in-progress' ) as $status ) {
+			$actions = as_get_scheduled_actions(
+				array(
+					'hook'     => self::HOOK,
+					'group'    => self::AS_GROUP,
+					'status'   => $status,
+					'per_page' => 1000,
+				)
+			);
+			if ( ! is_array( $actions ) ) {
+				continue;
+			}
+			foreach ( $actions as $action ) {
+				if ( ! is_object( $action ) || ! method_exists( $action, 'get_args' ) ) {
+					continue;
+				}
+				$args = $action->get_args();
+				if ( isset( $args[0]['attempt_id'] ) ) {
+					$ids[ (int) $args[0]['attempt_id'] ] = true;
 				}
 			}
 		}
-
-		// Flush per-batch counts so the operator can see progress mid-run on
-		// the import-runs admin screen (Phase E will surface this in the
-		// extractor-runs screen too).
-		Supcomp_CSV_Importer::record_batch_counts(
-			(int) $state['import_run_id'],
-			(int) $batch['inserted'],
-			(int) $batch['updated'],
-			(int) $batch['errored'],
-			(int) ( $batch['suppressed'] ?? 0 )
-		);
-
-		// Continue paginating if the page came back full and we're under the cap.
-		list( $page_size, $max_pages ) = self::pagination_for( $state['platform_used'] );
-		$is_final_page = (
-			(int) $page_result['batch_size'] < $page_size
-			|| (int) $state['page'] >= $max_pages
-		);
-
-		if ( ! $is_final_page ) {
-			$state['page'] = (int) $state['page'] + 1;
-			self::enqueue_state( $state );
-			return;
-		}
-
-		self::finalize_attempt_complete( $state );
+		return $ids;
 	}
 
 	/**
@@ -472,7 +548,7 @@ class Supcomp_Extractor_Worker {
 		return array( Supcomp_Extractor_Shopify::PAGE_SIZE, Supcomp_Extractor_Shopify::MAX_PAGES );
 	}
 
-	private static function generic_url_transient_key( $attempt_id ) {
+	public static function generic_url_transient_key( $attempt_id ) {
 		return 'supcomp_extract_urls_' . (int) $attempt_id;
 	}
 }

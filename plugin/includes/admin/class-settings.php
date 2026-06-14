@@ -7,6 +7,9 @@
  *   supcomp_default_currency        — ISO 4217, defaults to USD
  *   supcomp_staleness_warn_hours    — soft threshold (offer visually downgraded)
  *   supcomp_staleness_hide_hours    — hard threshold (offer excluded from public JSON)
+ *   supcomp_extract_stale_minutes   — how long an extractor run may sit "in flight"
+ *                                     with no queued Action Scheduler job before the
+ *                                     stale-run reaper fails it (default 30, range 5–1440)
  *   supcomp_price_move_window_days  — on the compare table, show a price-direction
  *                                     arrow + % change to the right of a merchant's
  *                                     price when that price last moved within this
@@ -76,6 +79,16 @@ class Supcomp_Settings {
 				'type'              => 'integer',
 				'sanitize_callback' => 'absint',
 				'default'           => 168,
+			)
+		);
+
+		register_setting(
+			self::OPTION_GROUP,
+			'supcomp_extract_stale_minutes',
+			array(
+				'type'              => 'integer',
+				'sanitize_callback' => array( __CLASS__, 'sanitize_stale_minutes' ),
+				'default'           => 30,
 			)
 		);
 
@@ -187,6 +200,14 @@ class Supcomp_Settings {
 		);
 
 		add_settings_field(
+			'supcomp_extract_stale_minutes',
+			__( 'Extractor: stale-run timeout (minutes)', 'supplement-compare' ),
+			array( __CLASS__, 'render_stale_minutes_field' ),
+			self::PAGE_SLUG,
+			self::SECTION_ID
+		);
+
+		add_settings_field(
 			'supcomp_price_move_window_days',
 			__( 'Price-direction indicator (days)', 'supplement-compare' ),
 			array( __CLASS__, 'render_price_move_window_field' ),
@@ -270,6 +291,16 @@ class Supcomp_Settings {
 		return (bool) $value;
 	}
 
+	public static function sanitize_stale_minutes( $value ) {
+		// Mirror Supcomp_Extractor_Reaper's band: min 5 min (avoid reaping a
+		// just-started run), max 24h. Anything out of range clamps in.
+		$v = absint( $value );
+		if ( $v < 5 ) {
+			$v = 5;
+		}
+		return min( $v, 1440 );
+	}
+
 	public static function sanitize_price_move_window( $value ) {
 		// 0 disables the indicator; cap at ~10 years so a fat-fingered entry
 		// can't make "within the window" meaningless.
@@ -317,6 +348,15 @@ class Supcomp_Settings {
 			'<input type="number" min="1" name="supcomp_staleness_hide_hours" value="%d" class="small-text" /> <p class="description">%s</p>',
 			$value,
 			esc_html__( 'Offers older than this are excluded from the public JSON entirely. Default 168 hours (7 days).', 'supplement-compare' )
+		);
+	}
+
+	public static function render_stale_minutes_field() {
+		$value = (int) get_option( 'supcomp_extract_stale_minutes', 30 );
+		printf(
+			'<input type="number" min="5" max="1440" name="supcomp_extract_stale_minutes" value="%d" class="small-text" /> <p class="description">%s</p>',
+			$value,
+			esc_html__( 'How long an extractor run may sit "in flight" with no queued Action Scheduler job before the stale-run reaper marks it failed. A run that is still paginating always has a queued job and is never reaped, however long it takes — so this only catches dead runs (worker killed by a host timeout / out-of-memory). Default 30 minutes; range 5–1440.', 'supplement-compare' )
 		);
 	}
 

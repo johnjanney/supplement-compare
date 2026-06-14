@@ -102,10 +102,13 @@ class Supcomp_Plugin {
 		require_once $inc . 'extractor/class-extractor-worker.php';
 		require_once $inc . 'extractor/class-extractor.php';
 		require_once $inc . 'extractor/class-extractor-scheduler.php';
+		require_once $inc . 'extractor/class-extractor-reaper.php';
 
-		// Scheduler hook registration must happen domain-side (not gated
-		// on is_admin) so WP-Cron callbacks fire from any request context.
+		// Scheduler + reaper hook registration must happen domain-side (not
+		// gated on is_admin) so WP-Cron / Action Scheduler callbacks fire from
+		// any request context.
 		Supcomp_Extractor_Scheduler::register_hooks();
+		Supcomp_Extractor_Reaper::register_hooks();
 
 		require_once $inc . 'deletion/class-deletion-service.php';
 

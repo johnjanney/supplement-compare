@@ -168,6 +168,41 @@ class Supcomp_Extract_Runs_Repo {
 		return $by_site;
 	}
 
+	/**
+	 * Open attempts (pending/running) whose start is older than $minutes.
+	 * Drives the stale-run reaper. started_at carries a NOT NULL default of
+	 * CURRENT_TIMESTAMP, so it is a sound age anchor for both pending rows
+	 * (start = insert time) and running rows (start = page-1 set_running).
+	 * Indexed by the status_started key.
+	 *
+	 * @param int $minutes Age threshold in minutes. 0 returns every open row.
+	 * @return object[]
+	 */
+	public static function open_attempts_older_than( $minutes ) {
+		global $wpdb;
+		$table = self::table();
+		return $wpdb->get_results( $wpdb->prepare(
+			"SELECT * FROM {$table}
+			 WHERE status IN ('pending','running')
+			   AND site_id IS NOT NULL
+			   AND started_at < DATE_SUB( UTC_TIMESTAMP(), INTERVAL %d MINUTE )
+			 ORDER BY id ASC",
+			max( 0, (int) $minutes )
+		) );
+	}
+
+	/**
+	 * Total open attempts (pending/running) across all sites — the count the
+	 * Cleanup screen shows next to "Clear stuck runs".
+	 */
+	public static function count_open_attempts() {
+		global $wpdb;
+		$table = self::table();
+		return (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM {$table} WHERE status IN ('pending','running') AND site_id IS NOT NULL"
+		);
+	}
+
 	public static function counts_by_status( $hours = 24 ) {
 		global $wpdb;
 		$table = self::table();
