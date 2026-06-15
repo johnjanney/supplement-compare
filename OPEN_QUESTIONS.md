@@ -329,6 +329,151 @@ architectural.
 
 ---
 
+### Q-012: Flagging potential-duplicate orphans (product type changes)
+
+**Status:** watch-only (decided 2026-06-14 — **do not build speculatively**;
+design retained below for if it ever bites in production)
+**Blocks:** nothing
+**Raised:** 2026-06-14
+**Last touched:** 2026-06-14
+
+**Decision (2026-06-14):** not building the flag + suppression-category feature.
+The original concern — a phantom duplicate on the **public site** from a
+simple→variable conversion — is **already fully handled** by existing processes:
+the old simple offer stops being emitted the moment the product becomes variable,
+so it flips to `stale` on that same import and drops out of public output
+automatically; the new variations arrive `pending` and show nothing publicly
+until approved. The site goes one-offer → two-approved-offers, never three.
+
+What a flag would have addressed is the smaller, separate matter of **curation
+continuity** (the old offer's canonical link / `operator_notes` / approval don't
+ride along to the new variation rows, so a couple of fresh `pending` offers get
+re-approved). That's *rework*, not a *duplicate* — low frequency, low per-incident
+cost — and it doesn't justify a new column + detector + list view + suppression
+category in a lean plugin. Same "build it the first time a real merchant trips
+it" discipline as Q-006/Q-007/Q-008.
+
+**The one case that could produce a real public duplicate** is *not* the
+type-change case: it's the extractor's `fallback_parent_only` path
+(`class-extractor-woo.php:213`) — a failed variation fetch emits an empty-variant
+parent offer; a later successful run emits the variations; if both got approved
+at different times, both could be `active` at once. That's tied to **fetch
+failures**, is rare, and is what to actually watch for in production. Revisit
+this Q only if that edge (or the curation rework) becomes a recurring annoyance.
+
+**Original analysis retained below for reference.**
+
+When a merchant converts a **simple product to a variable product** (e.g. a
+10mg simple product becomes a variable product with 10mg + 20mg variations),
+the importer's natural key `(merchant_id, source_product_id, source_variant_id)`
+does **not** recognize the change. The old simple offer (empty
+`source_variant_id`) and the new variation offers (non-empty `source_variant_id`)
+are different rows, so:
+
+- the two variations insert as brand-new `pending` offers, and
+- the old simple offer — no longer emitted by the feed — flips to `stale` on
+  that same import run (`Supcomp_Stale_Detector::mark_stale`).
+
+Net effect: three DB rows where there should be two. The public site self-corrects
+(stale orphan drops out; the variations wait in the pending queue), but the
+operator's prior curation on the old offer (canonical link, `operator_notes`,
+approval) is **abandoned**, and the orphan silently rots toward `dead` with no
+deliberate review. WooCommerce keeps the **same post ID** across the conversion,
+so the orphan is reliably identifiable.
+
+**Decided direction (with operator, 2026-06-14):** drop the one-click "merge"
+concept (you can't truly unify two natural keys — the feed keeps emitting the
+variation key forever, so merge could only mean "copy curation + retire orphan").
+Instead, do the lighter, fully-operator-controlled version:
+
+1. **Detect + flag the orphan** with a non-destructive advisory flag (e.g. a
+   `rekey_flag` column on `normalized_offers`, importer-written like the existing
+   `variation_retrieval_status`). Render a red **"⚠ Potential duplicate"** badge
+   wherever the offer appears.
+2. **Add a dedicated suppression category.** `Supcomp_Installer::SUPPRESSION_REASONS`
+   currently holds exactly one value (`'rejected_cleanup'`). Add
+   `'potential_duplicate'` (one-line change) so duplicates filed by the operator
+   group **separately from genuine rejects** on the Suppression List screen
+   (which today lists flat — add a reason filter/grouping).
+3. **Operator flow (no merge):** detector flags orphan → operator sees the badge
+   → clicks "Suppress as potential duplicate" → it moves to the suppression list
+   under its own category. Nothing auto-changes; the curation gate is preserved.
+
+**Detection signals (score confidence by how many fire):**
+
+- **Signal A (structural, reliable for Woo):** same `(merchant_id,
+  source_product_id)` has **both** an empty-variant offer and one or more
+  non-empty-variant offers. Timing-independent — works whether the conversion
+  and the import land in the same run or weeks apart. A normal always-simple or
+  always-variable product never shows both shapes.
+- **Signal B (URL, human-verifiable):** same normalized `source_product_url`
+  across the mixed-shape offers. The Woo handler sets `source_product_url` to the
+  **parent permalink** for both the simple offer and every variation
+  (`class-extractor-woo.php:266` and `:374`), and WooCommerce keeps the same slug
+  across the conversion — so this is both a detection signal **and** the field
+  the operator eyeballs to confirm "same product." (Variation query args live in
+  `source_variant_url`, so the product-URL comparison stays clean.)
+- Bonus: Signal A/B also catch the extractor's own `fallback_parent_only`
+  orphan (`class-extractor-woo.php:213`) — an empty-variant parent offer left
+  stale after a later run successfully fetches variations. Same false-duplicate
+  shape, also worth flagging. Hence the label "potential **duplicate**," not
+  strictly "type change."
+
+**Staleness-visibility wrinkle (must inform the design):** the orphan is
+typically created in the **same import run** that inserts the variations, so by
+the time the operator looks it has usually already flipped to `stale`. A `stale`
+offer matches **neither** the Active Offers screen (`visibility = active`) nor
+the Pending Queue (`visibility IN (pending, needs_review)`) — it is currently
+**un-surfaced** in any browsable list until it escalates to `dead` (Cleanup
+screen). So:
+
+- The advisory flag/badge must be visible **across statuses, including `stale`**,
+  not only on Active Offers.
+- This likely wants its **own small "Potential Duplicates" list view**, because
+  otherwise the flagged orphan vanishes into the same stale black hole. The real
+  value of the feature is surfacing stale orphans for a deliberate
+  `potential_duplicate` decision rather than letting them silently age to `dead`.
+- Note: a stale offer that reappears in a later import is auto-restored straight
+  to `active` (`Supcomp_Offers_Repo::update_csv_columns`), **not** back to
+  pending — so it never re-enters the curation queue on its own.
+
+**Part 2 — name / permalink changes WITHOUT a type change (advice captured):**
+
+- **Title change — harmless everywhere.** Matching is never by title; the offer
+  re-imports as an in-place UPDATE and `product_title` just refreshes. Non-event.
+- **Permalink change — depends on the platform's key anchor:**
+  - **WooCommerce** (`source_product_id` = post ID, stable): in-place update,
+    `source_product_url` refreshes. No duplicate.
+  - **Shopify** (`source_product_id` = numeric product id, stable,
+    `class-extractor-shopify.php:124`): same — no duplicate.
+  - **Generic JSON-LD** (`source_product_id = $sku !== '' ? $sku : $url`,
+    `class-extractor-generic.php:360`): if the product carries a **SKU** → stable
+    → fine. If it has **no SKU**, the URL *is* the key, so a permalink change
+    **creates an orphan + duplicate** (old URL key goes stale, new URL inserts
+    fresh).
+- **The hard part:** the generic-no-SKU rename case is **not detectable** by
+  Signals A or B — both the product_id and the URL change, so the old and new
+  offers look unrelated. Only fuzzy matching (title/brand/strength similarity)
+  could link them, which is false-positive-prone.
+- **Recommendation:** for the operator's actual merchant mix (mostly Woo/Shopify,
+  per the extractor merchant map), renames are a **non-issue** — don't build
+  anything. The durable fix for the generic hole is **data hygiene** (ensure
+  generic sites expose a SKU so the key stops depending on the URL), not a
+  detector. Defer any rename-detection feature until a real merchant trips it.
+
+**Likely code touchpoints (when built):** installer schema (`rekey_flag` column +
+`potential_duplicate` in `SUPPRESSION_REASONS`, `SCHEMA_VERSION` bump);
+`Supcomp_Rekey_Detector` run from `finalize_run()` after `mark_stale`; a
+"Potential Duplicates" list view (or grouped section) that surfaces flagged
+offers across statuses including `stale`; badge in Active Offers / pending; a
+"Suppress as potential duplicate" action; reason filter on the Suppression List
+screen; INSTRUCTIONS §-update (new failure mode + how to act on the flag);
+CHANGELOG; MINOR version bump. Build the detection + flag + suppression category
+first (immediately useful, low risk); the list view is the piece that makes
+stale orphans actually visible.
+
+---
+
 ## Resolved questions
 
 ### Q-010: Does a rejection survive Cleanup + re-extraction?
