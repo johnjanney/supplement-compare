@@ -17,6 +17,19 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.30.1] — 2026-06-15
+
+### Changed
+- **Price-direction indicator moved to the left of the price.** The ▲/▼ arrow
+  and percentage now render *before* the price instead of after it, so the
+  price text stays pinned to the right edge of the column and prices remain
+  decimal-aligned whether or not a row has an indicator. Previously the
+  arrow+% sat to the right and pushed the price leftward, breaking column
+  alignment. Frontend-only (`frontend.js` render order + `frontend.css`
+  margin); no data, export, or behavior changes.
+
+---
+
 ## [1.30.0] — 2026-06-15
 
 ### Added
