@@ -64,6 +64,21 @@ class Supcomp_Merchants_Repo {
 	}
 
 	/**
+	 * Total merchant count plus the active subset, for the dashboard widget.
+	 * Returns array( 'total' => int, 'active' => int ).
+	 */
+	public static function count_by_status() {
+		global $wpdb;
+		$table  = self::table();
+		$total  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
+		$active = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE status = 'active'" );
+		return array(
+			'total'  => $total,
+			'active' => $active,
+		);
+	}
+
+	/**
 	 * @param array $args status, platform, search, orderby, order, limit, offset
 	 */
 	public static function query( $args = array() ) {

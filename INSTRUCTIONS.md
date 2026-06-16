@@ -1014,7 +1014,39 @@ only — entries are added automatically by Cleanup, not by hand. The
 Import screen's run stats include a **Suppressed** count so you can see
 how many products a given run skipped.
 
-## 17. Troubleshooting
+## 17. The "At a Glance" dashboard widget
+
+When you log into WP Admin, the main **Dashboard** screen shows a
+**Supplement Compare — At a Glance** widget (added in v1.30.0). It's a
+read-only, current-state summary — nothing to configure, and it never
+changes any data. Three blocks:
+
+- **Catalog** — how many live canonical products you have, and how many
+  merchants (active, with the total in parentheses). "Live" canonical =
+  anything not retired.
+- **Live offers** — the number of offers actually shown on the public
+  site right now, split into **in stock** / **out of stock** (rare
+  statuses — backorder / unavailable / unknown — roll up into an "other"
+  line that only appears when non-zero). This is the same set the public
+  JSON exports: active, matched to a canonical, from an active merchant,
+  and synced recently enough to clear the staleness hide window.
+- **Price moves · last N days** — of those live offers, how many changed
+  price within the window, broken down **▲ up · ▼ down · — unchanged**.
+  These counts use the same logic as the ▲/▼ arrows readers see on the
+  site, so the "changed" number equals the number of arrows currently
+  showing. **N** is the window from Settings
+  (`Price move window (days)`, default 30). If you set that window to 0
+  (which disables the on-site indicator), the widget shows
+  "Price-move tracking is disabled" instead of zeros.
+
+The widget recomputes every time the Dashboard loads, so it's always
+current — there's no cache to refresh.
+
+If the widget isn't visible, it may be toggled off under **Screen
+Options** (top-right of the Dashboard). Only users who can manage the
+plugin (`manage_options`) see it.
+
+## 18. Troubleshooting
 
 **"CSV is missing required column(s)" on upload.** The Python extractor
 output doesn't match the §4 contract. Most common cause: someone has an
