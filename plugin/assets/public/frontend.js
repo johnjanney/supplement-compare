@@ -492,8 +492,8 @@
 					html += '<td class="supcomp-num">' + formatCostPerActive(o, cp) + '</td>';
 				}
 				html += '<td class="supcomp-num">';
-				html += formatPrice(o.current_price, o.currency);
 				html += priceMoveIndicator(o);
+				html += formatPrice(o.current_price, o.currency);
 				if (o.on_sale && o.regular_price && o.regular_price > o.current_price) {
 					html += '<br><span class="supcomp-was">' + escapeHtml(formatPrice(o.regular_price, o.currency)) + '</span>';
 				}
@@ -823,8 +823,8 @@
 		if (pctNum === '0' || pctNum === '') return '';
 		var pctText = pctNum + '%';
 		var label = (down ? (i18n.priceDown || 'price down') : (i18n.priceUp || 'price up')) + ' ' + pctText;
-		return ' <span class="supcomp-pricemove ' + cls + '" aria-label="' + escapeAttr(label) + '">' +
-			arrow + ' ' + escapeHtml(pctText) + '</span>';
+		return '<span class="supcomp-pricemove ' + cls + '" aria-label="' + escapeAttr(label) + '">' +
+			arrow + ' ' + escapeHtml(pctText) + '</span> ';
 	}
 
 	function formatCostPerServing(offer) {
