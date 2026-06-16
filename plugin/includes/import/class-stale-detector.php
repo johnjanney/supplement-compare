@@ -8,11 +8,18 @@
  * states (paused, rejected, dead, already stale) are operator-set and stay
  * untouched.
  *
+ * When an offer is flipped to 'stale' we stash its prior status in
+ * pre_stale_status so the restore path can return it exactly where it was.
+ * This matters because the tracked set includes 'pending' and
+ * 'needs_review': an offer that the operator never approved can go stale
+ * (e.g. a merchant endpoint drops it for one run) and later reappear. The
+ * old code blindly restored every returning offer to 'active', which
+ * auto-published offers that never cleared the pending queue (invariant #1).
+ *
  * The corresponding restore-from-stale lives in
- * Supcomp_Offers_Repo::update_csv_columns(): when an offer that was 'stale'
- * appears again in a fresh import, it goes back to 'active' (we don't track
- * what the prior state was; 'active' is the safer assumption since the
- * operator had to approve at least once for the offer to exist publicly).
+ * Supcomp_Offers_Repo::update_csv_columns(): when a 'stale' offer appears
+ * again in a fresh import it goes back to pre_stale_status (falling back to
+ * 'pending' — never 'active' — when that prior status is unknown).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -40,7 +47,8 @@ class Supcomp_Stale_Detector {
 		$status_placeholders   = implode( ',', array_fill( 0, count( self::TRACKED_STATUSES ), '%s' ) );
 
 		$sql = "UPDATE {$table}
-				SET visibility_status = 'stale',
+				SET pre_stale_status = visibility_status,
+					visibility_status = 'stale',
 					updated_at = %s
 				WHERE merchant_id IN ({$merchant_placeholders})
 				  AND (last_seen_import_run_id IS NULL OR last_seen_import_run_id <> %d)

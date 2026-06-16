@@ -177,13 +177,11 @@ class Supcomp_CSV_Importer {
 				);
 
 				if ( $existing ) {
-					$restore_from_stale = ( $existing->visibility_status === 'stale' );
-					$new_data           = Supcomp_Offers_Repo::update_csv_columns(
-						(int) $existing->id,
+					$new_data = Supcomp_Offers_Repo::update_csv_columns(
+						$existing,
 						$row,
 						$run_id,
-						$now,
-						$restore_from_stale
+						$now
 					);
 					$diff = Supcomp_Offers_Repo::diff_for_price_history( $existing, $new_data );
 					if ( $diff !== null ) {
