@@ -474,6 +474,61 @@ stale orphans actually visible.
 
 ---
 
+### Q-013: Visitor "Report a Problem" feature
+
+**Status:** open (design captured; **build plan in `REPORT_ISSUE.md`**)
+**Blocks:** nothing; net-new public-facing trust feature. Lower priority than
+Q-002 (real merchants live) — the form is only useful once there are real
+merchants and real visitor traffic to file reports.
+**Raised:** 2026-06-15
+**Last touched:** 2026-06-15
+
+A public `/report` shortcode lets visitors flag a problem with a featured
+merchant/listing, feeding an operator triage queue with a deliberate **Suspend
+merchant** action.
+
+**Decided (2026-06-15):** build the one-directional **"Report a Problem"**
+approach, **not** a two-sided "Merchant Feedback" system. The deciding factor is
+**positioning drift against load-bearing rule #3 (no ratings)** — collecting
+positive *and* negative sentiment builds the substrate for an internal review
+aggregator even if unpublished. A report flow is a trust-and-safety signal
+feeding one curation decision ("keep featuring this merchant?"), which is on-
+brand. No positive path, no scoring, no aggregation, no public display of
+reports. The sock-puppet concern is moot under this scope (nothing published,
+no positive path to game). "Feels negative" is a copy problem — frame as
+"Report a Problem" / "Which listing?", not "Report Merchant" / "bad actor."
+
+**Open sub-questions to settle before coding (full detail in `REPORT_ISSUE.md`
+§3):**
+
+- **Q-A (LOAD-BEARING): what does "Suspend merchant" actually do?** Gates the
+  schema. Recommend a `merchants.suspended` flag the exporter filters on
+  (reversible, no data loss); confirm blast radius (merchant-wide; a canonical
+  can go to zero public offers), reversibility, audit fields, and whether a
+  suspended merchant still imports (recommend yes, just hidden).
+- **Q-B:** report target — required merchant + optional offer/listing selector.
+- **Q-C:** reason taxonomy (dead link / price mismatch / discontinued / out of
+  business / quality / deceptive pricing / other).
+- **Q-D:** anti-spam policy — recommend honeypot + per-IP rate limit + nonce for
+  v1; CAPTCHA/Akismet only if abused.
+- **Q-E:** optional (never required) reporter email; PII retention.
+- **Q-F:** notification on new report (reuse Q-008's decision).
+- **Q-G:** report lifecycle statuses (`new → reviewing → actioned → dismissed`).
+
+**Architecture note:** the public submit handler + shortcode must load on
+frontend requests and must not depend on admin-only classes (see the
+admin/frontend class-loading boundary). Suspend is the only path from this
+feature to public output — exporter exclusion is load-bearing (rule #5).
+
+**Likely code touchpoints (when built):** `supcomp_reports` table + merchant
+suspend columns + `SCHEMA_VERSION` bump; `Supcomp_Reports_Repo`; Reports queue
+admin screen; merchant-profile reports section + suspend/un-suspend button;
+exporter exclusion for suspended merchants; `[supcomp_report_form]` shortcode +
+public submit handler with abuse hardening; notification; INSTRUCTIONS §-update;
+CHANGELOG; MINOR version bump (1.29.0 → 1.30.0).
+
+---
+
 ## Resolved questions
 
 ### Q-010: Does a rejection survive Cleanup + re-extraction?
