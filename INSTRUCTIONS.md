@@ -638,6 +638,17 @@ Same operator-curated fields are editable. Same trust-signal controls.
 Re-imports never overwrite your edits — once you've set a canonical match
 or a strength override, that value is sticky.
 
+**Finding un-curated active offers (the canonical filter).** The filter bar
+has a **canonical-state** dropdown: *Any canonical state* (default), *No
+canonical assigned*, or *Has canonical*. Because approving an offer always
+involves assigning its canonical product, **"No canonical assigned" is a
+reliable signal that an offer reached the Active list without going through
+your normal approval** — e.g. the pre-v1.31.0 stale-restore bug that
+auto-promoted un-approved offers (see CHANGELOG [1.31.0]). Filter to *No
+canonical assigned*, review the rows, and bulk **Pause** or **Reject** (or
+**Defer** to send them back to the pending queue) anything you would not have
+approved.
+
 ## 11. Pausing or deactivating an offer
 
 From either the **Pending Queue** or **Active Offers** screen:
