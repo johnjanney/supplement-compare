@@ -19,6 +19,15 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ## [1.31.0] — 2026-06-16
 
+### Added
+- **Canonical-state filter on the Active Offers screen.** A new filter-bar
+  dropdown (*Any canonical state* / *No canonical assigned* / *Has canonical*)
+  lets the operator isolate active offers that have no canonical product
+  assigned. Since approval always assigns a canonical, this is a reliable way to
+  surface offers that reached the public list without normal approval — the
+  remediation tool for cleaning up offers the pre-fix stale-restore bug
+  auto-promoted. Combine with the existing bulk Pause / Reject / Defer actions.
+
 ### Fixed
 - **Extractor no longer auto-publishes offers that never cleared the pending
   queue.** A `pending` (or `needs_review`) offer that the stale detector hid —
