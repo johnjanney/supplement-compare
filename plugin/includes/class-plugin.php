@@ -122,6 +122,7 @@ class Supcomp_Plugin {
 		$admin_dir = SUPPLEMENT_COMPARE_PLUGIN_DIR . 'includes/admin/';
 
 		require_once $admin_dir . 'class-admin.php';
+		require_once $admin_dir . 'class-dashboard-widget.php';
 		require_once $admin_dir . 'class-settings.php';
 		require_once $admin_dir . 'class-offer-form.php';
 		require_once $admin_dir . 'class-merchants-screen.php';
@@ -139,6 +140,9 @@ class Supcomp_Plugin {
 
 		add_action( 'admin_menu', array( 'Supcomp_Admin', 'register_menu' ) );
 		add_action( 'admin_init', array( 'Supcomp_Settings', 'register' ) );
+
+		// Native WP dashboard "At a Glance" summary widget.
+		Supcomp_Dashboard_Widget::register_hooks();
 
 		// Each screen that handles form submissions registers its own
 		// admin_post_* and admin-ajax / admin_enqueue_scripts hooks. Screens

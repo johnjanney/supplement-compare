@@ -401,6 +401,36 @@ class Supcomp_Offers_Repo {
 	}
 
 	/**
+	 * Lightweight live-offer rows for the dashboard widget: id + stock_status
+	 * for exactly the offers the public site shows. Mirrors for_export()'s
+	 * universe (active, canonical-matched, fresh, active merchant, non-retired
+	 * canonical + ingredient) but selects only the two columns the widget needs.
+	 * Keeping the WHERE clause identical means the widget's "live offers" /
+	 * stock-split figures match what readers see, and the returned id set is the
+	 * exact set the public price-direction indicator runs over.
+	 */
+	public static function live_for_dashboard( $hide_threshold_mysql ) {
+		global $wpdb;
+		$o  = self::table();
+		$m  = $wpdb->prefix . 'supcomp_merchants';
+		$cp = $wpdb->prefix . 'supcomp_canonical_products';
+		$ci = $wpdb->prefix . 'supcomp_canonical_ingredients';
+		return $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT o.id, o.stock_status
+				 FROM {$o} o
+				 INNER JOIN {$m} m ON m.id = o.merchant_id AND m.status = 'active'
+				 INNER JOIN {$cp} cp ON cp.id = o.canonical_product_id AND cp.status <> 'retired'
+				 INNER JOIN {$ci} ci ON ci.id = cp.ingredient_id AND ci.status <> 'retired'
+				 WHERE o.visibility_status = 'active'
+				   AND o.canonical_product_id IS NOT NULL
+				   AND o.last_synced_at >= %s",
+				$hide_threshold_mysql
+			)
+		);
+	}
+
+	/**
 	 * Latest raw_source_offers row for an offer's natural key. Used by the
 	 * detail view's side-by-side display.
 	 */

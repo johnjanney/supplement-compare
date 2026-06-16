@@ -17,6 +17,24 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.30.0] — 2026-06-16
+
+### Added
+- **"At a Glance" dashboard widget.** A current-state summary on the native
+  WordPress dashboard (admin-only, `manage_options`). Shows catalog size (live
+  canonical products; active / total merchants), the live offer set with its
+  in-stock / out-of-stock split, and a price-move tally for the configured
+  window — **N changed (▲ up · ▼ down · — unchanged)**. The price-move counts
+  reuse the exact definition behind the public price-direction indicator
+  (`Supcomp_Price_History_Repo::price_moves_for_offers`) over the same live
+  offer universe (`for_export`-equivalent: active, canonical-matched, fresh,
+  active merchant), so the "changed" figure equals the number of ▲/▼ arrows
+  readers see on the site. Respects `supcomp_price_move_window_days` (default
+  30; a window of 0 shows "tracking disabled" instead of zeros). Read-only;
+  computed on render from a handful of COUNT/GROUP BY queries.
+
+---
+
 ## [1.29.0] — 2026-06-14
 
 ### Added
