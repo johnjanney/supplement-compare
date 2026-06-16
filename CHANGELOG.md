@@ -17,7 +17,7 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
-## [1.30.0] — 2026-06-16
+## [1.30.0] — 2026-06-15
 
 ### Added
 - **"At a Glance" dashboard widget.** A current-state summary on the native
