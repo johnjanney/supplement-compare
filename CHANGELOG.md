@@ -17,6 +17,35 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.31.0] — 2026-06-16
+
+### Fixed
+- **Extractor no longer auto-publishes offers that never cleared the pending
+  queue.** A `pending` (or `needs_review`) offer that the stale detector hid —
+  because a merchant endpoint dropped it for one run (a flaky response, a
+  timeout, an out-of-stock filter, a paused variant) — was force-promoted to
+  `active` the next time the extractor saw it again. This bypassed the pending
+  queue entirely (violating the no-auto-publish invariant) and surfaced
+  un-curated offers (no canonical, blank ingredient / form / total active /
+  servings) on the public Active Offers page. The restore-from-stale path now
+  returns an offer to the status it held *before* going stale, never blindly to
+  `active`. A genuinely-approved offer that goes stale and reappears still comes
+  back `active`; an offer that was only ever `pending` comes back `pending`.
+
+### Changed
+- **Schema v12:** added `pre_stale_status` to `supcomp_normalized_offers`. The
+  stale detector now stashes an offer's prior visibility status here when it
+  flips the offer to `stale`, so the restore path can return it exactly where it
+  was. Applied automatically on plugin upgrade via `dbDelta` (operator action:
+  none). Offers that were already `stale` before this upgrade have no recorded
+  prior status and fall back to `pending` on return — never `active`.
+
+> **Note:** This fix is forward-only. Offers that were already wrongly promoted
+> to `active` before this version are left as-is; review the Active Offers page
+> and demote any un-curated offers you would not have approved.
+
+---
+
 ## [1.30.2] — 2026-06-16
 
 ### Changed

@@ -149,10 +149,14 @@ What every re-run **leaves alone** (your edits are sticky):
   in the stale-after-this-run sweep.)
 - Operator notes and match-confidence overrides
 
-**Stale → active resurrection.** If an offer dropped out of a previous
+**Stale → prior-status resurrection.** If an offer dropped out of a previous
 run (the stale-detector marked it `stale` because the merchant temporarily
-delisted it) and then reappears in a later run, the plugin automatically
-restores it to `active` — no manual re-approval needed.
+delisted it) and then reappears in a later run, the plugin restores it to the
+status it held *before* going stale — not blindly to `active`. An offer you had
+already approved comes back `active` with no manual re-approval; an offer that
+was still in the queue comes back `pending` so it stays under your review.
+(Prior to v1.31.0 every returning offer was force-promoted to `active`, which
+could auto-publish un-curated offers that never cleared the pending queue.)
 
 **Price-history logging.** When a re-run updates an existing offer's
 price or stock, the change is logged to the `price_history` table —
@@ -273,7 +277,9 @@ A live import does the following, in order:
    those merchants that weren't seen in this run, with visibility in
    `pending`/`active`/`needs_review`, get flipped to `stale`. Operator-set
    states (paused, rejected, dead) are left alone.
-6. Re-appearing offers that were `stale` are restored to `active`.
+6. Re-appearing offers that were `stale` are restored to the status they held
+   before going stale (an already-approved offer returns to `active`; an
+   unapproved one returns to `pending`) — never auto-promoted to `active`.
 7. Updates the `import_runs` row with counts and `status=complete`.
 
 After import, the screen redirects to the run detail view: per-run metadata,

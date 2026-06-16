@@ -499,16 +499,24 @@ class Supcomp_Offers_Repo {
 	 * columns are left alone. Returns the array actually written so the
 	 * caller can diff against the existing row for price_history logging.
 	 */
-	public static function update_csv_columns( $existing_id, $row, $import_run_id, $now, $restore_from_stale ) {
+	public static function update_csv_columns( $existing, $row, $import_run_id, $now ) {
 		global $wpdb;
 		$data                            = self::csv_columns( $row );
 		$data['last_seen_import_run_id'] = (int) $import_run_id;
 		$data['last_synced_at']          = $now;
 		$data['updated_at']              = $now;
-		if ( $restore_from_stale ) {
-			$data['visibility_status'] = 'active';
+		// Restore-from-stale: an offer the stale detector hid has reappeared.
+		// Return it to the status it held *before* going stale (stashed in
+		// pre_stale_status) — never blindly to 'active', which would
+		// auto-publish an offer that never cleared the pending queue
+		// (invariant #1). Fall back to 'pending' when the prior status is
+		// unknown (offers that went stale before pre_stale_status existed).
+		if ( $existing->visibility_status === 'stale' ) {
+			$prior = isset( $existing->pre_stale_status ) ? (string) $existing->pre_stale_status : '';
+			$data['visibility_status'] = in_array( $prior, array( 'active', 'pending', 'needs_review' ), true ) ? $prior : 'pending';
+			$data['pre_stale_status']  = null;
 		}
-		$wpdb->update( self::table(), $data, array( 'id' => (int) $existing_id ) );
+		$wpdb->update( self::table(), $data, array( 'id' => (int) $existing->id ) );
 		return $data;
 	}
 
