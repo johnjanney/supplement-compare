@@ -445,6 +445,17 @@ button.supcomp-coupon {
 	.supcomp-table td.supcomp-num {
 		white-space: normal;
 	}
+	/* Always stack the price-direction indicator above the price on mobile.
+	   Letting the cell wrap (white-space: normal) only breaks the line when the
+	   content overflows, so short values stayed inline while long ones wrapped —
+	   inconsistent. Forcing the indicator block-level puts the arrow + % on its
+	   own line every time. The cell is right-aligned, so the block still hugs
+	   the right edge, sitting directly above the price with decimal alignment
+	   preserved (the inline margin-right is no longer needed). */
+	.supcomp-table td.supcomp-num .supcomp-pricemove {
+		display: block;
+		margin-right: 0;
+	}
 	.supcomp-table .supcomp-buy {
 		padding: 0.45em 0.9em;
 		font-size: 14px;

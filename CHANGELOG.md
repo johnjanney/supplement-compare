@@ -17,6 +17,20 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.30.2] — 2026-06-16
+
+### Changed
+- **Price-direction indicator now stacks above the price on mobile.** On
+  narrow viewports (≤720px) the ▲/▼ arrow and percentage always render on
+  their own line above the price, instead of only wrapping when the combined
+  value was wide enough to overflow. Short values used to stay inline while
+  long ones wrapped, which looked inconsistent. The compare cell stays
+  right-aligned, so the indicator sits directly above the price with decimal
+  alignment preserved. CSS-only (`frontend.css` mobile media query); no desktop
+  change, and no data, export, or behavior changes.
+
+---
+
 ## [1.30.1] — 2026-06-15
 
 ### Changed
