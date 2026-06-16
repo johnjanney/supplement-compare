@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '11';
+	const SCHEMA_VERSION = '12';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -282,6 +282,7 @@ class Supcomp_Installer {
 			source_variant_url VARCHAR(512) NULL,
 			affiliate_url VARCHAR(512) NULL,
 			visibility_status VARCHAR(32) NOT NULL DEFAULT 'pending',
+			pre_stale_status VARCHAR(32) NULL,
 			match_confidence DECIMAL(3,2) NULL,
 			variation_retrieval_status VARCHAR(32) NOT NULL DEFAULT 'not_applicable',
 			operator_notes TEXT NULL,
