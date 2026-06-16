@@ -74,6 +74,12 @@ class Supcomp_Active_Offers_Screen {
 						<?php endforeach; ?>
 					</select>
 
+					<select name="has_canonical">
+						<option value=""><?php esc_html_e( 'Any canonical state', 'supplement-compare' ); ?></option>
+						<option value="no" <?php selected( $args['has_canonical'], 'no' ); ?>><?php esc_html_e( 'No canonical assigned', 'supplement-compare' ); ?></option>
+						<option value="yes" <?php selected( $args['has_canonical'], 'yes' ); ?>><?php esc_html_e( 'Has canonical', 'supplement-compare' ); ?></option>
+					</select>
+
 					<?php submit_button( __( 'Filter', 'supplement-compare' ), '', '', false ); ?>
 				</p>
 			</form>
@@ -214,7 +220,7 @@ class Supcomp_Active_Offers_Screen {
 		// Preserve only the known filter/sort/pagination params rather than
 		// reflecting every $_GET key (keys are attacker-pollutable; the result
 		// is echoed back into the page).
-		$allowed = array( 's', 'merchant_id', 'ingredient_id', 'orderby', 'order', 'offset', 'paged' );
+		$allowed = array( 's', 'merchant_id', 'ingredient_id', 'has_canonical', 'orderby', 'order', 'offset', 'paged' );
 		$args    = array( 'page' => self::PAGE_SLUG );
 		foreach ( $allowed as $key ) {
 			if ( isset( $_GET[ $key ] ) ) {
@@ -228,6 +234,7 @@ class Supcomp_Active_Offers_Screen {
 		return array(
 			'merchant_id'    => isset( $_GET['merchant_id'] ) ? absint( wp_unslash( $_GET['merchant_id'] ) ) : 0,
 			'ingredient_id'  => isset( $_GET['ingredient_id'] ) ? absint( wp_unslash( $_GET['ingredient_id'] ) ) : 0,
+			'has_canonical'  => isset( $_GET['has_canonical'] ) && in_array( $_GET['has_canonical'], array( 'yes', 'no' ), true ) ? sanitize_key( wp_unslash( $_GET['has_canonical'] ) ) : '',
 			'search'         => isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '',
 			'orderby'        => isset( $_GET['orderby'] ) ? sanitize_key( wp_unslash( $_GET['orderby'] ) ) : 'cost_per_active_unit',
 			'order'          => isset( $_GET['order'] ) ? sanitize_key( wp_unslash( $_GET['order'] ) ) : 'ASC',
