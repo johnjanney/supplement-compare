@@ -35,6 +35,17 @@ class Supcomp_Canonical_Products_Repo {
 		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", absint( $id ) ) );
 	}
 
+	/**
+	 * Count of live canonical products (everything not retired), for the
+	 * dashboard widget. Mirrors the for_picker() filter so the figure matches
+	 * the products the operator actually works with.
+	 */
+	public static function count_active() {
+		global $wpdb;
+		$table = self::table();
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table} WHERE status <> 'retired'" );
+	}
+
 	public static function get_by_slug( $slug ) {
 		global $wpdb;
 		$table = self::table();
