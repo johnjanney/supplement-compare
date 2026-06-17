@@ -1025,9 +1025,12 @@ you to judge fresh.
 
 **Lifting a suppression.** WP Admin → Supplement Compare → **Suppression
 List** shows everything currently suppressed, with the product title and
-merchant. Click **Lift** on a row to remove it; the product can then
-return to the Pending Queue on the next import. The list is view + lift
-only — entries are added automatically by Cleanup, not by hand. The
+merchant. Use the **search box** at the top (v1.31.2) to filter by product
+title, brand, or source product id when the list is long — the term sticks
+across pages, and **Clear** resets it. Click **Lift** on a row to remove
+it; the product can then return to the Pending Queue on the next import.
+The list is view + lift only — entries are added automatically by Cleanup,
+not by hand. The
 Import screen's run stats include a **Suppressed** count so you can see
 how many products a given run skipped.
 
