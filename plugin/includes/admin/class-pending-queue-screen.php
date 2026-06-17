@@ -209,16 +209,30 @@ class Supcomp_Pending_Queue_Screen {
 	}
 
 	private static function render_row_action( $offer_id, $action, $label, $class ) {
-		?>
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline">
-			<input type="hidden" name="action" value="supcomp_offer_row_action">
-			<input type="hidden" name="id" value="<?php echo (int) $offer_id; ?>">
-			<input type="hidden" name="row_action" value="<?php echo esc_attr( $action ); ?>">
-			<input type="hidden" name="return" value="<?php echo esc_attr( self::current_url() ); ?>">
-			<?php wp_nonce_field( self::NONCE_ROW . '_' . $offer_id ); ?>
-			<button type="submit" class="button button-small <?php echo esc_attr( $class ); ?>"><?php echo esc_html( $label ); ?></button>
-		</form>
-		<?php
+		// Row actions are nonced links, NOT nested forms. Nesting a <form>
+		// inside the bulk-action <form> that wraps the table is invalid HTML
+		// and the browser closes the outer form at the first row, breaking
+		// both bulk selection and row-action routing. Links sidestep that
+		// (the standard WP_List_Table pattern). The handler verifies the
+		// per-offer nonce and the manage_options capability.
+		$url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'action'     => 'supcomp_offer_row_action',
+					'id'         => (int) $offer_id,
+					'row_action' => $action,
+					'return'     => self::current_url(),
+				),
+				admin_url( 'admin-post.php' )
+			),
+			self::NONCE_ROW . '_' . $offer_id
+		);
+		printf(
+			' <a href="%s" class="button button-small %s">%s</a>',
+			esc_url( $url ),
+			esc_attr( $class ),
+			esc_html( $label )
+		);
 	}
 
 	private static function render_pagination( $total, $args ) {
@@ -254,11 +268,11 @@ class Supcomp_Pending_Queue_Screen {
 		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
 			wp_die( esc_html__( 'You do not have permission.', 'supplement-compare' ) );
 		}
-		$id = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+		$id = isset( $_GET['id'] ) ? absint( $_GET['id'] ) : 0;
 		check_admin_referer( self::NONCE_ROW . '_' . $id );
 
-		$action = isset( $_POST['row_action'] ) ? sanitize_key( wp_unslash( $_POST['row_action'] ) ) : '';
-		$return = isset( $_POST['return'] ) ? esc_url_raw( wp_unslash( $_POST['return'] ) ) : self::url();
+		$action = isset( $_GET['row_action'] ) ? sanitize_key( wp_unslash( $_GET['row_action'] ) ) : '';
+		$return = isset( $_GET['return'] ) ? esc_url_raw( wp_unslash( $_GET['return'] ) ) : self::url();
 
 		$map = array(
 			'approve' => 'active',
