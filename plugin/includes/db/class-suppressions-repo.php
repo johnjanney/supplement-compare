@@ -128,35 +128,70 @@ class Supcomp_Suppressions_Repo {
 		return false !== $wpdb->delete( self::table(), array( 'id' => (int) $id ), array( '%d' ) );
 	}
 
-	public static function count_all() {
+	/**
+	 * Count suppressions, optionally narrowed by a free-text search (v1.31.2).
+	 */
+	public static function count_all( $search = '' ) {
 		global $wpdb;
 		$table = self::table();
-		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" );
+		list( $where_sql, $params ) = self::search_where( $search );
+		$sql = "SELECT COUNT(*) FROM {$table} s{$where_sql}";
+		if ( empty( $params ) ) {
+			return (int) $wpdb->get_var( $sql );
+		}
+		return (int) $wpdb->get_var( $wpdb->prepare( $sql, $params ) );
 	}
 
 	/**
 	 * Page of suppressions joined to the merchant name for the admin list.
-	 * Newest first.
+	 * Newest first. Optionally narrowed by a free-text search (v1.31.2)
+	 * matching product title, brand, or source product id.
 	 *
 	 * @return array<object>
 	 */
-	public static function paginate( $page = 1, $per_page = 50 ) {
+	public static function paginate( $page = 1, $per_page = 50, $search = '' ) {
 		global $wpdb;
-		$table    = self::table();
+		$table     = self::table();
 		$merchants = $wpdb->prefix . 'supcomp_merchants';
-		$page     = max( 1, (int) $page );
-		$per_page = max( 1, (int) $per_page );
-		$offset   = ( $page - 1 ) * $per_page;
+		$page      = max( 1, (int) $page );
+		$per_page  = max( 1, (int) $per_page );
+		$offset    = ( $page - 1 ) * $per_page;
+
+		list( $where_sql, $params ) = self::search_where( $search );
+		$params[] = $per_page;
+		$params[] = $offset;
+
 		return $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT s.*, m.name AS merchant_name
 				 FROM {$table} s
 				 LEFT JOIN {$merchants} m ON m.id = s.merchant_id
+				 {$where_sql}
 				 ORDER BY s.id DESC
 				 LIMIT %d OFFSET %d",
-				$per_page,
-				$offset
+				$params
 			)
+		);
+	}
+
+	/**
+	 * Build the WHERE fragment for the admin free-text search. Returns
+	 * [ ' WHERE …' | '', $params ]. Matches product_title, brand, and the
+	 * source product id; merchant name is intentionally out of scope (search
+	 * box only — see v1.31.2).
+	 *
+	 * @return array{0:string,1:array}
+	 */
+	private static function search_where( $search ) {
+		global $wpdb;
+		$search = trim( (string) $search );
+		if ( $search === '' ) {
+			return array( '', array() );
+		}
+		$like = '%' . $wpdb->esc_like( $search ) . '%';
+		return array(
+			' WHERE (s.product_title LIKE %s OR s.brand LIKE %s OR s.source_product_id LIKE %s)',
+			array( $like, $like, $like ),
 		);
 	}
 
