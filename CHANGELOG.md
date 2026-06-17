@@ -17,6 +17,23 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.31.2] — 2026-06-16
+
+### Added
+- **Search box on the Suppression List.** WP Admin → Supplement Compare →
+  Suppression List now has a search field that filters the list by product
+  title, brand, or source product id — so you can quickly find an offer and
+  **Lift** it back toward the Pending Queue without paging through everything.
+  The term is preserved across pagination, and a **Clear** button resets it.
+
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
 ## [1.31.1] — 2026-06-17
 
 ### Added

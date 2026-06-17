@@ -32,9 +32,10 @@ class Supcomp_Suppression_Screen {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'supplement-compare' ) );
 		}
 
-		$total = Supcomp_Suppressions_Repo::count_all();
-		$page  = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
-		$rows  = Supcomp_Suppressions_Repo::paginate( $page, self::PER_PAGE );
+		$search = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+		$total  = Supcomp_Suppressions_Repo::count_all( $search );
+		$page   = isset( $_GET['paged'] ) ? max( 1, absint( $_GET['paged'] ) ) : 1;
+		$rows   = Supcomp_Suppressions_Repo::paginate( $page, self::PER_PAGE, $search );
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Suppression List', 'supplement-compare' ); ?></h1>
@@ -45,8 +46,23 @@ class Supcomp_Suppression_Screen {
 
 			<?php self::render_notice(); ?>
 
+			<form method="get">
+				<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>">
+				<p class="search-box">
+					<input type="search" name="s" value="<?php echo esc_attr( $search ); ?>" placeholder="<?php esc_attr_e( 'Search title, brand, source id…', 'supplement-compare' ); ?>">
+					<?php submit_button( __( 'Search', 'supplement-compare' ), '', '', false ); ?>
+					<?php if ( $search !== '' ) : ?>
+						<a class="button" href="<?php echo esc_url( add_query_arg( array( 'page' => self::PAGE_SLUG ), admin_url( 'admin.php' ) ) ); ?>"><?php esc_html_e( 'Clear', 'supplement-compare' ); ?></a>
+					<?php endif; ?>
+				</p>
+			</form>
+
 			<?php if ( empty( $rows ) ) : ?>
-				<p><em><?php esc_html_e( 'Nothing suppressed. Entries are added automatically when you delete a rejected offer on the Cleanup screen.', 'supplement-compare' ); ?></em></p>
+				<?php if ( $search !== '' ) : ?>
+					<p><em><?php printf( esc_html__( 'No suppressed products match “%s”.', 'supplement-compare' ), esc_html( $search ) ); ?></em></p>
+				<?php else : ?>
+					<p><em><?php esc_html_e( 'Nothing suppressed. Entries are added automatically when you delete a rejected offer on the Cleanup screen.', 'supplement-compare' ); ?></em></p>
+				<?php endif; ?>
 			<?php else : ?>
 				<table class="wp-list-table widefat fixed striped" style="max-width:80em">
 					<thead>
@@ -85,7 +101,7 @@ class Supcomp_Suppression_Screen {
 					</tbody>
 				</table>
 
-				<?php self::render_pagination( $total, $page ); ?>
+				<?php self::render_pagination( $total, $page, $search ); ?>
 			<?php endif; ?>
 		</div>
 		<?php
@@ -121,17 +137,18 @@ class Supcomp_Suppression_Screen {
 		}
 	}
 
-	private static function render_pagination( $total, $page ) {
+	private static function render_pagination( $total, $page, $search = '' ) {
 		$pages = (int) ceil( $total / self::PER_PAGE );
 		if ( $pages < 2 ) {
 			return;
 		}
 		echo '<p class="tablenav-pages" style="margin-top:1em">';
 		for ( $i = 1; $i <= $pages; $i++ ) {
-			$url = add_query_arg(
-				array( 'page' => self::PAGE_SLUG, 'paged' => $i ),
-				admin_url( 'admin.php' )
-			);
+			$args = array( 'page' => self::PAGE_SLUG, 'paged' => $i );
+			if ( $search !== '' ) {
+				$args['s'] = $search;
+			}
+			$url = add_query_arg( $args, admin_url( 'admin.php' ) );
 			if ( $i === (int) $page ) {
 				printf( '<span class="button button-primary" style="margin:0 .2em">%d</span>', $i );
 			} else {
