@@ -172,16 +172,27 @@ class Supcomp_Active_Offers_Screen {
 	}
 
 	private static function render_row_action( $offer_id, $action, $label ) {
-		?>
-		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline">
-			<input type="hidden" name="action" value="supcomp_offer_row_action">
-			<input type="hidden" name="id" value="<?php echo (int) $offer_id; ?>">
-			<input type="hidden" name="row_action" value="<?php echo esc_attr( $action ); ?>">
-			<input type="hidden" name="return" value="<?php echo esc_attr( self::current_url() ); ?>">
-			<?php wp_nonce_field( self::NONCE_ROW . '_' . $offer_id ); ?>
-			<button type="submit" class="button button-small button-link-delete"><?php echo esc_html( $label ); ?></button>
-		</form>
-		<?php
+		// Row actions are nonced links, NOT nested forms — see the matching
+		// note in Supcomp_Pending_Queue_Screen::render_row_action(). Nesting a
+		// <form> inside the bulk-action form breaks both bulk selection and
+		// row-action routing. Handler is the shared admin_post_supcomp_offer_row_action.
+		$url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'action'     => 'supcomp_offer_row_action',
+					'id'         => (int) $offer_id,
+					'row_action' => $action,
+					'return'     => self::current_url(),
+				),
+				admin_url( 'admin-post.php' )
+			),
+			self::NONCE_ROW . '_' . $offer_id
+		);
+		printf(
+			' <a href="%s" class="button button-small button-link-delete">%s</a>',
+			esc_url( $url ),
+			esc_html( $label )
+		);
 	}
 
 	private static function render_pagination( $total, $args ) {

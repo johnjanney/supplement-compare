@@ -17,6 +17,29 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.31.1] — 2026-06-17
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **Bulk and row actions on the Pending Queue and Active Offers screens now
+  work correctly.** Selecting multiple offers and applying a bulk action (e.g.
+  Reject, Defer) previously affected only the top row and could run the *wrong*
+  action — a bulk "Reject" misrouted to a single-offer "Approve", publishing an
+  offer to the public site instead of rejecting it. Root cause: each row's
+  Approve/Reject/Pause/Defer buttons were rendered as their own `<form>` nested
+  inside the bulk-action `<form>` that wraps the table. Nested forms are invalid
+  HTML; the browser closed the outer form at the first row, so only the first
+  checkbox submitted and the duplicated hidden `action` field misrouted the
+  request. Row actions are now nonced links (the standard `WP_List_Table`
+  pattern) instead of nested forms, so the bulk form wraps the table cleanly.
+  No data model or schema change.
+### Security
+
+---
+
 ## [1.31.0] — 2026-06-16
 
 ### Added
