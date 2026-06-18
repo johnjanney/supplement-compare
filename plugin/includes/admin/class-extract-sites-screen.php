@@ -232,6 +232,7 @@ class Supcomp_Extract_Sites_Screen {
 		$hint    = $is_edit ? $site->platform_hint : 'auto';
 		$merch   = $is_edit ? (int) $site->merchant_id : 0;
 		$cookies = $is_edit && isset( $site->request_cookies ) ? (string) $site->request_cookies : '';
+		$crawl_all = $is_edit && isset( $site->crawl_all_sitemap_urls ) ? (int) $site->crawl_all_sitemap_urls : 0;
 		$enabled = $is_edit ? (int) $site->enabled : 1;
 
 		$merchants = Supcomp_Merchants_Repo::active_for_select();
@@ -280,6 +281,13 @@ class Supcomp_Extract_Sites_Screen {
 								<?php endforeach; ?>
 							</select>
 							<p class="description"><?php esc_html_e( 'Leave on "auto" to let the extractor try Shopify → Woo → generic JSON-LD in order ("auto" also finds Wix sites via the generic step). Pin a specific platform if a site supports multiple. "wix" uses the generic JSON-LD engine but skips the Shopify/Woo probes and labels offers as "wix".', 'supplement-compare' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th><?php esc_html_e( 'Crawl all sitemap URLs', 'supplement-compare' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="crawl_all_sitemap_urls" value="1" <?php checked( $crawl_all, 1 ); ?>> <?php esc_html_e( 'Treat every sitemap URL as a possible product page', 'supplement-compare' ); ?></label>
+							<p class="description"><?php esc_html_e( 'Generic JSON-LD only. By default the generic handler keeps sitemap URLs whose path looks like a product (/product/, /shop/, /p/, …). Turn this on for headless or single-page-app storefronts (e.g. a Next.js site) whose products live at top-level slugs like /my-product with no such prefix — the handler then fetches every sitemap URL and keeps the ones that carry Product structured data, ignoring the rest. Costs extra fetches (spread across scheduled runs); leave off for normal Shopify/Woo/WordPress stores.', 'supplement-compare' ); ?></p>
 						</td>
 					</tr>
 					<tr>
@@ -334,6 +342,7 @@ class Supcomp_Extract_Sites_Screen {
 			'platform_hint'   => isset( $_POST['platform_hint'] ) ? wp_unslash( $_POST['platform_hint'] ) : 'auto',
 			'merchant_id'     => isset( $_POST['merchant_id'] ) ? absint( $_POST['merchant_id'] ) : 0,
 			'request_cookies' => isset( $_POST['request_cookies'] ) ? wp_unslash( $_POST['request_cookies'] ) : '',
+			'crawl_all_sitemap_urls' => isset( $_POST['crawl_all_sitemap_urls'] ),
 			'enabled'         => isset( $_POST['enabled'] ),
 		);
 

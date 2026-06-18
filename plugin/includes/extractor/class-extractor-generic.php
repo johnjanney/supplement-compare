@@ -47,6 +47,20 @@ class Supcomp_Extractor_Generic {
 		'/product', '/products/', '/shop/', '/p/', '/item/', '/dp/',
 	);
 
+	/**
+	 * Probe-all mode only (crawl_all_sitemap_urls): path substrings that are
+	 * almost certainly NOT product pages. This is a fetch-saver, not a
+	 * correctness gate — anything that slips through is still self-classified
+	 * by fetch_chunk(), which yields zero rows for a page with no Product
+	 * JSON-LD. Kept conservative so a real product slug is never excluded.
+	 */
+	const PROBE_EXCLUDE_SUBSTRINGS = array(
+		'/blog', '/learn', '/news', '/article',
+		'/about', '/contact', '/faq', '/privacy', '/terms',
+		'/refund', '/shipping', '/policy', '/policies',
+		'/cart', '/checkout', '/account', '/login', '/register', '/search',
+	);
+
 	const SITEMAP_NS = 'http://www.sitemaps.org/schemas/sitemap/0.9';
 
 	// Max sitemap-index recursion depth. A store's product sitemaps sit one
@@ -89,10 +103,24 @@ class Supcomp_Extractor_Generic {
 	 * Walk the sitemap candidates and return up to URL_DISCOVERY_CAP
 	 * deduplicated product URLs. Empty array if no sitemap responds with
 	 * a parseable list. Mirrors discover_product_urls in Python.
+	 *
+	 * @param string $site      Site base URL.
+	 * @param bool   $probe_all When true (the per-site "crawl all sitemap
+	 *                          URLs" option), every sitemap URL is treated as
+	 *                          a candidate product page rather than filtering
+	 *                          by PRODUCT_PATH_HINTS. This is the path for
+	 *                          headless / flat-slug storefronts (e.g. a
+	 *                          Next.js site whose products live at top-level
+	 *                          slugs like /adamax with no /product/ prefix).
+	 *                          fetch_chunk() self-classifies — a page with no
+	 *                          Product JSON-LD simply yields no rows — so the
+	 *                          only cost is extra fetches, spread across the
+	 *                          chunked Action Scheduler pages.
 	 */
-	public static function discover_product_urls( $site ) {
+	public static function discover_product_urls( $site, $probe_all = false ) {
 		$seen      = array();
 		$base_host = (string) wp_parse_url( $site, PHP_URL_HOST );
+		$home      = rtrim( $site, '/' );
 		foreach ( self::SITEMAP_CANDIDATES as $path ) {
 			$url      = rtrim( $site, '/' ) . $path;
 			$response = Supcomp_Extractor_Http::get( $url );
@@ -102,10 +130,13 @@ class Supcomp_Extractor_Generic {
 			if ( strpos( $response['body'], '<' ) === false ) {
 				continue;
 			}
-			$trust_all = ( strpos( $path, 'product' ) !== false );
+			$trust_all = ( $probe_all || strpos( $path, 'product' ) !== false );
 			$urls = self::parse_sitemap( $response['body'], $trust_all, $base_host, 0 );
 			foreach ( $urls as $u ) {
-				if ( $trust_all || self::matches_product_hint( $u ) ) {
+				$keep = $probe_all
+					? ( $u !== $home && $u !== $home . '/' && ! self::is_probe_excluded( $u ) )
+					: ( $trust_all || self::matches_product_hint( $u ) );
+				if ( $keep ) {
 					$seen[ $u ] = true;
 					if ( count( $seen ) >= self::URL_DISCOVERY_CAP ) {
 						break;
@@ -116,7 +147,34 @@ class Supcomp_Extractor_Generic {
 				break;
 			}
 		}
+		if ( $probe_all && count( $seen ) >= self::URL_DISCOVERY_CAP ) {
+			// Not silent: a truncated crawl reads as "covered everything" when
+			// it didn't. The operator can split the site or raise the cap.
+			error_log( sprintf(
+				'[supplement-compare] Generic crawl-all discovery hit the %d-URL cap for %s; later sitemap URLs were not crawled.',
+				self::URL_DISCOVERY_CAP,
+				$site
+			) );
+		}
 		return array_slice( array_keys( $seen ), 0, self::URL_DISCOVERY_CAP );
+	}
+
+	/**
+	 * Probe-all helper: true if a URL's path looks like a non-product page
+	 * (blog, policy, cart, etc.) per PROBE_EXCLUDE_SUBSTRINGS, or is the bare
+	 * homepage. Conservative by design — see PROBE_EXCLUDE_SUBSTRINGS.
+	 */
+	private static function is_probe_excluded( $url ) {
+		$path = strtolower( (string) wp_parse_url( $url, PHP_URL_PATH ) );
+		if ( $path === '' || $path === '/' ) {
+			return true;
+		}
+		foreach ( self::PROBE_EXCLUDE_SUBSTRINGS as $needle ) {
+			if ( strpos( $path, $needle ) !== false ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

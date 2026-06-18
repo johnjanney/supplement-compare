@@ -116,6 +116,9 @@ class Supcomp_Extract_Sites_Repo {
 			$raw = preg_replace( '/[\r\n]+/', ' ', (string) $data['request_cookies'] );
 			$clean['request_cookies'] = self::trim_to( trim( wp_strip_all_tags( $raw ) ), 2048 );
 		}
+		if ( array_key_exists( 'crawl_all_sitemap_urls', $data ) ) {
+			$clean['crawl_all_sitemap_urls'] = self::truthy( $data['crawl_all_sitemap_urls'] ) ? 1 : 0;
+		}
 		if ( array_key_exists( 'enabled', $data ) ) {
 			$clean['enabled'] = self::truthy( $data['enabled'] ) ? 1 : 0;
 		}
