@@ -41,6 +41,7 @@ class Supcomp_Extractor_Worker {
 			'platform_hint'  => (string) $site_row->platform_hint,
 			'merchant_id'    => (int) $site_row->merchant_id,
 			'request_cookies'=> isset( $site_row->request_cookies ) ? (string) $site_row->request_cookies : '',
+			'crawl_all_sitemap_urls' => isset( $site_row->crawl_all_sitemap_urls ) ? (int) $site_row->crawl_all_sitemap_urls : 0,
 			'triggered_by'   => $triggered_by,
 			'page'           => 1,
 			'platform_used'  => '', // filled in on page 1 once a handler succeeds
@@ -164,9 +165,16 @@ class Supcomp_Extractor_Worker {
 				$rows[] = $row;
 			}
 
-			// Empty page = final-page marker for Shopify (when batch came back empty
-			// but the run already saw products earlier). Skip ingest, jump to finalize.
-			if ( empty( $rows ) ) {
+			// Empty page = final-page marker for Shopify/Woo (their /products
+			// endpoints return an empty array past the last page). The generic
+			// engine is different: end-of-list is driven by the discovered URL
+			// count (batch_size < page_size below), and a chunk can legitimately
+			// yield zero rows mid-run — e.g. crawl-all mode hitting a run of
+			// non-product sitemap URLs, or product pages that 404. Treating that
+			// as "final" would silently drop every later URL, so skip the
+			// shortcut for generic/wix and let the normal pagination logic run
+			// (empty-row ingest is a no-op).
+			if ( empty( $rows ) && ! in_array( $state['platform_used'], array( 'generic', 'wix' ), true ) ) {
 				self::finalize_attempt_complete( $state );
 				$handed_off = true;
 				return;
@@ -455,7 +463,8 @@ class Supcomp_Extractor_Worker {
 			}
 		}
 		if ( $try_generic ) {
-			$urls = Supcomp_Extractor_Generic::discover_product_urls( $state['site_url'] );
+			$probe_all = ! empty( $state['crawl_all_sitemap_urls'] );
+			$urls = Supcomp_Extractor_Generic::discover_product_urls( $state['site_url'], $probe_all );
 			if ( ! empty( $urls ) ) {
 				// Pass the first product URL so fetch_store_meta can recover a
 				// seller/brand name when the homepage returns a generic default
