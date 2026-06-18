@@ -89,6 +89,21 @@ any site running an SEO plugin like Yoast or Rank Math).
      You don't have to pin `wix` for the extractor to *find* a Wix site —
      `auto` reaches it through the generic step — pin it only when you
      already know the platform and want the offers labeled accordingly.
+   - **Crawl all sitemap URLs** — generic JSON-LD only; off by default.
+     Normally the generic handler keeps only sitemap URLs whose path looks
+     like a product (`/product/`, `/shop/`, `/p/`, …). Some modern
+     storefronts — headless / single-page-app builds (e.g. a Next.js site
+     fronted by a CDN) — serve their products at top-level slugs like
+     `/my-product` with no such prefix, *and* their `/wp-json` or other
+     platform APIs may be firewalled off. For those, the path filter finds
+     nothing (or only category pages). Tick this box and the handler instead
+     fetches **every** URL in the sitemap and keeps the ones that carry
+     `schema.org` Product structured data, ignoring the rest. It costs extra
+     HTTP fetches (spread across scheduled pages, so it won't time out), so
+     leave it **off** for normal Shopify / Woo / WordPress stores. Worked
+     example: `example.com` (Next.js on a CDN, products at flat
+     slugs, `/wp-json` blocked) — pin **Platform = generic** and tick this
+     box.
    - **Merchant** — pick the linked Merchants row. Required for
      `/out/{id}` to fire downstream.
    - **Enabled** — leave checked.

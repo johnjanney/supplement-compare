@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '12';
+	const SCHEMA_VERSION = '13';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -330,6 +330,7 @@ class Supcomp_Installer {
 			platform_hint VARCHAR(32) NOT NULL DEFAULT 'auto',
 			merchant_id BIGINT(20) UNSIGNED NULL,
 			request_cookies TEXT NULL,
+			crawl_all_sitemap_urls TINYINT(1) NOT NULL DEFAULT 0,
 			enabled TINYINT(1) NOT NULL DEFAULT 1,
 			last_run_at DATETIME NULL,
 			last_run_status VARCHAR(32) NULL,
