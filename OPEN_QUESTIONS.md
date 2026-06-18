@@ -529,6 +529,31 @@ CHANGELOG; MINOR version bump (1.29.0 → 1.30.0).
 
 ---
 
+### Q-014: 500-URL discovery cap for large crawl-all catalogs
+
+**Status:** open (low priority)
+**Blocks:** nothing today; the v1.32.0 "Crawl all sitemap URLs" feature works
+within the cap.
+**Raised:** 2026-06-17
+**Last touched:** 2026-06-17
+
+The generic handler caps discovery at `URL_DISCOVERY_CAP` (500) URLs per run —
+shared by the normal path-hint path and the new crawl-all path. In crawl-all
+mode the cap counts *every* sitemap URL (products + non-products that slip past
+the denylist), so a headless catalog with a large sitemap can exhaust the cap
+before reaching all products. As of v1.32.0 hitting the cap is logged via
+`error_log`, but the run still truncates silently from the operator's point of
+view.
+
+Real for: a crawl-all site whose sitemap exceeds ~500 entries. None of the
+current 16 sites are close (example.com is ~120). Options when it
+matters: (a) raise the cap for crawl-all sites; (b) tighten the denylist /
+add a per-site allow-pattern to cut non-product URLs before they count against
+the cap; (c) surface a visible admin warning (not just `error_log`) when the
+cap is hit. Defer until a real site needs it.
+
+---
+
 ## Resolved questions
 
 ### Q-010: Does a rejection survive Cleanup + re-extraction?

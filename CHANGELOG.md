@@ -17,6 +17,42 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.32.0] — 2026-06-17
+
+### Added
+- **"Crawl all sitemap URLs" option for the generic JSON-LD handler**
+  (Extractor Sites → Edit, generic platform only). The generic handler
+  normally keeps only sitemap URLs whose path matches a product hint
+  (`/product/`, `/shop/`, `/p/`, …). Headless / single-page-app storefronts
+  (e.g. a Next.js site fronted by a CDN, often with `/wp-json` and other
+  platform APIs firewalled off) serve products at top-level slugs like
+  `/my-product` with no such prefix, so the path filter finds nothing — or
+  worse, only category pages. With this box ticked, the handler fetches every
+  URL in the sitemap and keeps the ones carrying `schema.org` Product
+  structured data, discarding the rest. A conservative path denylist
+  (`/blog`, `/cart`, policy pages, …) and the homepage are skipped to save
+  fetches; everything else is self-classified at parse time. The 500-URL
+  discovery cap still applies and is now logged (`error_log`) when hit.
+  Worked example: `example.com`.
+
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **Generic/Wix runs no longer stop early on an empty page.** The worker
+  treated a zero-row page as the final-page marker, which is correct for
+  Shopify/Woo (their `/products` endpoints return an empty array past the
+  end) but wrong for the generic engine, where end-of-list is driven by the
+  discovered-URL count and a chunk can legitimately yield zero rows mid-run
+  (a cluster of non-product URLs in crawl-all mode, or product pages that
+  404). The empty-page shortcut is now skipped for `generic`/`wix`, so the
+  run paginates through every discovered URL instead of silently dropping the
+  remainder. (Latent bug; surfaced by the crawl-all feature above.)
+
+### Security
+
+---
+
 ## [1.31.2] — 2026-06-16
 
 ### Added
