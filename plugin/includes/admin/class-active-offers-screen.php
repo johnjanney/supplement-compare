@@ -144,11 +144,11 @@ class Supcomp_Active_Offers_Screen {
 									<?php
 									// Total active per container = total_strength (derived, PROJECTBRIEF.md §6).
 									$unit  = $r->strength_unit ? $r->strength_unit : ( $r->ingredient_unit ? $r->ingredient_unit : '' );
-									$total = self::trim_decimal( $r->total_strength );
-									if ( $total === '' && $r->strength_per_serving !== null && $r->servings_per_container !== null ) {
-										$total = self::trim_decimal( (float) $r->strength_per_serving * (int) $r->servings_per_container );
+									$total_active = self::trim_decimal( $r->total_strength );
+									if ( $total_active === '' && $r->strength_per_serving !== null && $r->servings_per_container !== null ) {
+										$total_active = self::trim_decimal( (float) $r->strength_per_serving * (int) $r->servings_per_container );
 									}
-									echo esc_html( $total !== '' ? trim( $total . ' ' . $unit ) : '—' );
+									echo esc_html( $total_active !== '' ? trim( $total_active . ' ' . $unit ) : '—' );
 									?>
 								</td>
 								<td>

@@ -17,6 +17,18 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.32.2] — 2026-06-18
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- Fixed a fatal `TypeError` (`Unsupported operand types: string / int`) that crashed the **Pending Queue** and **Active Offers** admin screens, introduced in v1.32.1. The new "Total active / container" cell used a local `$total` variable inside the row loop, which collided with the method-scoped `$total` holding the row count for pagination; after the loop `$total` was a string, so `render_pagination()` threw on `$total / $per`. The cell variable is renamed to `$total_active`. The crash surfaced whenever the last visible row had an empty/non-numeric total.
+### Security
+
+---
+
 ## [1.32.1] — 2026-06-18
 
 ### Added
