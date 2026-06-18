@@ -17,6 +17,18 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.32.1] — 2026-06-18
+
+### Added
+### Changed
+- Admin Pending Queue and Active Offers tables now show a **Total active / container** column (derived `total_strength`, e.g. `50 mg`) in place of the old **Strength × count** column (`2 mg × 25`). Total active is the more directly useful at-a-glance figure when scanning offers; the per-serving strength and serving count remain visible on the offer edit screen. Legacy rows without a stored `total_strength` fall back to `strength_per_serving × servings_per_container`.
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
 ## [1.32.0] — 2026-06-17
 
 ### Added

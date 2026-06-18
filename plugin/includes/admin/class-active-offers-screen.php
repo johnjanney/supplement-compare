@@ -108,7 +108,7 @@ class Supcomp_Active_Offers_Screen {
 							<th><?php esc_html_e( 'Offer', 'supplement-compare' ); ?></th>
 							<th><?php esc_html_e( 'Merchant', 'supplement-compare' ); ?></th>
 							<th><?php esc_html_e( 'Canonical', 'supplement-compare' ); ?></th>
-							<th><?php esc_html_e( 'Strength × count', 'supplement-compare' ); ?></th>
+							<th><?php esc_html_e( 'Total active / container', 'supplement-compare' ); ?></th>
 							<th><?php esc_html_e( 'Price', 'supplement-compare' ); ?></th>
 							<th><?php esc_html_e( 'Cost / active unit', 'supplement-compare' ); ?></th>
 							<th><?php esc_html_e( 'Stock', 'supplement-compare' ); ?></th>
@@ -142,10 +142,13 @@ class Supcomp_Active_Offers_Screen {
 								</td>
 								<td>
 									<?php
-									$strength = self::trim_decimal( $r->strength_per_serving );
-									$unit     = $r->strength_unit ? $r->strength_unit : ( $r->ingredient_unit ? $r->ingredient_unit : '' );
-									$count    = $r->servings_per_container !== null ? (int) $r->servings_per_container : '';
-									echo esc_html( trim( ( $strength !== '' ? $strength . ' ' . $unit : '' ) . ( $count !== '' ? ' × ' . $count : '' ) ) ?: '—' );
+									// Total active per container = total_strength (derived, PROJECTBRIEF.md §6).
+									$unit  = $r->strength_unit ? $r->strength_unit : ( $r->ingredient_unit ? $r->ingredient_unit : '' );
+									$total = self::trim_decimal( $r->total_strength );
+									if ( $total === '' && $r->strength_per_serving !== null && $r->servings_per_container !== null ) {
+										$total = self::trim_decimal( (float) $r->strength_per_serving * (int) $r->servings_per_container );
+									}
+									echo esc_html( $total !== '' ? trim( $total . ' ' . $unit ) : '—' );
 									?>
 								</td>
 								<td>

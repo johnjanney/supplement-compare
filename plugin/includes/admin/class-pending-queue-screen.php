@@ -122,7 +122,7 @@ class Supcomp_Pending_Queue_Screen {
 							<td class="manage-column column-cb check-column"><input type="checkbox" id="cb-select-all-1"></td>
 							<th><?php esc_html_e( 'Offer', 'supplement-compare' ); ?></th>
 							<th><?php esc_html_e( 'Merchant', 'supplement-compare' ); ?></th>
-							<th><?php esc_html_e( 'Strength × count', 'supplement-compare' ); ?></th>
+							<th><?php esc_html_e( 'Total active / container', 'supplement-compare' ); ?></th>
 							<th><?php esc_html_e( 'Price', 'supplement-compare' ); ?></th>
 							<th><?php esc_html_e( 'Cost / active unit', 'supplement-compare' ); ?></th>
 							<th><?php esc_html_e( 'Suggested match', 'supplement-compare' ); ?></th>
@@ -149,18 +149,13 @@ class Supcomp_Pending_Queue_Screen {
 								<td><?php echo esc_html( $r->merchant_name ? $r->merchant_name : '(missing)' ); ?></td>
 								<td>
 									<?php
-									$strength = self::trim_decimal( $r->strength_per_serving );
-									$unit     = $r->strength_unit ? $r->strength_unit : ( $r->ingredient_unit ? $r->ingredient_unit : '' );
-									$count    = $r->servings_per_container !== null ? (int) $r->servings_per_container : '';
-									if ( $strength !== '' ) {
-										echo esc_html( $strength . ' ' . $unit );
+									// Total active per container = total_strength (derived, PROJECTBRIEF.md §6).
+									$unit  = $r->strength_unit ? $r->strength_unit : ( $r->ingredient_unit ? $r->ingredient_unit : '' );
+									$total = self::trim_decimal( $r->total_strength );
+									if ( $total === '' && $r->strength_per_serving !== null && $r->servings_per_container !== null ) {
+										$total = self::trim_decimal( (float) $r->strength_per_serving * (int) $r->servings_per_container );
 									}
-									if ( $count !== '' ) {
-										echo esc_html( ( $strength !== '' ? ' × ' : '' ) . $count );
-									}
-									if ( $strength === '' && $count === '' ) {
-										echo '—';
-									}
+									echo esc_html( $total !== '' ? trim( $total . ' ' . $unit ) : '—' );
 									?>
 								</td>
 								<td>
