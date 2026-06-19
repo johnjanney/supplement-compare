@@ -17,6 +17,45 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.35.1] — 2026-06-19
+
+### Added
+- **Field-fallback paths in the JSON-API mapping.** A field can now map to a list of paths, e.g. `"source_product_id": ["sku", "slug"]`, and the handler uses the first non-empty one. This fixes feeds with a sparse field: e.g. a WooCommerce store where some products have a blank SKU — keying offers on the blank value collapses them all onto one row (and orphans the matching offers from a prior crawl). Falling back to `slug` (or `id`) gives every product a unique, stable key.
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
+## [1.35.0] — 2026-06-19
+
+### Added
+- **Status filter on the Active Offers screen.** A new dropdown (Live / Stale / Paused / Needs review / Rejected / Dead) drives the screen's visibility filter, which previously was hard-coded to `active` with no way to view offers in any other state. Defaults to Live, so the screen behaves exactly as before until you change it. This makes stale offers — e.g. products that fell out of a merchant's feed after an extractor run — visible and actionable (you can re-review or reject them) instead of being invisible in the admin. The count and empty-state messages are status-aware, and the selected status is preserved across pagination and bulk actions.
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
+## [1.34.0] — 2026-06-19
+
+### Added
+- **Per-site product-URL rewrite** (`settings_json → url_rewrite`, any platform). Rewrites each offer's `source_product_url` / `source_variant_url` after extraction, for headless storefronts whose feed/API publishes a **backend or staging host** instead of the public one (a Next.js frontend over WooCommerce that returns `wp.example.com/slug/`, a `*.wpcomstaging.com` host, etc.). A URL is only rewritten when its host matches `from_host`, so correct URLs are never touched; `to_host` swaps the host, an optional `from_path_prefix`/`to_path_prefix` pair swaps a leading path segment (e.g. Woo's `/product/` → a public `/products/`), and `strip_trailing_slash` drops a trailing slash. Configured via a new "Product URL rewrite" field on the Extractor Sites edit screen; the "Test mapping" preview now shows `source_product_url` with the rewrite applied. This closes the headless-WooCommerce staging-host leak tracked in OPEN_QUESTIONS Q-015 (example-shop) and unblocks moving SPA Woo stores like example.com off the slow generic crawl-all path onto the JSON-API handler.
+- **`woo_stock_to_status` transform** for the JSON-API handler — normalizes WooCommerce's stock vocabulary (`instock` / `outofstock` / `onbackorder`) to the site's status enum.
+- **`currency_default` config key** for the JSON-API handler — a fallback currency for feeds that carry no per-row currency (e.g. WooCommerce product objects). The handler also now derives `on_sale` from a mapped `sale_price` below the regular price.
+
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
 ## [1.33.1] — 2026-06-19
 
 ### Added

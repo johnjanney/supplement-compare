@@ -171,6 +171,7 @@ class Supcomp_Extract_Sites_Repo {
 			'request_cookies'        => array_key_exists( 'request_cookies', $bag ) ? (string) $bag['request_cookies'] : $col_cookie,
 			'crawl_all_sitemap_urls' => array_key_exists( 'crawl_all_sitemap_urls', $bag ) ? (bool) $bag['crawl_all_sitemap_urls'] : (bool) $col_crawl,
 			'json_handler'           => ( isset( $bag['json_handler'] ) && is_array( $bag['json_handler'] ) ) ? $bag['json_handler'] : array(),
+			'url_rewrite'            => ( isset( $bag['url_rewrite'] ) && is_array( $bag['url_rewrite'] ) ) ? $bag['url_rewrite'] : array(),
 		);
 	}
 
@@ -191,7 +192,7 @@ class Supcomp_Extract_Sites_Repo {
 	 * (e.g. a json_config-only edit).
 	 */
 	private static function touches_settings( array $data ) {
-		foreach ( array( 'platform_hint', 'request_cookies', 'crawl_all_sitemap_urls', 'json_config' ) as $k ) {
+		foreach ( array( 'platform_hint', 'request_cookies', 'crawl_all_sitemap_urls', 'json_config', 'url_rewrite_config' ) as $k ) {
 			if ( array_key_exists( $k, $data ) ) {
 				return true;
 			}
@@ -211,6 +212,7 @@ class Supcomp_Extract_Sites_Repo {
 			'request_cookies'        => isset( $existing['request_cookies'] ) ? (string) $existing['request_cookies'] : '',
 			'crawl_all_sitemap_urls' => (bool) ( $existing['crawl_all_sitemap_urls'] ?? false ),
 			'json_handler'           => ( isset( $existing['json_handler'] ) && is_array( $existing['json_handler'] ) ) ? $existing['json_handler'] : array(),
+			'url_rewrite'            => ( isset( $existing['url_rewrite'] ) && is_array( $existing['url_rewrite'] ) ) ? $existing['url_rewrite'] : array(),
 		);
 
 		if ( array_key_exists( 'platform_hint', $clean ) ) {
@@ -224,6 +226,9 @@ class Supcomp_Extract_Sites_Repo {
 		}
 		if ( array_key_exists( 'json_config', $data ) ) {
 			$bag['json_handler'] = self::sanitize_json_handler( (string) $data['json_config'] );
+		}
+		if ( array_key_exists( 'url_rewrite_config', $data ) ) {
+			$bag['url_rewrite'] = self::sanitize_url_rewrite( (string) $data['url_rewrite_config'] );
 		}
 
 		$json = wp_json_encode( $bag, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
@@ -283,6 +288,12 @@ class Supcomp_Extract_Sites_Repo {
 		if ( ! empty( $cfg['store_name'] ) ) {
 			$out['store_name'] = self::trim_to( sanitize_text_field( (string) $cfg['store_name'] ), 255 );
 		}
+		if ( ! empty( $cfg['currency_default'] ) ) {
+			$cur = strtoupper( preg_replace( '/[^A-Za-z]/', '', (string) $cfg['currency_default'] ) );
+			if ( strlen( $cur ) === 3 ) {
+				$out['currency_default'] = $cur;
+			}
+		}
 
 		// field map: Offer field => string path | { from, transform }.
 		$allowed_fields = ( class_exists( 'Supcomp_Extractor_Offer' ) )
@@ -290,7 +301,7 @@ class Supcomp_Extract_Sites_Repo {
 			: array();
 		$transforms = ( class_exists( 'Supcomp_Extractor_Json' ) )
 			? Supcomp_Extractor_Json::transforms()
-			: array( 'as_string', 'strip_html', 'bool_to_status', 'gt_zero_to_status', 'truthy_to_status' );
+			: array( 'as_string', 'strip_html', 'bool_to_status', 'gt_zero_to_status', 'truthy_to_status', 'woo_stock_to_status' );
 
 		$out['fields'] = array();
 		if ( isset( $cfg['fields'] ) && is_array( $cfg['fields'] ) ) {
@@ -302,11 +313,17 @@ class Supcomp_Extract_Sites_Repo {
 				if ( is_string( $spec ) ) {
 					$out['fields'][ $field ] = self::clean_path( $spec );
 				} elseif ( is_array( $spec ) && isset( $spec['from'] ) ) {
-					$entry = array( 'from' => self::clean_path( $spec['from'] ) );
+					$entry = array( 'from' => self::clean_path_list( $spec['from'] ) );
 					if ( isset( $spec['transform'] ) && in_array( (string) $spec['transform'], $transforms, true ) ) {
 						$entry['transform'] = (string) $spec['transform'];
 					}
 					$out['fields'][ $field ] = $entry;
+				} elseif ( is_array( $spec ) ) {
+					// Bare fallback list, e.g. ["sku", "slug"] — first non-empty wins.
+					$list = self::clean_path_list( $spec );
+					if ( ! empty( $list ) ) {
+						$out['fields'][ $field ] = $list;
+					}
 				}
 			}
 		}
@@ -323,6 +340,93 @@ class Supcomp_Extract_Sites_Repo {
 		}
 
 		return $out;
+	}
+
+	/**
+	 * Validate & normalize a per-site URL-rewrite rule. Handler-agnostic: the
+	 * worker applies it to source_product_url / source_variant_url on every row
+	 * after the handler runs. Built for headless storefronts whose API/feed
+	 * returns backend/staging product URLs (e.g. a Next.js frontend over a Woo
+	 * backend that leaks `wp.example.com` or a `*.wpcomstaging.com` host).
+	 *
+	 * Shape: { "from_host": "...", "to_host": "...",
+	 *          "from_path_prefix": "/product/", "to_path_prefix": "/products/",
+	 *          "strip_trailing_slash": true }
+	 *
+	 * `from_host` is the trigger — a URL is only rewritten when its host matches,
+	 * so correct URLs are never touched. Returns [] (disabled) without it.
+	 */
+	public static function sanitize_url_rewrite( $raw ) {
+		$raw = trim( (string) $raw );
+		if ( $raw === '' ) {
+			return array();
+		}
+		$cfg = json_decode( $raw, true );
+		if ( ! is_array( $cfg ) ) {
+			return array();
+		}
+
+		$from_host = isset( $cfg['from_host'] ) ? self::clean_host( $cfg['from_host'] ) : '';
+		if ( $from_host === '' ) {
+			return array();
+		}
+		$out = array( 'from_host' => $from_host );
+
+		$to_host = isset( $cfg['to_host'] ) ? self::clean_host( $cfg['to_host'] ) : '';
+		if ( $to_host !== '' ) {
+			$out['to_host'] = $to_host;
+		}
+		if ( isset( $cfg['from_path_prefix'] ) ) {
+			$out['from_path_prefix'] = self::clean_url_path( $cfg['from_path_prefix'] );
+		}
+		if ( isset( $cfg['to_path_prefix'] ) ) {
+			$out['to_path_prefix'] = self::clean_url_path( $cfg['to_path_prefix'] );
+		}
+		if ( ! empty( $cfg['strip_trailing_slash'] ) ) {
+			$out['strip_trailing_slash'] = true;
+		}
+		return $out;
+	}
+
+	/** Strip a value down to a bare hostname (no scheme, path, or port). */
+	private static function clean_host( $host ) {
+		$host = strtolower( trim( (string) $host ) );
+		// Tolerate a pasted full URL by extracting the host component.
+		if ( strpos( $host, '//' ) !== false ) {
+			$parsed = wp_parse_url( $host, PHP_URL_HOST );
+			if ( $parsed ) {
+				$host = (string) $parsed;
+			}
+		}
+		$host = preg_replace( '#[/:].*$#', '', $host );
+		return (string) preg_replace( '/[^a-z0-9.\-]/', '', (string) $host );
+	}
+
+	/** Sanitize a URL path prefix like `/product/`. */
+	private static function clean_url_path( $path ) {
+		$path = (string) preg_replace( '/[^A-Za-z0-9\/_\-]/', '', (string) $path );
+		if ( $path !== '' && $path[0] !== '/' ) {
+			$path = '/' . $path;
+		}
+		return $path;
+	}
+
+	/**
+	 * Sanitize a path or a list of fallback paths. Returns a cleaned string for
+	 * a scalar input, or a list of cleaned non-empty paths for an array input.
+	 */
+	private static function clean_path_list( $paths ) {
+		if ( is_array( $paths ) ) {
+			$out = array();
+			foreach ( $paths as $p ) {
+				$cp = self::clean_path( $p );
+				if ( $cp !== '' ) {
+					$out[] = $cp;
+				}
+			}
+			return $out;
+		}
+		return self::clean_path( $paths );
 	}
 
 	/**
@@ -360,6 +464,7 @@ class Supcomp_Extract_Sites_Repo {
 				'request_cookies'        => isset( $row->request_cookies ) ? (string) $row->request_cookies : '',
 				'crawl_all_sitemap_urls' => isset( $row->crawl_all_sitemap_urls ) ? (bool) (int) $row->crawl_all_sitemap_urls : false,
 				'json_handler'           => array(),
+				'url_rewrite'            => array(),
 			);
 			$json = wp_json_encode( $bag, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
 			$wpdb->update( $table, array( 'settings_json' => $json ), array( 'id' => (int) $row->id ) );
