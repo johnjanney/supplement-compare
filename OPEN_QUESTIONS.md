@@ -724,6 +724,64 @@ become a real onboarding target.
 
 ---
 
+### Q-018: Amazon as a supported merchant platform
+
+**Status:** open (feasibility only — leaning **no** under current architecture;
+no build planned)
+**Blocks:** nothing
+**Raised:** 2026-06-19
+**Last touched:** 2026-06-19
+
+Can we add an Amazon store? Feasibility was scoped (no code). Unlike Q-017
+(Etsy), the blocker here is **not** the fetch mechanics — it's that Amazon's
+program terms collide with this project's load-bearing architecture.
+
+**Why Amazon is different from every other platform.** Shopify / Woo / generic /
+Etsy-API all share the assumption that we fetch prices on our schedule, write
+them into **static JSON**, and serve them with a **staleness window** (warn 48h,
+hide 168h — Q-004). That model is specifically disallowed for Amazon:
+
+1. **Only sanctioned path is PA-API 5.0, and it's gated.** No public Amazon JSON
+   to hit. The Product Advertising API requires an **approved Amazon Associate**
+   account; access is revoked without ~3 qualifying sales every 180 days, and
+   new accounts are throttled hard (~1 req/sec, 8,640/day). The handler can't
+   even be exercised without an active, sales-producing Associate account.
+2. **Price-display terms break the static-JSON + staleness model.** The
+   Associates Operating Agreement / PA-API license require displayed prices to
+   come from PA-API, be shown near-real-time (generally no price older than
+   ~24h), and carry the retrieval timestamp + "price may vary" disclaimers. We
+   deliberately serve 48h–168h-old prices as a republished static file — a
+   direct conflict, not a tuning knob.
+3. **Price history (Q-011) is almost certainly off-limits for Amazon.** Same
+   terms prohibit storing/displaying historical Amazon prices. The shipped
+   price-direction arrows and the planned trend chart can't legally include
+   Amazon offers (CamelCamelCamel operates under a special relationship most
+   sites can't replicate).
+4. **Scraping is a non-starter.** One of the hardest anti-bot targets there is,
+   *and* a flat ToS violation — so the generic JSON-LD escape hatch doesn't
+   apply.
+5. **"A store" is ambiguous on a marketplace.** Amazon is a seller storefront
+   *or* a set of ASINs *or* search results. PA-API fetches by ASIN or keyword
+   search; clean per-seller-storefront enumeration isn't really exposed. Even
+   the "specific store" framing would need redefinition (probably: a curated
+   ASIN list).
+
+**Positioning angle.** Single-ingredient supplements on Amazon are noisy —
+multiple sellers per ASIN, buy-box price swings, gray-market listings — which
+cuts against the apples-to-apples, curated-not-aggregated stance. Not a blocker
+alone, but it compounds the above.
+
+**Recommendation:** do **not** add Amazon as a platform under the current
+architecture. The plumbing is the easy 10%; the program terms conflict with
+three load-bearing things — static-JSON price serving, the staleness windows
+(Q-004), and price history (Q-011). If Amazon offers were ever genuinely wanted,
+the honest minimum is a **separate live PA-API path** that fetches at render
+time and obeys the 24h / timestamp / disclaimer rules — a different architecture
+from everything else here, scoped only to Amazon, and contingent on an active
+Associate account. Revisit only if that tradeoff becomes worth it.
+
+---
+
 ## Resolved questions
 
 ### Q-010: Does a rejection survive Cleanup + re-extraction?
