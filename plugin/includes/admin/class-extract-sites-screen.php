@@ -431,13 +431,38 @@ class Supcomp_Extract_Sites_Screen {
 		$id          = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
 		$site_url    = isset( $_POST['site_url'] ) ? esc_url_raw( wp_unslash( $_POST['site_url'] ) ) : '';
 		$raw_config  = isset( $_POST['json_config'] ) ? wp_unslash( $_POST['json_config'] ) : '';
-		$config      = Supcomp_Extract_Sites_Repo::sanitize_json_handler( $raw_config );
+
+		// Pinpoint why a mapping isn't usable, so the error names the real
+		// problem instead of always blaming list_url. Three distinct cases:
+		// empty, not-valid-JSON (the common typo — a missing comma/quote), and
+		// parsed-but-no-usable-list_url.
+		$config = array();
+		$config_error = '';
+		$trimmed = trim( (string) $raw_config );
+		if ( $trimmed === '' ) {
+			$config_error = __( 'The mapping is empty. Paste a JSON object with at least a list_url.', 'supplement-compare' );
+		} else {
+			$decoded = json_decode( $trimmed, true );
+			if ( ! is_array( $decoded ) ) {
+				$detail = function_exists( 'json_last_error_msg' ) ? json_last_error_msg() : '';
+				$config_error = sprintf(
+					/* translators: %s = JSON parser detail, e.g. "Syntax error" */
+					__( 'The mapping is not valid JSON (%s). Check for a missing comma, quote, or bracket — a comma between two fields is the usual culprit.', 'supplement-compare' ),
+					$detail !== '' ? $detail : __( 'parse error', 'supplement-compare' )
+				);
+			} else {
+				$config = Supcomp_Extract_Sites_Repo::sanitize_json_handler( $trimmed );
+				if ( empty( $config['list_url'] ) ) {
+					$config_error = __( 'The mapping is valid JSON but has no usable list_url. Add a "list_url" whose value is an http(s):// address (a blocked or local URL is rejected).', 'supplement-compare' );
+				}
+			}
+		}
 
 		$result = array();
-		if ( empty( $config['list_url'] ) ) {
+		if ( $config_error !== '' ) {
 			$result = array(
 				'ok'    => false,
-				'error' => __( 'No valid list_url in the mapping. Provide a JSON object with at least a list_url (and check it parses as JSON).', 'supplement-compare' ),
+				'error' => $config_error,
 			);
 		} else {
 			$store = Supcomp_Extractor_Json::store_name_for( $site_url, $config );

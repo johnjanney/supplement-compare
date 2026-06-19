@@ -17,6 +17,18 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.35.2] — 2026-06-19
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **"Test mapping" now names the real problem.** When a JSON-handler mapping couldn't be used it always said *"No valid list_url…"*, even when the actual issue was a JSON syntax slip (a missing comma is the usual one) elsewhere in the block. The check now distinguishes three cases — empty mapping, invalid JSON (with the parser's detail), and parsed-but-no-usable-`list_url` — so the message points at the line you need to fix instead of sending you to `list_url`.
+### Security
+
+---
+
 ## [1.35.1] — 2026-06-19
 
 ### Added
