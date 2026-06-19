@@ -161,6 +161,13 @@ Setup:
      (`data.items` works too). Omit `variants_path` for one row per product.
    - A path prefixed `@variant.` is read from the current variant; everything
      else is read from the product.
+   - A field can map to a **fallback list**, e.g. `"source_product_id": ["sku",
+     "slug"]` — the first non-empty value wins. This matters most for
+     `source_product_id`, the offer's identity/key: if any product has a blank
+     value for your chosen field (some Woo feeds leave SKU empty on a few
+     products), keying on it collapses those products onto one row and orphans
+     them. Fall back to an always-present unique field (`slug` or `id`) so every
+     product gets a stable key.
    - `pagination`: `{"mode":"none"}` if the feed returns everything in one
      call; `{"mode":"page","param":"page","size":100}` if it pages via a
      query parameter.
@@ -174,6 +181,70 @@ Setup:
 3. **Click "Test mapping"** (next to Save). It fetches page 1 and shows the
    first few mapped rows *without saving*. If the table is empty or a column
    is blank, fix the path and test again. Save once it looks right.
+
+#### Product URL rewrite (headless / backend-host leaks)
+
+Some headless storefronts publish a **backend or staging product URL** in
+their feed instead of the public one — e.g. a Next.js frontend over
+WooCommerce whose API returns `https://wp.store.com/slug/` or a
+`*.wpcomstaging.com` host. Shipping those as buy links is wrong (they point at
+the admin/staging host). The **Product URL rewrite** field (any platform, not
+just `json`) fixes them after extraction:
+
+```json
+{
+  "from_host": "wp.store.com",
+  "to_host": "www.store.com",
+  "from_path_prefix": "/product/",
+  "to_path_prefix": "/products/",
+  "strip_trailing_slash": true
+}
+```
+
+A URL is only rewritten when its host matches `from_host`, so correct URLs are
+never touched. Drop `from_path_prefix`/`to_path_prefix` if the path is the same
+on both hosts. The "Test mapping" preview shows the rewritten `source_product_url`.
+
+#### Worked example: example.com (Next.js + headless WooCommerce)
+
+example.com is a Next.js storefront whose WooCommerce *Store API* is
+firewalled (so the Woo handler 403s) and whose products sit at flat slugs (so
+generic crawl-all was the only option — slow, ~one fetch per product). But it
+exposes the full Woo catalogue at `https://example.com/api/products`.
+Pin Platform = `json` with:
+
+```json
+{
+  "list_url": "https://example.com/api/products",
+  "pagination": { "mode": "none" },
+  "products_path": "",
+  "fields": {
+    "product_title":     "name",
+    "source_product_id": ["sku", "slug"],
+    "sku":               "sku",
+    "current_price":     "price",
+    "regular_price":     "regular_price",
+    "sale_price":        "sale_price",
+    "product_type":      "type",
+    "stock_status":      { "from": "stock_status", "transform": "woo_stock_to_status" },
+    "source_product_url": "permalink"
+  },
+  "currency_default": "USD",
+  "raw_attributes": ["slug", "categories"]
+}
+```
+
+…and a Product URL rewrite (the feed's `permalink` uses the backend host):
+
+```json
+{ "from_host": "wp.example.com", "to_host": "example.com", "strip_trailing_slash": true }
+```
+
+`products_path: ""` because the response *is* the product array (no wrapper
+object). One call replaces the per-product crawl. **Before switching a working
+crawl-all site over, confirm the API returns the full catalogue** — Test
+mapping shows the row count; compare it to the site's current offer count. If
+the API returns fewer, it's a capped subset — stay on crawl-all.
 
 **Running an extract:**
 

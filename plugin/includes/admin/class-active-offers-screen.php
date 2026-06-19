@@ -24,6 +24,18 @@ class Supcomp_Active_Offers_Screen {
 	const NONCE_BULK = 'supcomp_offer_bulk_action';
 	const PER_PAGE   = 20;
 
+	// Visibility statuses this screen can filter to. 'pending' is excluded —
+	// it has its own Pending Queue screen. 'active' is the default so the
+	// screen behaves exactly as before when no status is chosen.
+	const STATUS_OPTIONS = array(
+		'active'       => 'live',
+		'stale'        => 'stale',
+		'paused'       => 'paused',
+		'needs_review' => 'needs review',
+		'rejected'     => 'rejected',
+		'dead'         => 'dead',
+	);
+
 	public static function render() {
 		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'supplement-compare' ) );
@@ -40,17 +52,19 @@ class Supcomp_Active_Offers_Screen {
 
 	private static function render_list() {
 		$args               = self::query_args_from_request();
-		$args['visibility'] = array( 'active' );
+		$status             = $args['status'];
+		$args['visibility'] = array( $status );
 
 		$rows  = Supcomp_Offers_Repo::query_for_admin( $args );
 		$total = Supcomp_Offers_Repo::count_for_admin( $args );
 
 		$merchants   = Supcomp_Merchants_Repo::active_for_select();
 		$ingredients = Supcomp_Ingredients_Repo::active_for_select();
+		$status_label = self::STATUS_OPTIONS[ $status ];
 		?>
 		<div class="wrap">
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Active Offers', 'supplement-compare' ); ?></h1>
-			<span class="title-count">&nbsp;<?php echo esc_html( sprintf( __( '%d live', 'supplement-compare' ), (int) $total ) ); ?></span>
+			<span class="title-count">&nbsp;<?php echo esc_html( sprintf( __( '%1$d %2$s', 'supplement-compare' ), (int) $total, $status_label ) ); ?></span>
 			<hr class="wp-header-end">
 
 			<?php self::render_notice(); ?>
@@ -59,6 +73,12 @@ class Supcomp_Active_Offers_Screen {
 				<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>">
 				<p class="search-box">
 					<input type="search" name="s" value="<?php echo esc_attr( $args['search'] ); ?>" placeholder="<?php esc_attr_e( 'Search title, brand, SKU…', 'supplement-compare' ); ?>">
+
+					<select name="status">
+						<?php foreach ( self::STATUS_OPTIONS as $value => $label ) : ?>
+							<option value="<?php echo esc_attr( $value ); ?>" <?php selected( $status, $value ); ?>><?php echo esc_html( ucfirst( $label ) ); ?></option>
+						<?php endforeach; ?>
+					</select>
 
 					<select name="merchant_id">
 						<option value="0"><?php esc_html_e( 'All merchants', 'supplement-compare' ); ?></option>
@@ -117,7 +137,7 @@ class Supcomp_Active_Offers_Screen {
 					</thead>
 					<tbody>
 						<?php if ( empty( $rows ) ) : ?>
-							<tr><td colspan="9"><?php esc_html_e( 'No active offers. Approve some pending offers to populate the public site.', 'supplement-compare' ); ?></td></tr>
+							<tr><td colspan="9"><?php echo esc_html( $status === 'active' ? __( 'No active offers. Approve some pending offers to populate the public site.', 'supplement-compare' ) : sprintf( __( 'No offers with status "%s".', 'supplement-compare' ), $status_label ) ); ?></td></tr>
 						<?php endif; ?>
 
 						<?php foreach ( $rows as $r ) : ?>
@@ -234,7 +254,7 @@ class Supcomp_Active_Offers_Screen {
 		// Preserve only the known filter/sort/pagination params rather than
 		// reflecting every $_GET key (keys are attacker-pollutable; the result
 		// is echoed back into the page).
-		$allowed = array( 's', 'merchant_id', 'ingredient_id', 'has_canonical', 'orderby', 'order', 'offset', 'paged' );
+		$allowed = array( 'status', 's', 'merchant_id', 'ingredient_id', 'has_canonical', 'orderby', 'order', 'offset', 'paged' );
 		$args    = array( 'page' => self::PAGE_SLUG );
 		foreach ( $allowed as $key ) {
 			if ( isset( $_GET[ $key ] ) ) {
@@ -245,7 +265,12 @@ class Supcomp_Active_Offers_Screen {
 	}
 
 	private static function query_args_from_request() {
+		$status = isset( $_GET['status'] ) ? sanitize_key( wp_unslash( $_GET['status'] ) ) : 'active';
+		if ( ! array_key_exists( $status, self::STATUS_OPTIONS ) ) {
+			$status = 'active';
+		}
 		return array(
+			'status'         => $status,
 			'merchant_id'    => isset( $_GET['merchant_id'] ) ? absint( wp_unslash( $_GET['merchant_id'] ) ) : 0,
 			'ingredient_id'  => isset( $_GET['ingredient_id'] ) ? absint( wp_unslash( $_GET['ingredient_id'] ) ) : 0,
 			'has_canonical'  => isset( $_GET['has_canonical'] ) && in_array( $_GET['has_canonical'], array( 'yes', 'no' ), true ) ? sanitize_key( wp_unslash( $_GET['has_canonical'] ) ) : '',

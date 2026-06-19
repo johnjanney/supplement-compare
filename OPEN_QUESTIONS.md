@@ -554,7 +554,17 @@ cap is hit. Defer until a real site needs it.
 
 ### Q-015: Headless-WooCommerce backends leak staging hostnames in product URLs
 
-**Status:** open (interim workaround in place; fix deferred)
+**Status:** resolved (v1.34.0) — the per-site URL-rewrite feature (fix option 1
+below) shipped. Set a **Product URL rewrite** rule on the affected site
+(`from_host`/`to_host` + optional path-prefix swap + `strip_trailing_slash`);
+the worker rewrites `source_product_url`/`source_variant_url` after any handler
+runs, only when the host matches. The example-shop interim workaround (buy link →
+shop page) can be replaced with a rule like
+`{"from_host":"example-shop-xzkhb.wpcomstaging.com","to_host":"www.example-shop.com","from_path_prefix":"/product/","to_path_prefix":"/products/","strip_trailing_slash":true}`.
+The generic staging-host *guard* (option 2) was not built — the rewrite makes it
+unnecessary for known sites; revisit only if an unknown site silently leaks a
+staging host. Kept below for history.
+
 **Blocks:** nothing today — interim workaround keeps the affected merchant
 publishable
 **Raised:** 2026-06-18
@@ -620,14 +630,15 @@ there's now a natural home for it: `extract_sites.settings_json` (see Q-016).
 
 ### Q-016: JSON-API handler — follow-ups after the v1.33.0 ship
 
-**Status:** open (handler shipped; two cleanups + one scope call deferred)
+**Status:** open (handler shipped; one cleanup + one scope call + one ops check
+remain — the URL-rewrite loose end was closed in v1.34.0, see Q-015)
 **Blocks:** nothing
 **Raised:** 2026-06-18
-**Last touched:** 2026-06-18
+**Last touched:** 2026-06-19
 
 v1.33.0 added the config-driven JSON-API extractor handler
 (`platform_hint = json`) for client-rendered SPA storefronts, plus the
-per-site `settings_json` bag. Three loose ends:
+per-site `settings_json` bag. Remaining loose ends:
 
 1. **Cursor pagination not implemented.** The handler ships `none` and `page`
    modes. Cursor/`next`-token feeds (where each response carries the URL or
@@ -639,9 +650,18 @@ per-site `settings_json` bag. Three loose ends:
    through `Supcomp_Extract_Sites_Repo::settings()` (bag wins, column is
    fallback). A future schema bump should drop the three columns and the
    dual-write once every reader goes through the accessor — confirm the admin
-   list/form direct column reads are migrated first. `settings_json` is also
-   the natural home for the per-site URL-rewrite map floated in Q-015.
-3. **Scope: research peptides.** example-peptides.com (the SPA that motivated this
+   list/form direct column reads are migrated first. (The per-site URL-rewrite
+   map that was floated here shipped in v1.34.0 — see Q-015.)
+3. **Ops: switch example.com from crawl-all to `json`.** v1.34.0 makes
+   this viable — it's a headless-Woo SPA with a public `/api/products` feed and
+   the backend-host URL leak is now fixable via the URL rewrite (worked example
+   + mapping in INSTRUCTIONS §2 "JSON-API storefronts"). **Gate:** the feed
+   returns a fixed 49 products and ignores pagination params — before flipping
+   it over, confirm 49 matches the site's current crawl-all offer count. If
+   crawl-all pulls meaningfully more, the API is a capped subset; stay on
+   crawl-all. Same pattern likely applies to example-shop (Q-015) — worth checking
+   whether it exposes an equivalent `/api/products` route.
+4. **Scope: research peptides.** example-peptides.com (the SPA that motivated this
    handler) sells **injectable research peptides** (BPC-157, etc.), each
    carrying a "not intended to treat… any disease" disclaimer — the
    research-chemical category, arguably outside the single-ingredient *oral
