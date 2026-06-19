@@ -168,6 +168,14 @@ Setup:
      products), keying on it collapses those products onto one row and orphans
      them. Fall back to an always-present unique field (`slug` or `id`) so every
      product gets a stable key.
+   - A field can be **built from a template** when the feed gives you an
+     id/sku/slug but no full URL, and the product page lives at a known
+     pattern: `"source_product_url": { "template":
+     "https://store.com/catalog/{sku}" }`. `{...}` placeholders resolve from the
+     product (or `{@variant....}`) scope. This is important for SPA storefronts
+     whose API returns no product URL — without a `source_product_url` the buy
+     button (`/out/{id}`) has nowhere to redirect. If a placeholder is missing,
+     the field is left blank rather than producing a broken URL.
    - `pagination`: `{"mode":"none"}` if the feed returns everything in one
      call; `{"mode":"page","param":"page","size":100}` if it pages via a
      query parameter.

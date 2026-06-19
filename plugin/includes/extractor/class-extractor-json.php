@@ -272,6 +272,12 @@ class Supcomp_Extractor_Json {
 		if ( is_string( $spec ) ) {
 			return self::resolve_path_scoped( $spec, $product, $variant );
 		}
+		if ( is_array( $spec ) && isset( $spec['template'] ) ) {
+			// Build a value (e.g. a product URL) from a literal template with
+			// {path} placeholders — for feeds that expose an id/sku/slug but no
+			// full URL, where the page lives at a known pattern.
+			return self::fill_template( (string) $spec['template'], $product, $variant );
+		}
 		if ( is_array( $spec ) && isset( $spec['from'] ) ) {
 			// `from` may be a single path or a fallback list.
 			$value = self::resolve_first( $spec['from'], $product, $variant );
@@ -287,6 +293,32 @@ class Supcomp_Extractor_Json {
 			return self::resolve_first( $spec, $product, $variant );
 		}
 		return null;
+	}
+
+	/**
+	 * Fill a literal template by substituting {path} placeholders, each
+	 * resolved (and URL-encoded) from the product/variant scope. Returns null
+	 * if any placeholder is missing, so a half-built (broken) URL is never
+	 * emitted — the field stays blank instead.
+	 *
+	 * Example: "https://store.com/catalog/{sku}" with sku "PT-006-10" →
+	 * "https://store.com/catalog/PT-006-10". `{@variant.sku}` reads variant scope.
+	 */
+	private static function fill_template( $template, array $product, $variant ) {
+		$ok  = true;
+		$out = preg_replace_callback(
+			'/\{([^}]+)\}/',
+			function ( $m ) use ( $product, $variant, &$ok ) {
+				$value = self::resolve_path_scoped( $m[1], $product, $variant );
+				if ( $value === null || $value === '' || ! is_scalar( $value ) ) {
+					$ok = false;
+					return '';
+				}
+				return rawurlencode( (string) $value );
+			},
+			(string) $template
+		);
+		return $ok ? $out : null;
 	}
 
 	/**
