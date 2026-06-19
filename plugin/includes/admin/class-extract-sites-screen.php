@@ -239,9 +239,13 @@ class Supcomp_Extract_Sites_Screen {
 
 		// JSON-handler config, pretty-printed for editing. Read through the
 		// settings accessor so it comes from the settings_json bag.
-		$json_handler = $is_edit ? Supcomp_Extract_Sites_Repo::settings( $site )['json_handler'] : array();
+		$settings_now = $is_edit ? Supcomp_Extract_Sites_Repo::settings( $site ) : array( 'json_handler' => array(), 'url_rewrite' => array() );
+		$json_handler = $settings_now['json_handler'];
 		$json_config  = ! empty( $json_handler )
 			? (string) wp_json_encode( $json_handler, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE )
+			: '';
+		$url_rewrite_cfg = ! empty( $settings_now['url_rewrite'] )
+			? (string) wp_json_encode( $settings_now['url_rewrite'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE )
 			: '';
 
 		$merchants = Supcomp_Merchants_Repo::active_for_select();
@@ -334,6 +338,20 @@ class Supcomp_Extract_Sites_Screen {
 						</td>
 					</tr>
 					<tr>
+						<th><label for="supcomp-site-url-rewrite"><?php esc_html_e( 'Product URL rewrite', 'supplement-compare' ); ?></label></th>
+						<td>
+							<textarea id="supcomp-site-url-rewrite" name="url_rewrite_config" rows="6" class="large-text code" placeholder='{"from_host": "wp.example.com", "to_host": "www.example.com", "from_path_prefix": "/product/", "to_path_prefix": "/products/", "strip_trailing_slash": true}'><?php echo esc_textarea( $url_rewrite_cfg ); ?></textarea>
+							<p class="description">
+								<?php
+								echo wp_kses(
+									__( 'Optional, any platform. Rewrites each offer\'s product URL after extraction — for headless storefronts whose feed/API publishes a <strong>backend or staging host</strong> instead of the public one (e.g. a Next.js frontend over WooCommerce that returns <code>wp.example.com/slug/</code> or a <code>*.wpcomstaging.com</code> host). A URL is only rewritten when its host matches <code>from_host</code>, so correct URLs are untouched. <code>to_host</code> swaps the host; the optional <code>*_path_prefix</code> pair swaps a leading path segment (e.g. Woo\'s <code>/product/</code> → a public <code>/products/</code>); <code>strip_trailing_slash</code> drops a trailing <code>/</code>. Leave blank for normal sites. Keeps backend/staging URLs off the public site (no raw/untrustworthy buy links).', 'supplement-compare' ),
+									array( 'strong' => array(), 'code' => array() )
+								);
+								?>
+							</p>
+						</td>
+					</tr>
+					<tr>
 						<th><?php esc_html_e( 'Enabled', 'supplement-compare' ); ?></th>
 						<td>
 							<label><input type="checkbox" name="enabled" value="1" <?php checked( $enabled, 1 ); ?>> <?php esc_html_e( 'Include in scheduled extractor runs', 'supplement-compare' ); ?></label>
@@ -369,9 +387,10 @@ class Supcomp_Extract_Sites_Screen {
 			'merchant_id'     => isset( $_POST['merchant_id'] ) ? absint( $_POST['merchant_id'] ) : 0,
 			'request_cookies' => isset( $_POST['request_cookies'] ) ? wp_unslash( $_POST['request_cookies'] ) : '',
 			'crawl_all_sitemap_urls' => isset( $_POST['crawl_all_sitemap_urls'] ),
-			// Raw config string — the repo validates/normalizes it. Not run
-			// through sanitize_text_field here because it's JSON (quotes/braces).
-			'json_config'     => isset( $_POST['json_config'] ) ? wp_unslash( $_POST['json_config'] ) : '',
+			// Raw config strings — the repo validates/normalizes them. Not run
+			// through sanitize_text_field here because they're JSON (quotes/braces).
+			'json_config'       => isset( $_POST['json_config'] ) ? wp_unslash( $_POST['json_config'] ) : '',
+			'url_rewrite_config' => isset( $_POST['url_rewrite_config'] ) ? wp_unslash( $_POST['url_rewrite_config'] ) : '',
 			'enabled'         => isset( $_POST['enabled'] ),
 		);
 
@@ -432,11 +451,27 @@ class Supcomp_Extract_Sites_Screen {
 				$config
 			);
 			if ( $page['status'] === 'ok' ) {
+				// Apply the URL rewrite (if configured) to the sample so the
+				// preview shows the public buy URL the run would actually store.
+				$rewrite = Supcomp_Extract_Sites_Repo::sanitize_url_rewrite(
+					isset( $_POST['url_rewrite_config'] ) ? wp_unslash( $_POST['url_rewrite_config'] ) : ''
+				);
+				$sample = array_slice( $page['rows'], 0, 3 );
+				if ( ! empty( $rewrite['from_host'] ) ) {
+					foreach ( $sample as &$srow ) {
+						foreach ( array( 'source_product_url', 'source_variant_url' ) as $uf ) {
+							if ( ! empty( $srow[ $uf ] ) ) {
+								$srow[ $uf ] = Supcomp_Extractor_Worker::rewrite_url( (string) $srow[ $uf ], $rewrite );
+							}
+						}
+					}
+					unset( $srow );
+				}
 				$result = array(
 					'ok'        => true,
 					'url'       => (string) $config['list_url'],
 					'row_count' => count( $page['rows'] ),
-					'sample'    => array_slice( $page['rows'], 0, 3 ),
+					'sample'    => $sample,
 				);
 			} else {
 				$result = array(
@@ -568,7 +603,7 @@ class Supcomp_Extract_Sites_Screen {
 
 		// Surface the fields that matter for the offer table; raw_attributes are
 		// shown compacted so the operator can confirm dosage/form came through.
-		$cols = array( 'product_title', 'variant_title', 'sku', 'current_price', 'regular_price', 'currency', 'stock_status', 'source_product_id', 'source_variant_id', 'raw_attributes_json' );
+		$cols = array( 'product_title', 'variant_title', 'sku', 'current_price', 'regular_price', 'currency', 'stock_status', 'source_product_url', 'source_product_id', 'source_variant_id', 'raw_attributes_json' );
 		echo '<table class="widefat striped" style="margin:0 0 1em"><thead><tr>';
 		foreach ( $cols as $c ) {
 			echo '<th>' . esc_html( $c ) . '</th>';
