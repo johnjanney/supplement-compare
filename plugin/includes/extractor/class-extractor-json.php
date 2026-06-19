@@ -55,7 +55,7 @@ class Supcomp_Extractor_Json {
 	 * @return string[]
 	 */
 	public static function transforms() {
-		return array( 'as_string', 'strip_html', 'bool_to_status', 'gt_zero_to_status', 'truthy_to_status' );
+		return array( 'as_string', 'strip_html', 'bool_to_status', 'gt_zero_to_status', 'truthy_to_status', 'woo_stock_to_status' );
 	}
 
 	/**
@@ -229,8 +229,20 @@ class Supcomp_Extractor_Json {
 			if ( $offer->current_price === '' && $offer->regular_price !== '' ) {
 				$offer->current_price = $offer->regular_price;
 			}
+			// Derive on_sale from a mapped sale_price below the regular price
+			// (mirrors the Shopify handler). Only when the map didn't set it.
+			if ( $offer->on_sale === 'false' && $offer->sale_price !== '' && is_numeric( $offer->sale_price )
+				&& $offer->regular_price !== '' && is_numeric( $offer->regular_price )
+				&& (float) $offer->sale_price < (float) $offer->regular_price ) {
+				$offer->on_sale = 'true';
+			}
 			if ( $offer->stock_status === '' ) {
 				$offer->stock_status = 'unknown';
+			}
+			// Feeds that omit a per-row currency (e.g. WooCommerce product
+			// objects) can supply a fallback literal via the config.
+			if ( $offer->currency === '' && ! empty( $config['currency_default'] ) ) {
+				$offer->currency = (string) $config['currency_default'];
 			}
 
 			// Preserve site-specific extras (form, dosage, tier prices, …) as an
@@ -261,11 +273,32 @@ class Supcomp_Extractor_Json {
 			return self::resolve_path_scoped( $spec, $product, $variant );
 		}
 		if ( is_array( $spec ) && isset( $spec['from'] ) ) {
-			$value = self::resolve_path_scoped( (string) $spec['from'], $product, $variant );
+			// `from` may be a single path or a fallback list.
+			$value = self::resolve_first( $spec['from'], $product, $variant );
 			if ( isset( $spec['transform'] ) ) {
 				return self::apply_transform( $value, (string) $spec['transform'] );
 			}
 			return $value;
+		}
+		if ( is_array( $spec ) ) {
+			// A bare list of paths — first non-empty wins. Lets a feed with a
+			// sparse field fall back to a reliable one, e.g. ["sku", "slug"] so
+			// products with a blank SKU still get a unique, stable key.
+			return self::resolve_first( $spec, $product, $variant );
+		}
+		return null;
+	}
+
+	/**
+	 * Resolve the first path that yields a non-empty value. Accepts a single
+	 * path string or a list of them.
+	 */
+	private static function resolve_first( $paths, array $product, $variant ) {
+		foreach ( (array) $paths as $path ) {
+			$value = self::resolve_path_scoped( (string) $path, $product, $variant );
+			if ( $value !== null && $value !== '' ) {
+				return $value;
+			}
 		}
 		return null;
 	}
@@ -329,6 +362,17 @@ class Supcomp_Extractor_Json {
 					return 'unknown';
 				}
 				return ( (float) $value > 0 ) ? 'in_stock' : 'out_of_stock';
+			case 'woo_stock_to_status':
+				// Normalize WooCommerce's stock vocabulary to our enum.
+				switch ( strtolower( trim( (string) $value ) ) ) {
+					case 'instock':
+						return 'in_stock';
+					case 'outofstock':
+						return 'out_of_stock';
+					case 'onbackorder':
+						return 'backorder';
+				}
+				return 'unknown';
 		}
 		return $value;
 	}

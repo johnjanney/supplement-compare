@@ -47,6 +47,7 @@ class Supcomp_Extractor_Worker {
 			'request_cookies'=> (string) $settings['request_cookies'],
 			'crawl_all_sitemap_urls' => ! empty( $settings['crawl_all_sitemap_urls'] ) ? 1 : 0,
 			'json_handler'   => is_array( $settings['json_handler'] ) ? $settings['json_handler'] : array(),
+			'url_rewrite'    => is_array( $settings['url_rewrite'] ) ? $settings['url_rewrite'] : array(),
 			'json_page_size' => 0, // filled in on page 1 for the json handler
 			'json_max_pages' => 1,
 			'triggered_by'   => $triggered_by,
@@ -166,9 +167,21 @@ class Supcomp_Extractor_Worker {
 			}
 
 			// Inject _merchant_id into every row so the importer can persist them.
+			// Apply the optional per-site URL rewrite here (handler-agnostic) so
+			// headless storefronts that publish backend/staging product URLs
+			// (e.g. a Next.js frontend leaking a `wp.*` Woo host) get corrected
+			// to the public host before the row is stored.
+			$rewrite = isset( $state['url_rewrite'] ) && is_array( $state['url_rewrite'] ) ? $state['url_rewrite'] : array();
 			$rows = array();
 			foreach ( $page_result['rows'] as $row ) {
 				$row['_merchant_id'] = (int) $state['merchant_id'];
+				if ( ! empty( $rewrite['from_host'] ) ) {
+					foreach ( array( 'source_product_url', 'source_variant_url' ) as $url_field ) {
+						if ( ! empty( $row[ $url_field ] ) ) {
+							$row[ $url_field ] = self::rewrite_url( (string) $row[ $url_field ], $rewrite );
+						}
+					}
+				}
 				$rows[] = $row;
 			}
 
@@ -638,5 +651,52 @@ class Supcomp_Extractor_Worker {
 
 	public static function generic_url_transient_key( $attempt_id ) {
 		return 'supcomp_extract_urls_' . (int) $attempt_id;
+	}
+
+	/**
+	 * Apply a per-site URL-rewrite rule to a single URL. Only rewrites when the
+	 * URL's host matches `from_host` (so already-correct URLs pass through
+	 * untouched). Swaps host, optionally swaps a leading path prefix, and
+	 * optionally strips a trailing slash. Returns the original string unchanged
+	 * if it isn't a parseable http(s) URL or the host doesn't match.
+	 *
+	 * @param string $url   The URL to rewrite.
+	 * @param array  $rule  Validated rule from Supcomp_Extract_Sites_Repo::sanitize_url_rewrite().
+	 * @return string
+	 */
+	public static function rewrite_url( $url, array $rule ) {
+		$from_host = isset( $rule['from_host'] ) ? (string) $rule['from_host'] : '';
+		if ( $from_host === '' ) {
+			return $url;
+		}
+		$parts = wp_parse_url( $url );
+		if ( ! is_array( $parts ) || empty( $parts['host'] ) ) {
+			return $url;
+		}
+		if ( strtolower( (string) $parts['host'] ) !== $from_host ) {
+			return $url; // host doesn't match — leave it alone
+		}
+
+		$scheme = isset( $parts['scheme'] ) ? (string) $parts['scheme'] : 'https';
+		$host   = ! empty( $rule['to_host'] ) ? (string) $rule['to_host'] : (string) $parts['host'];
+		$path   = isset( $parts['path'] ) ? (string) $parts['path'] : '';
+
+		if ( ! empty( $rule['from_path_prefix'] ) ) {
+			$from_prefix = (string) $rule['from_path_prefix'];
+			$to_prefix   = isset( $rule['to_path_prefix'] ) ? (string) $rule['to_path_prefix'] : '';
+			if ( strpos( $path, $from_prefix ) === 0 ) {
+				$path = $to_prefix . substr( $path, strlen( $from_prefix ) );
+			}
+		}
+
+		if ( ! empty( $rule['strip_trailing_slash'] ) && $path !== '/' ) {
+			$path = rtrim( $path, '/' );
+		}
+
+		$rebuilt = $scheme . '://' . $host . $path;
+		if ( isset( $parts['query'] ) && $parts['query'] !== '' ) {
+			$rebuilt .= '?' . $parts['query'];
+		}
+		return $rebuilt;
 	}
 }
