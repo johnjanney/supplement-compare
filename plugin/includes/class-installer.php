@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '13';
+	const SCHEMA_VERSION = '14';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -66,7 +66,7 @@ class Supcomp_Installer {
 	);
 
 	const EXTRACT_SITE_PLATFORM_HINTS = array(
-		'auto', 'shopify', 'woocommerce', 'generic', 'wix',
+		'auto', 'shopify', 'woocommerce', 'generic', 'wix', 'json',
 	);
 	const EXTRACT_RUN_STATUSES = array(
 		'pending', 'running', 'complete', 'failed', 'canceled',
@@ -103,6 +103,12 @@ class Supcomp_Installer {
 
 		foreach ( $statements as $sql ) {
 			dbDelta( $sql );
+		}
+
+		// Seed settings_json for any extract_sites rows that predate the column
+		// (schema 14). Idempotent — only touches rows where settings_json IS NULL.
+		if ( class_exists( 'Supcomp_Extract_Sites_Repo' ) ) {
+			Supcomp_Extract_Sites_Repo::backfill_settings_json();
 		}
 
 		update_option( self::SCHEMA_OPTION, self::SCHEMA_VERSION );
@@ -331,6 +337,7 @@ class Supcomp_Installer {
 			merchant_id BIGINT(20) UNSIGNED NULL,
 			request_cookies TEXT NULL,
 			crawl_all_sitemap_urls TINYINT(1) NOT NULL DEFAULT 0,
+			settings_json LONGTEXT NULL,
 			enabled TINYINT(1) NOT NULL DEFAULT 1,
 			last_run_at DATETIME NULL,
 			last_run_status VARCHAR(32) NULL,
