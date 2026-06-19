@@ -33,15 +33,22 @@ class Supcomp_Extractor_Worker {
 	 * Returns the AS action id (0 on failure).
 	 */
 	public static function enqueue_initial( $attempt_id, $site_row, $triggered_by = 'manual' ) {
+		// All per-site handler settings come through the settings() accessor
+		// (settings_json bag, with legacy-column fallback). json_handler has no
+		// column, so it can only be read this way.
+		$settings = Supcomp_Extract_Sites_Repo::settings( $site_row );
 		$state = array(
 			'attempt_id'     => (int) $attempt_id,
 			'site_id'        => (int) $site_row->id,
 			'site_slug'      => (string) $site_row->slug,
 			'site_url'       => (string) $site_row->site_url,
-			'platform_hint'  => (string) $site_row->platform_hint,
+			'platform_hint'  => (string) $settings['platform_hint'],
 			'merchant_id'    => (int) $site_row->merchant_id,
-			'request_cookies'=> isset( $site_row->request_cookies ) ? (string) $site_row->request_cookies : '',
-			'crawl_all_sitemap_urls' => isset( $site_row->crawl_all_sitemap_urls ) ? (int) $site_row->crawl_all_sitemap_urls : 0,
+			'request_cookies'=> (string) $settings['request_cookies'],
+			'crawl_all_sitemap_urls' => ! empty( $settings['crawl_all_sitemap_urls'] ) ? 1 : 0,
+			'json_handler'   => is_array( $settings['json_handler'] ) ? $settings['json_handler'] : array(),
+			'json_page_size' => 0, // filled in on page 1 for the json handler
+			'json_max_pages' => 1,
 			'triggered_by'   => $triggered_by,
 			'page'           => 1,
 			'platform_used'  => '', // filled in on page 1 once a handler succeeds
@@ -115,7 +122,7 @@ class Supcomp_Extractor_Worker {
 
 			// Resolve handler. 'auto' tries Shopify → Woo → generic in order.
 			$hint = $state['platform_hint'] !== '' ? $state['platform_hint'] : 'auto';
-			if ( ! in_array( $hint, array( 'shopify', 'woocommerce', 'generic', 'wix', 'auto' ), true ) ) {
+			if ( ! in_array( $hint, array( 'shopify', 'woocommerce', 'generic', 'wix', 'json', 'auto' ), true ) ) {
 				self::fail_attempt(
 					$state,
 					sprintf(
@@ -213,7 +220,7 @@ class Supcomp_Extractor_Worker {
 			);
 
 			// Continue paginating if the page came back full and we're under the cap.
-			list( $page_size, $max_pages ) = self::pagination_for( $state['platform_used'] );
+			list( $page_size, $max_pages ) = self::pagination_for( $state['platform_used'], $state );
 			$is_final_page = (
 				(int) $page_result['batch_size'] < $page_size
 				|| (int) $state['page'] >= $max_pages
@@ -397,6 +404,48 @@ class Supcomp_Extractor_Worker {
 	 * }|null
 	 */
 	private static function detect_and_fetch_first_page( array &$state, $hint ) {
+		// JSON-API handler: explicit hint only — the endpoint lives inside the
+		// site's JS bundle and can't be sniffed, so it never joins the 'auto'
+		// cascade. Requires an operator-supplied mapping.
+		if ( $hint === 'json' ) {
+			$config = isset( $state['json_handler'] ) && is_array( $state['json_handler'] ) ? $state['json_handler'] : array();
+			if ( empty( $config['list_url'] ) ) {
+				self::finalize_attempt_failed(
+					$state,
+					__( 'JSON handler is not configured for this site — set platform to "json" and provide a mapping with a list_url. Use "Test mapping" on the site edit screen to check it.', 'supplement-compare' )
+				);
+				return null;
+			}
+			list( $page_size, $max_pages ) = Supcomp_Extractor_Json::pagination( $config );
+			$state['json_page_size'] = $page_size;
+			$state['json_max_pages'] = $max_pages;
+
+			$store_name = Supcomp_Extractor_Json::store_name_for( $state['site_url'], $config );
+			$page = Supcomp_Extractor_Json::fetch_page(
+				$state['site_url'], 1,
+				$state['export_run_id'], $state['exported_at'],
+				$store_name, $state['currency'], $config
+			);
+			if ( $page['status'] === 'ok' ) {
+				return array(
+					'platform_used' => 'json',
+					'store_name'    => $store_name,
+					'currency'      => $state['currency'],
+					'page_result'   => $page,
+				);
+			}
+			self::finalize_attempt_failed(
+				$state,
+				sprintf(
+					/* translators: 1: status, 2: HTTP code */
+					__( 'JSON endpoint returned no products: %1$s (HTTP %2$d). Check list_url and products_path with "Test mapping".', 'supplement-compare' ),
+					$page['status'],
+					(int) $page['http_status']
+				)
+			);
+			return null;
+		}
+
 		$try_shopify = ( $hint === 'shopify' || $hint === 'auto' );
 		$try_woo     = ( $hint === 'woocommerce' || $hint === 'auto' );
 		$try_wix     = ( $hint === 'wix' );
@@ -515,6 +564,18 @@ class Supcomp_Extractor_Worker {
 	 * cascade. Reads state['platform_used'].
 	 */
 	private static function fetch_page_for_platform( array $state ) {
+		if ( $state['platform_used'] === 'json' ) {
+			$config = isset( $state['json_handler'] ) && is_array( $state['json_handler'] ) ? $state['json_handler'] : array();
+			return Supcomp_Extractor_Json::fetch_page(
+				$state['site_url'],
+				(int) $state['page'],
+				$state['export_run_id'],
+				$state['exported_at'],
+				$state['store_name'],
+				$state['currency'],
+				$config
+			);
+		}
 		if ( $state['platform_used'] === 'woocommerce' ) {
 			return Supcomp_Extractor_Woo::fetch_page(
 				$state['site_url'],
@@ -557,7 +618,15 @@ class Supcomp_Extractor_Worker {
 	/**
 	 * Per-platform pagination ceiling (page size, max pages).
 	 */
-	private static function pagination_for( $platform_used ) {
+	private static function pagination_for( $platform_used, array $state = array() ) {
+		if ( $platform_used === 'json' ) {
+			// Computed from the per-site config on page 1 and carried in state.
+			// 'none' mode yields PHP_INT_MAX / 1, so any batch is short and the
+			// run finalizes after the single page.
+			$size      = isset( $state['json_page_size'] ) && (int) $state['json_page_size'] > 0 ? (int) $state['json_page_size'] : PHP_INT_MAX;
+			$max_pages = isset( $state['json_max_pages'] ) && (int) $state['json_max_pages'] > 0 ? (int) $state['json_max_pages'] : 1;
+			return array( $size, $max_pages );
+		}
 		if ( $platform_used === 'woocommerce' ) {
 			return array( Supcomp_Extractor_Woo::PAGE_SIZE, Supcomp_Extractor_Woo::MAX_PAGES );
 		}

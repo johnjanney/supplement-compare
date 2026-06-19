@@ -89,6 +89,9 @@ any site running an SEO plugin like Yoast or Rank Math).
      You don't have to pin `wix` for the extractor to *find* a Wix site —
      `auto` reaches it through the generic step — pin it only when you
      already know the platform and want the offers labeled accordingly.
+     `json` is for client-rendered (single-page-app) storefronts that serve
+     **no** product HTML at all — see "JSON-API storefronts" below. It is
+     never reached by `auto`; you must pin it and supply a mapping.
    - **Crawl all sitemap URLs** — generic JSON-LD only; off by default.
      Normally the generic handler keeps only sitemap URLs whose path looks
      like a product (`/product/`, `/shop/`, `/p/`, …). Some modern
@@ -104,9 +107,73 @@ any site running an SEO plugin like Yoast or Rank Math).
      example: `example.com` (Next.js on a CDN, products at flat
      slugs, `/wp-json` blocked) — pin **Platform = generic** and tick this
      box.
+   - **JSON handler mapping** — only used when Platform hint = `json`. The
+     declarative map from the merchant's JSON API onto offer fields. See
+     "JSON-API storefronts" below.
    - **Merchant** — pick the linked Merchants row. Required for
      `/out/{id}` to fire downstream.
    - **Enabled** — leave checked.
+
+### JSON-API storefronts (single-page-app sites)
+
+Some modern stores render entirely in the browser: the page you get back is
+an empty shell (`<div id="root"></div>`) and a JavaScript bundle that fetches
+the catalogue from a JSON API after load. The Shopify, Woo, and generic
+JSON-LD handlers all come back empty on these — there is no server-rendered
+product markup to read, and `/products.json` / `/wp-json` return the shell or
+404. But the underlying API is usually a clean, public JSON feed, and the
+`json` handler reads it directly.
+
+Setup:
+
+1. **Find the API.** Open the storefront in your browser, open DevTools →
+   **Network**, filter to **Fetch/XHR**, and reload. Look for the request
+   that returns product JSON (an array of products with names and prices).
+   Its URL is your `list_url` — often on a different host, e.g.
+   `https://api.example.com/v1/products`.
+2. **Set Platform hint = `json`** and paste a mapping into **JSON handler
+   mapping**. The mapping tells the handler where the products are and which
+   source field fills which offer column. A worked example for a store whose
+   feed looks like `{"products":[{"name":…,"variants":[{"price":…}]}]}`:
+
+   ```json
+   {
+     "list_url": "https://api.example.com/v1/products",
+     "pagination": { "mode": "none" },
+     "products_path": "products",
+     "variants_path": "variants",
+     "fields": {
+       "product_title":     "name",
+       "source_product_id": "id",
+       "product_type":      "category",
+       "currency":          "currency",
+       "sku":               "@variant.sku",
+       "source_variant_id": "@variant.id",
+       "current_price":     "@variant.price",
+       "regular_price":     "@variant.price",
+       "stock_status":      { "from": "in_stock", "transform": "bool_to_status" }
+     },
+     "raw_attributes": ["form", "@variant.dosage", "@variant.dosage_unit"]
+   }
+   ```
+
+   - `products_path` / `variants_path` are dot-paths into the response
+     (`data.items` works too). Omit `variants_path` for one row per product.
+   - A path prefixed `@variant.` is read from the current variant; everything
+     else is read from the product.
+   - `pagination`: `{"mode":"none"}` if the feed returns everything in one
+     call; `{"mode":"page","param":"page","size":100}` if it pages via a
+     query parameter.
+   - **Stock**: map a status string directly, or derive one from a
+     boolean/quantity with a `*_to_status` transform. A raw inventory count
+     is never stored — if what you map isn't a recognized status it becomes
+     `unknown`, by design (the site is a price ledger, not a stock counter).
+   - `raw_attributes` captures extra fields (form, dosage, volume-tier
+     prices) into `raw_attributes_json` for the downstream parser; they are
+     not surfaced as columns.
+3. **Click "Test mapping"** (next to Save). It fetches page 1 and shows the
+   first few mapped rows *without saving*. If the table is empty or a column
+   is blank, fix the path and test again. Save once it looks right.
 
 **Running an extract:**
 
@@ -239,8 +306,15 @@ work by running fewer sites at once.
 - *"Auto-detect failed: Shopify, WooCommerce, and generic JSON-LD
   sitemap discovery all failed"* → the site doesn't expose Shopify or
   Woo public APIs AND doesn't publish a discoverable XML sitemap with
-  product URLs. Fall back to the legacy Python extractor against the
-  site and upload its CSV via §3.
+  product URLs. If the storefront is a client-rendered single-page app
+  (an empty page in "View Source", products appearing only after the JS
+  loads), it has no HTML for any of the three handlers to read — use the
+  `json` handler instead (see "JSON-API storefronts" in §2). Otherwise
+  fall back to the legacy Python extractor and upload its CSV via §3.
+- *"JSON handler is not configured…"* or *"JSON endpoint returned no
+  products…"* (json only) → the mapping is missing a `list_url`, or
+  `list_url`/`products_path` is wrong. Open the site, click **Test
+  mapping**, and fix the path the test reports as empty.
 - *"PHP \"dom\" / \"simplexml\" extension is not loaded"* (generic only)
   → your host's PHP is missing the standard XML/DOM extensions. Ask
   the host to enable `php-xml`. WordPress itself doesn't require these
