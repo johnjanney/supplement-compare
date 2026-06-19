@@ -17,6 +17,18 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.36.0] — 2026-06-19
+
+### Added
+- **URL-template field spec in the JSON-API mapping.** A field can be built from a literal template with `{path}` placeholders, e.g. `"source_product_url": { "template": "https://www.example-peptides.com/catalog/{sku}" }`. For SPA/API storefronts whose feed exposes an id/sku/slug but **no product URL**, where the page lives at a known pattern — previously those offers had a blank `source_product_url`, which leaves the `/out/{id}` buy button with nowhere to go (the affiliate-link redirect refuses an empty URL). Placeholders resolve (and URL-encode) from the product/variant scope; if any placeholder is missing the field stays blank rather than emitting a broken URL.
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
 ## [1.35.2] — 2026-06-19
 
 ### Added
