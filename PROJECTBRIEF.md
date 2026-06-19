@@ -72,6 +72,8 @@ The site does not sell anything. Every product listing links out to a participat
 
 **Key principle:** the importer doesn't care where rows came from. Path A (in-plugin extractor) is the operator default — it runs inside WordPress with no Python/SSH/WP-CLI requirement. Path B (Python CSV upload) is retained for local debugging and for sites whose platform the in-plugin handlers don't yet cover. Both paths land in the same `Supcomp_CSV_Importer` pipeline; sticky-edit semantics, stale detection, and the curation queue work identically regardless of source.
 
+The in-plugin extractor has four handlers: Shopify, WooCommerce, generic JSON-LD, and (v1.33.0) a config-driven **JSON-API** handler (`platform_hint = json`) for client-rendered single-page-app storefronts that serve no product HTML. The first three are tried in order by `auto`-detect; the JSON-API handler is explicit-only (its endpoint lives in the site's JS bundle and can't be sniffed) and is driven by an operator-supplied field map stored in `extract_sites.settings_json`. `settings_json` (schema 14) is a per-site bag that is the going-forward home for per-site handler settings/exceptions — the older `platform_hint` / `request_cookies` / `crawl_all_sitemap_urls` columns are mirrored into it and read through `Supcomp_Extract_Sites_Repo::settings()`, and are slated to be dropped once that accessor is the sole reader.
+
 ---
 
 ## 3. Data model
@@ -302,7 +304,7 @@ The same row schema is produced by both ingestion paths described in §2: the in
 |---|---|---|
 | `export_run_id` | yes | UUID-like string identifying the export batch |
 | `exported_at` | yes | ISO 8601 UTC timestamp |
-| `source` | yes | `shopify` \| `woocommerce` \| `generic` \| `wix` (in-plugin extractor only when the operator pins the Wix platform; the legacy Python script emits `generic` for Wix sites) |
+| `source` | yes | `shopify` \| `woocommerce` \| `generic` \| `wix` \| `json` (`json` = the config-driven JSON-API handler for SPA storefronts, v1.33.0, in-plugin only; `wix` only when the operator pins the Wix platform; the legacy Python script emits `generic` for Wix sites) |
 | `site` | yes | Merchant URL — natural key matched to `merchants.site_url` |
 | `source_product_id` | yes | Platform product ID |
 | `source_variant_id` | no | Blank if no variants |

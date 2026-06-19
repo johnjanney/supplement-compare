@@ -17,6 +17,34 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.33.1] — 2026-06-19
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- Fixed *"Platform "json" is not supported."* failing every `json`-handler run. The extractor worker validates the platform hint against a second, hardcoded list in `execute_page()` that is separate from `EXTRACT_SITE_PLATFORM_HINTS`; `json` was added to the constant but not to that inline guard, so the run was rejected before dispatch. Added `json` to the guard.
+### Security
+
+---
+
+## [1.33.0] — 2026-06-19
+
+### Added
+- **Generic JSON-API extractor handler (`platform_hint = json`).** A new handler for client-rendered (SPA) storefronts that serve no product HTML — an empty `<div id="root">` shell plus a JavaScript app that loads its catalogue from a JSON API. Neither the Shopify, Woo, nor generic JSON-LD handlers can see anything on these sites, but the underlying API is usually a clean, unauthenticated JSON feed. The operator pins the platform to `json` and supplies a declarative mapping (stored in `extract_sites.settings_json`) that says where the product array lives and which source fields populate which offer columns. Because the API endpoint lives inside the site's JS bundle and can't be sniffed, this handler is **never auto-detected** — it is explicit-only. Supports `none` and `page` pagination modes; `@variant.`-prefixed paths read from the current variant; a small transform registry (`bool_to_status`, `gt_zero_to_status`, `strip_html`, …) derives offer values. Site-specific extras (form, dosage, volume-tier prices) are preserved in `raw_attributes_json`. Stock is coerced to the allowed status set, so a raw inventory **count** can never be stored as stock status (PROJECTBRIEF.md "no exact stock" rule).
+- **"Test mapping" button** on the Extractor Sites edit screen. Fetches page 1 of the configured JSON API with the mapping currently in the form (saved or not) and shows the first few resolved offer rows in a table — without writing to the database. Catches dot-path typos before a run completes with zero rows.
+- **Per-site `settings_json` column** on `extract_sites` (schema 14). A JSON bag that is the new home for per-site handler settings/exceptions, read through `Supcomp_Extract_Sites_Repo::settings()`. Existing rows are backfilled on upgrade.
+
+### Changed
+- The three existing per-site handler settings (`platform_hint`, `request_cookies`, `crawl_all_sitemap_urls`) are now mirrored into `settings_json` and read through the new `settings()` accessor (bag wins, legacy column is the fallback). The legacy columns are dual-written for one release as a rollback path; a future release drops them. No operator-facing behavior change.
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
 ## [1.32.2] — 2026-06-18
 
 ### Added
