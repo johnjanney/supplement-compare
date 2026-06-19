@@ -782,6 +782,74 @@ Associate account. Revisit only if that tradeoff becomes worth it.
 
 ---
 
+### Q-019: eBay as a supported merchant platform (specific eBay stores)
+
+**Status:** open (feasibility only — feasible, the cleanest marketplace option of
+the three; no decision, no build planned)
+**Blocks:** nothing
+**Raised:** 2026-06-19
+**Last touched:** 2026-06-19
+
+Could we add eBay so the operator can feature specific eBay stores? Feasibility
+was scoped (no code). eBay lands between Q-017 (Etsy — feasible) and Q-018
+(Amazon — terms conflict): the plumbing is the same easy add, and the real
+weigh-up is eBay's **listing ephemerality** fighting this project's
+durable-offer model — not a ToS wall like Amazon.
+
+**The good news — a real, workable API path:**
+
+- **Clean modern API.** The eBay **Browse API** (Buy APIs) is REST + JSON,
+  supports search **filtered by seller username**, and restricts to
+  `buyingOptions=FIXED_PRICE`. "A specific eBay store" maps cleanly to "Browse
+  search, `seller={username}`, fixed-price only" — a better fit than Amazon's
+  fuzzy "what is a store" problem.
+- **Affiliate fits the architecture.** eBay Partner Network (EPN) link-wrapping
+  works through the existing `/out/{offer_id}` redirect — store the
+  affiliate-wrapped URL, redirect through it; rule #5 (no raw affiliate URLs in
+  static JSON) already satisfied.
+- **Eligibility lighter than Amazon.** Free developer account, no
+  qualifying-sales treadmill that revokes access. Caveat: the Buy APIs require a
+  **production-access approval step** (business-model review) plus EPN
+  membership, and the handler must manage an **OAuth app token**
+  (client-credentials grant, cached/refreshed — same added complexity as the
+  Q-017 Etsy-API option, unlike unauthenticated Shopify/Woo).
+- **Caching terms more permissive than Amazon.** eBay's API License Agreement
+  has data-refresh/caching rules to respect, but nothing like Amazon's "no price
+  older than 24h + mandatory timestamp/disclaimers." Our scheduled-refresh +
+  staleness-window model (Q-004) is workable, and price history (Q-011) isn't
+  categorically forbidden the way it is for Amazon.
+
+**The eBay-specific friction — the actual decision:**
+
+- **Listings are ephemeral; item IDs churn on relist.** eBay listings end;
+  sellers relist the same product under a **new item ID**. Our importer keys
+  offers on a stable natural key and updates in place — eBay would generate
+  constant stale→dead→new-pending churn as listings cycle, eroding operator
+  curation each time. Core mismatch.
+- **Auctions vs. fixed-price.** Only fixed-price / Buy-It-Now listings have a
+  stable comparable price. Must hard-restrict to fixed-price or the
+  cost-per-active-unit comparison is meaningless.
+- **Gray-market / inventory quality.** Supplements specifically are a known
+  gray-market area on eBay — used/repackaged/expired stock, single-quantity
+  resellers. Cuts harder against the curated-not-aggregated stance than Amazon
+  does, for this exact vertical.
+
+**Plumbing.** Same four registration points as Q-017
+(`Supcomp_Installer::EXTRACT_SITE_PLATFORM_HINTS`,
+`detect_and_fetch_first_page()`, `fetch_subsequent_page()` + `pagination_for()`,
+the admin `<select>`). Extra work beyond a plain handler: OAuth app-token caching
+(transient) + the seller and fixed-price query filters.
+
+**Recommendation:** feasible — the cleanest marketplace option of the three if a
+marketplace is ever wanted. Gate it tightly: **fixed-price only, specific
+trusted sellers only**, and accept that relist-churn creates curation rework the
+independent-merchant handlers don't. The decision isn't "can we build the
+handler" (we can) — it's whether eBay's ephemeral, gray-market listing model is
+worth that churn against the durable price-ledger positioning. Deferred as
+feasibility-only.
+
+---
+
 ## Resolved questions
 
 ### Q-010: Does a rejection survive Cleanup + re-extraction?
