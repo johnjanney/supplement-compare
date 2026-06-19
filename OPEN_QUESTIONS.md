@@ -552,6 +552,107 @@ add a per-site allow-pattern to cut non-product URLs before they count against
 the cap; (c) surface a visible admin warning (not just `error_log`) when the
 cap is hit. Defer until a real site needs it.
 
+### Q-015: Headless-WooCommerce backends leak staging hostnames in product URLs
+
+**Status:** open (interim workaround in place; fix deferred)
+**Blocks:** nothing today — interim workaround keeps the affected merchant
+publishable
+**Raised:** 2026-06-18
+**Last touched:** 2026-06-18
+
+A new merchant (example-shop.com) imported with product URLs pointing at a
+**staging host** rather than the live storefront. Recorded:
+`https://example-shop-xzkhb.wpcomstaging.com/product/tesamorelin/` — public:
+`https://www.example-shop.com/products/tesamorelin`.
+
+**Diagnosis (confirmed against live data 2026-06-18):** example-shop is a
+**headless WooCommerce store** — a Next.js frontend at `www.example-shop.com`
+consuming a WooCommerce backend hosted on **WordPress.com** (`*.wpcomstaging.com`
+is WordPress.com's auto-assigned install hostname). The backend's `home_url()`
+was never re-pointed off the staging domain. Our extractor classified the site
+as Woo and hit the Store API on the www host (which works:
+`www.example-shop.com/wp-json/wc/store/v1/products` returns valid JSON), but every
+`permalink` field is built from `home_url()`, so it comes back with the staging
+host **and** Woo's default `/product/` (singular) base. The Woo handler records
+the permalink verbatim (`class-extractor-woo.php:208`) — no host rewriting
+anywhere in the pipeline. **Not a bug in our code:** the extractor faithfully
+recorded what the merchant's API published; the merchant is leaking its
+WordPress.com staging hostname.
+
+**Why a naive host swap doesn't work:** the path bases also differ — backend
+`/product/{slug}/` vs. the public Next.js `/products/{slug}`. A host-only
+rewrite yields a 404. The **slug is preserved** across both, so a per-site rule
+(host → public host, base `/product/` → `/products/`, drop trailing slash) would
+reliably reconstruct the live URL for this merchant — but it's per-site config,
+not a generic transform.
+
+**Interim workaround (operator, 2026-06-18):** point the affected merchant's
+buy link at the **main shop/all-products page** via Merchant settings rather
+than per-offer deep links. Keeps the merchant publishable without shipping
+staging URLs to the public site (load-bearing rule #5 — no raw/garbage URLs on
+the static site; staging URLs are untrustworthy and may disappear).
+
+**Fix options when this recurs / is worth building:**
+
+1. **Per-site public-URL rewrite (recommended).** Optional override on the
+   `extract_sites` row: a host rewrite + path-base map applied to
+   `source_product_url` after the handler runs. Opt-in, so normal sites are
+   unaffected. Reliable here because slugs match across backend/frontend.
+2. **Generic staging-host guard.** Detect known backend/staging hosts
+   (`*.wpcomstaging.com`, and analogous patterns) and **hold/flag** those offers
+   in the pending queue with a warning instead of silently importing a staging
+   URL. Safe default for any future merchant with the same leak; doesn't fix the
+   URL, just stops bad ones reaching public output.
+3. **Both** — guard as a safety net, rewrite as the per-site fix.
+
+Keep the Woo handler either way: the Store API is the right source for
+price/stock; only the URL is wrong. Switching this merchant to the generic
+JSON-LD path (crawling the Next.js frontend) is worse — headless frontends
+typically render prices client-side, so the clean Store API data would be lost.
+
+Defer the build until a second merchant trips the same leak or example-shop needs
+per-offer deep links (same "build it when a real merchant trips it" discipline
+as Q-006/Q-007/Q-008). Related: Q-007 (per-site overrides) — if that ships, the
+rewrite map could live alongside per-site schedule overrides. As of v1.33.0
+there's now a natural home for it: `extract_sites.settings_json` (see Q-016).
+
+---
+
+### Q-016: JSON-API handler — follow-ups after the v1.33.0 ship
+
+**Status:** open (handler shipped; two cleanups + one scope call deferred)
+**Blocks:** nothing
+**Raised:** 2026-06-18
+**Last touched:** 2026-06-18
+
+v1.33.0 added the config-driven JSON-API extractor handler
+(`platform_hint = json`) for client-rendered SPA storefronts, plus the
+per-site `settings_json` bag. Three loose ends:
+
+1. **Cursor pagination not implemented.** The handler ships `none` and `page`
+   modes. Cursor/`next`-token feeds (where each response carries the URL or
+   token for the following page) need cross-page state threading like the
+   generic handler's URL transient. Build it when a real SPA merchant paginates
+   that way; until then the validator rejects any mode but `none`/`page`.
+2. **Legacy-column drop.** `platform_hint`, `request_cookies`, and
+   `crawl_all_sitemap_urls` are dual-written into `settings_json` and read
+   through `Supcomp_Extract_Sites_Repo::settings()` (bag wins, column is
+   fallback). A future schema bump should drop the three columns and the
+   dual-write once every reader goes through the accessor — confirm the admin
+   list/form direct column reads are migrated first. `settings_json` is also
+   the natural home for the per-site URL-rewrite map floated in Q-015.
+3. **Scope: research peptides.** example-peptides.com (the SPA that motivated this
+   handler) sells **injectable research peptides** (BPC-157, etc.), each
+   carrying a "not intended to treat… any disease" disclaimer — the
+   research-chemical category, arguably outside the single-ingredient *oral
+   supplement* positioning. The operator is using example-peptides to test v1.33.0; the
+   capability is built regardless. Open question: do peptides/injectables stay
+   in scope as a permanent vertical, or was this a test target only? Decide
+   before onboarding peptide merchants for real. (robots.txt note for whoever
+   picks this up: example-peptides's is self-contradictory — `Content-Signal:
+   search=yes,ai-train=no`, then `Allow: /` immediately followed by
+   `Disallow: /`. Our use is price-search indexing.)
+
 ---
 
 ## Resolved questions

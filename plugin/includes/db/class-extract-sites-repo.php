@@ -49,6 +49,10 @@ class Supcomp_Extract_Sites_Repo {
 		if ( empty( $clean['slug'] ) || empty( $clean['site_url'] ) ) {
 			return 0;
 		}
+		// Compose the per-site settings bag (schema 14). The legacy columns are
+		// dual-written by sanitize() above; the bag mirrors them and additionally
+		// carries handler-specific settings (json_handler) that have no column.
+		$clean['settings_json'] = self::compose_settings_json( array(), $clean, $data );
 		$clean['created_at'] = current_time( 'mysql', true );
 		$clean['updated_at'] = $clean['created_at'];
 		$ok = $wpdb->insert( self::table(), $clean );
@@ -58,6 +62,18 @@ class Supcomp_Extract_Sites_Repo {
 	public static function update( $id, array $data ) {
 		global $wpdb;
 		$clean = self::sanitize( $data );
+
+		// Merge incoming settings over the existing bag so a partial update
+		// (e.g. a legacy-column change) can't wipe json_handler, and vice versa.
+		$existing = self::get( $id );
+		if ( self::touches_settings( $data ) ) {
+			$clean['settings_json'] = self::compose_settings_json(
+				$existing ? self::settings( $existing ) : array(),
+				$clean,
+				$data
+			);
+		}
+
 		if ( empty( $clean ) ) {
 			return false;
 		}
@@ -123,6 +139,233 @@ class Supcomp_Extract_Sites_Repo {
 			$clean['enabled'] = self::truthy( $data['enabled'] ) ? 1 : 0;
 		}
 		return $clean;
+	}
+
+	// === Per-site settings bag (schema 14) ===
+	//
+	// `settings_json` is the home for per-site handler exceptions. The three
+	// legacy columns (platform_hint, request_cookies, crawl_all_sitemap_urls)
+	// are dual-written for one release as a back-compat mirror / rollback path
+	// and are read here with the bag taking precedence. New settings — starting
+	// with `json_handler` — live only in the bag. A future release drops the
+	// legacy columns and the dual-write once every reader goes through this
+	// accessor.
+
+	/**
+	 * Normalized read of a site row's settings. Single source of truth for
+	 * consumers (the worker reads through this). Bag value wins; falls back to
+	 * the legacy column when the bag lacks a key (rows not yet backfilled).
+	 *
+	 * @param object $row An extract_sites row.
+	 * @return array{platform_hint:string,request_cookies:string,crawl_all_sitemap_urls:bool,json_handler:array}
+	 */
+	public static function settings( $row ) {
+		$bag = self::decode_settings( $row );
+
+		$col_hint   = isset( $row->platform_hint ) ? (string) $row->platform_hint : 'auto';
+		$col_cookie = isset( $row->request_cookies ) ? (string) $row->request_cookies : '';
+		$col_crawl  = isset( $row->crawl_all_sitemap_urls ) ? (int) $row->crawl_all_sitemap_urls : 0;
+
+		return array(
+			'platform_hint'          => array_key_exists( 'platform_hint', $bag ) ? (string) $bag['platform_hint'] : $col_hint,
+			'request_cookies'        => array_key_exists( 'request_cookies', $bag ) ? (string) $bag['request_cookies'] : $col_cookie,
+			'crawl_all_sitemap_urls' => array_key_exists( 'crawl_all_sitemap_urls', $bag ) ? (bool) $bag['crawl_all_sitemap_urls'] : (bool) $col_crawl,
+			'json_handler'           => ( isset( $bag['json_handler'] ) && is_array( $bag['json_handler'] ) ) ? $bag['json_handler'] : array(),
+		);
+	}
+
+	/**
+	 * Decode the raw settings_json blob to an array, or [] if absent/invalid.
+	 */
+	public static function decode_settings( $row ) {
+		if ( ! is_object( $row ) || empty( $row->settings_json ) ) {
+			return array();
+		}
+		$decoded = json_decode( (string) $row->settings_json, true );
+		return is_array( $decoded ) ? $decoded : array();
+	}
+
+	/**
+	 * Whether an incoming $data array references any settings-bag field, so
+	 * update() knows to recompose the blob even when no legacy column changed
+	 * (e.g. a json_config-only edit).
+	 */
+	private static function touches_settings( array $data ) {
+		foreach ( array( 'platform_hint', 'request_cookies', 'crawl_all_sitemap_urls', 'json_config' ) as $k ) {
+			if ( array_key_exists( $k, $data ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Build the settings_json string by merging incoming values over the
+	 * existing (normalized) bag. Legacy fields are taken from the already
+	 * sanitized $clean so the bag and the columns stay in lockstep; the raw
+	 * json_config string is validated here.
+	 */
+	private static function compose_settings_json( array $existing, array $clean, array $data ) {
+		$bag = array(
+			'platform_hint'          => isset( $existing['platform_hint'] ) ? (string) $existing['platform_hint'] : 'auto',
+			'request_cookies'        => isset( $existing['request_cookies'] ) ? (string) $existing['request_cookies'] : '',
+			'crawl_all_sitemap_urls' => (bool) ( $existing['crawl_all_sitemap_urls'] ?? false ),
+			'json_handler'           => ( isset( $existing['json_handler'] ) && is_array( $existing['json_handler'] ) ) ? $existing['json_handler'] : array(),
+		);
+
+		if ( array_key_exists( 'platform_hint', $clean ) ) {
+			$bag['platform_hint'] = (string) $clean['platform_hint'];
+		}
+		if ( array_key_exists( 'request_cookies', $clean ) ) {
+			$bag['request_cookies'] = (string) $clean['request_cookies'];
+		}
+		if ( array_key_exists( 'crawl_all_sitemap_urls', $clean ) ) {
+			$bag['crawl_all_sitemap_urls'] = (bool) $clean['crawl_all_sitemap_urls'];
+		}
+		if ( array_key_exists( 'json_config', $data ) ) {
+			$bag['json_handler'] = self::sanitize_json_handler( (string) $data['json_config'] );
+		}
+
+		$json = wp_json_encode( $bag, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		return is_string( $json ) ? $json : '{}';
+	}
+
+	/**
+	 * Validate & normalize an operator-supplied JSON-handler config string into
+	 * a structurally safe array. Returns [] for empty/malformed input (the
+	 * handler then fails the run with a clear "not configured" message, and the
+	 * admin "Test mapping" button surfaces the problem before that). Unknown
+	 * keys are dropped; only whitelisted shapes survive.
+	 */
+	public static function sanitize_json_handler( $raw ) {
+		$raw = trim( (string) $raw );
+		if ( $raw === '' ) {
+			return array();
+		}
+		$cfg = json_decode( $raw, true );
+		if ( ! is_array( $cfg ) ) {
+			return array();
+		}
+
+		$out = array();
+
+		// list_url — must be a safe http(s) URL.
+		if ( ! empty( $cfg['list_url'] ) ) {
+			$url = esc_url_raw( (string) $cfg['list_url'] );
+			if ( $url !== '' && ( ! class_exists( 'Supcomp_Extractor_Http' ) || Supcomp_Extractor_Http::is_safe_url( $url ) ) ) {
+				$out['list_url'] = $url;
+			}
+		}
+
+		// pagination — whitelist of modes the handler implements.
+		$mode = isset( $cfg['pagination']['mode'] ) ? sanitize_key( (string) $cfg['pagination']['mode'] ) : 'none';
+		if ( ! in_array( $mode, array( 'none', 'page' ), true ) ) {
+			$mode = 'none';
+		}
+		$pagination = array( 'mode' => $mode );
+		if ( $mode === 'page' ) {
+			$pagination['param'] = isset( $cfg['pagination']['param'] ) ? preg_replace( '/[^A-Za-z0-9_\-]/', '', (string) $cfg['pagination']['param'] ) : 'page';
+			if ( $pagination['param'] === '' ) {
+				$pagination['param'] = 'page';
+			}
+			$size = isset( $cfg['pagination']['size'] ) ? (int) $cfg['pagination']['size'] : 100;
+			$pagination['size']  = max( 1, min( 1000, $size ) );
+			$start = isset( $cfg['pagination']['start'] ) ? (int) $cfg['pagination']['start'] : 1;
+			$pagination['start'] = ( $start === 0 ) ? 0 : 1;
+		}
+		$out['pagination'] = $pagination;
+
+		// path selectors.
+		$out['products_path'] = isset( $cfg['products_path'] ) ? self::clean_path( $cfg['products_path'] ) : '';
+		if ( isset( $cfg['variants_path'] ) ) {
+			$out['variants_path'] = self::clean_path( $cfg['variants_path'] );
+		}
+		if ( ! empty( $cfg['store_name'] ) ) {
+			$out['store_name'] = self::trim_to( sanitize_text_field( (string) $cfg['store_name'] ), 255 );
+		}
+
+		// field map: Offer field => string path | { from, transform }.
+		$allowed_fields = ( class_exists( 'Supcomp_Extractor_Offer' ) )
+			? Supcomp_Extractor_Offer::fieldnames()
+			: array();
+		$transforms = ( class_exists( 'Supcomp_Extractor_Json' ) )
+			? Supcomp_Extractor_Json::transforms()
+			: array( 'as_string', 'strip_html', 'bool_to_status', 'gt_zero_to_status', 'truthy_to_status' );
+
+		$out['fields'] = array();
+		if ( isset( $cfg['fields'] ) && is_array( $cfg['fields'] ) ) {
+			foreach ( $cfg['fields'] as $field => $spec ) {
+				$field = (string) $field;
+				if ( ! empty( $allowed_fields ) && ! in_array( $field, $allowed_fields, true ) ) {
+					continue; // ignore unknown Offer fields
+				}
+				if ( is_string( $spec ) ) {
+					$out['fields'][ $field ] = self::clean_path( $spec );
+				} elseif ( is_array( $spec ) && isset( $spec['from'] ) ) {
+					$entry = array( 'from' => self::clean_path( $spec['from'] ) );
+					if ( isset( $spec['transform'] ) && in_array( (string) $spec['transform'], $transforms, true ) ) {
+						$entry['transform'] = (string) $spec['transform'];
+					}
+					$out['fields'][ $field ] = $entry;
+				}
+			}
+		}
+
+		// raw_attributes: list of paths copied into raw_attributes_json.
+		if ( isset( $cfg['raw_attributes'] ) && is_array( $cfg['raw_attributes'] ) ) {
+			$out['raw_attributes'] = array();
+			foreach ( $cfg['raw_attributes'] as $p ) {
+				$p = self::clean_path( $p );
+				if ( $p !== '' ) {
+					$out['raw_attributes'][] = $p;
+				}
+			}
+		}
+
+		return $out;
+	}
+
+	/**
+	 * Sanitize a dot-path selector. Allows word chars, dots, the `@variant.`
+	 * scope prefix, and brackets — enough for nested-object/array access while
+	 * rejecting anything weird.
+	 */
+	private static function clean_path( $path ) {
+		$path = (string) $path;
+		return (string) preg_replace( '/[^A-Za-z0-9_.@\[\]\-]/', '', $path );
+	}
+
+	/**
+	 * One-time seed of settings_json for rows created before schema 14. Called
+	 * from the installer after dbDelta. Idempotent — skips rows that already
+	 * have a bag.
+	 */
+	public static function backfill_settings_json() {
+		global $wpdb;
+		$table = self::table();
+		// The column may not exist yet on the very first call within the same
+		// request that adds it; guard so a missing column can't fatal.
+		$has_col = $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", 'settings_json' ) );
+		if ( ! $has_col ) {
+			return 0;
+		}
+		$rows = $wpdb->get_results( "SELECT * FROM {$table} WHERE settings_json IS NULL OR settings_json = ''" );
+		if ( empty( $rows ) ) {
+			return 0;
+		}
+		$n = 0;
+		foreach ( $rows as $row ) {
+			$bag = array(
+				'platform_hint'          => isset( $row->platform_hint ) ? (string) $row->platform_hint : 'auto',
+				'request_cookies'        => isset( $row->request_cookies ) ? (string) $row->request_cookies : '',
+				'crawl_all_sitemap_urls' => isset( $row->crawl_all_sitemap_urls ) ? (bool) (int) $row->crawl_all_sitemap_urls : false,
+				'json_handler'           => array(),
+			);
+			$json = wp_json_encode( $bag, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+			$wpdb->update( $table, array( 'settings_json' => $json ), array( 'id' => (int) $row->id ) );
+			$n++;
+		}
+		return $n;
 	}
 
 	private static function truthy( $val ) {

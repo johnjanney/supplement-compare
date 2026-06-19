@@ -24,12 +24,14 @@ class Supcomp_Extract_Sites_Screen {
 	const NONCE_DELETE   = 'supcomp_delete_extract_site';
 	const NONCE_RUN      = 'supcomp_run_extract';
 	const NONCE_SCHEDULE = 'supcomp_save_extract_schedule';
+	const TEST_TRANSIENT = 'supcomp_jsontest_';
 
 	public static function register_hooks() {
 		add_action( 'admin_post_supcomp_save_extract_site',     array( __CLASS__, 'handle_save' ) );
 		add_action( 'admin_post_supcomp_delete_extract_site',   array( __CLASS__, 'handle_delete' ) );
 		add_action( 'admin_post_supcomp_run_extract',           array( __CLASS__, 'handle_run' ) );
 		add_action( 'admin_post_supcomp_save_extract_schedule', array( __CLASS__, 'handle_save_schedule' ) );
+		add_action( 'admin_post_supcomp_test_extract_json',     array( __CLASS__, 'handle_test_json' ) );
 	}
 
 	public static function render() {
@@ -235,6 +237,13 @@ class Supcomp_Extract_Sites_Screen {
 		$crawl_all = $is_edit && isset( $site->crawl_all_sitemap_urls ) ? (int) $site->crawl_all_sitemap_urls : 0;
 		$enabled = $is_edit ? (int) $site->enabled : 1;
 
+		// JSON-handler config, pretty-printed for editing. Read through the
+		// settings accessor so it comes from the settings_json bag.
+		$json_handler = $is_edit ? Supcomp_Extract_Sites_Repo::settings( $site )['json_handler'] : array();
+		$json_config  = ! empty( $json_handler )
+			? (string) wp_json_encode( $json_handler, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE )
+			: '';
+
 		$merchants = Supcomp_Merchants_Repo::active_for_select();
 		?>
 		<div class="wrap">
@@ -242,9 +251,10 @@ class Supcomp_Extract_Sites_Screen {
 			<p><a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ); ?>">&laquo; <?php esc_html_e( 'Back to list', 'supplement-compare' ); ?></a></p>
 
 			<?php self::render_notice(); ?>
+			<?php self::render_test_results(); ?>
 
 			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-				<input type="hidden" name="action" value="supcomp_save_extract_site">
+				<input type="hidden" id="supcomp-form-action" name="action" value="supcomp_save_extract_site">
 				<?php if ( $is_edit ) : ?>
 					<input type="hidden" name="id" value="<?php echo (int) $site->id; ?>">
 				<?php endif; ?>
@@ -280,7 +290,21 @@ class Supcomp_Extract_Sites_Screen {
 									<option value="<?php echo esc_attr( $h ); ?>" <?php selected( $hint, $h ); ?>><?php echo esc_html( $h ); ?></option>
 								<?php endforeach; ?>
 							</select>
-							<p class="description"><?php esc_html_e( 'Leave on "auto" to let the extractor try Shopify → Woo → generic JSON-LD in order ("auto" also finds Wix sites via the generic step). Pin a specific platform if a site supports multiple. "wix" uses the generic JSON-LD engine but skips the Shopify/Woo probes and labels offers as "wix".', 'supplement-compare' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Leave on "auto" to let the extractor try Shopify → Woo → generic JSON-LD in order ("auto" also finds Wix sites via the generic step). Pin a specific platform if a site supports multiple. "wix" uses the generic JSON-LD engine but skips the Shopify/Woo probes and labels offers as "wix". "json" reads a JSON product API per the mapping below — for client-rendered (SPA) storefronts that serve no product HTML; it is never auto-detected.', 'supplement-compare' ); ?></p>
+						</td>
+					</tr>
+					<tr>
+						<th><label for="supcomp-site-json-config"><?php esc_html_e( 'JSON handler mapping', 'supplement-compare' ); ?></label></th>
+						<td>
+							<textarea id="supcomp-site-json-config" name="json_config" rows="14" class="large-text code" placeholder='{"list_url": "https://api.example.com/v1/products", "pagination": {"mode": "none"}, "products_path": "products", "variants_path": "variants", "fields": {"product_title": "name", "current_price": "@variant.price", "currency": "currency", "sku": "@variant.sku", "stock_status": {"from": "in_stock", "transform": "bool_to_status"}}, "raw_attributes": ["form", "@variant.dosage", "@variant.dosage_unit"]}'><?php echo esc_textarea( $json_config ); ?></textarea>
+							<p class="description">
+								<?php
+								echo wp_kses(
+									__( 'Only used when <strong>Platform hint = json</strong>. A declarative map from the merchant\'s JSON API onto offer fields. Find the API in your browser: DevTools → Network → reload the storefront → look for the XHR/fetch request that returns product JSON; its URL is your <code>list_url</code>. <code>products_path</code> is the dot-path to the product array; <code>variants_path</code> the array within each product (omit for one row per product). In <code>fields</code>, prefix a path with <code>@variant.</code> to read it from the current variant. Stock must be a status string or use a <code>*_to_status</code> transform — a raw quantity is never stored as stock. Use <strong>Test mapping</strong> below before saving.', 'supplement-compare' ),
+									array( 'strong' => array(), 'code' => array() )
+								);
+								?>
+							</p>
 						</td>
 					</tr>
 					<tr>
@@ -319,8 +343,10 @@ class Supcomp_Extract_Sites_Screen {
 
 				<p class="submit">
 					<button type="submit" class="button button-primary"><?php echo esc_html( $is_edit ? __( 'Save changes', 'supplement-compare' ) : __( 'Add site', 'supplement-compare' ) ); ?></button>
+					<button type="submit" class="button" onclick="document.getElementById('supcomp-form-action').value='supcomp_test_extract_json';"><?php esc_html_e( 'Test mapping', 'supplement-compare' ); ?></button>
 					<a href="<?php echo esc_url( admin_url( 'admin.php?page=' . self::PAGE_SLUG ) ); ?>" class="button"><?php esc_html_e( 'Cancel', 'supplement-compare' ); ?></a>
 				</p>
+				<p class="description"><?php esc_html_e( '"Test mapping" fetches page 1 of the JSON API and shows the first few mapped rows without saving — use it to verify the mapping before saving.', 'supplement-compare' ); ?></p>
 			</form>
 		</div>
 		<?php
@@ -343,22 +369,98 @@ class Supcomp_Extract_Sites_Screen {
 			'merchant_id'     => isset( $_POST['merchant_id'] ) ? absint( $_POST['merchant_id'] ) : 0,
 			'request_cookies' => isset( $_POST['request_cookies'] ) ? wp_unslash( $_POST['request_cookies'] ) : '',
 			'crawl_all_sitemap_urls' => isset( $_POST['crawl_all_sitemap_urls'] ),
+			// Raw config string — the repo validates/normalizes it. Not run
+			// through sanitize_text_field here because it's JSON (quotes/braces).
+			'json_config'     => isset( $_POST['json_config'] ) ? wp_unslash( $_POST['json_config'] ) : '',
 			'enabled'         => isset( $_POST['enabled'] ),
 		);
 
+		// Warn (without blocking the rest of the save) if a non-empty mapping is
+		// not valid JSON — the repo will have stored it as empty.
+		$raw_json = trim( (string) $data['json_config'] );
+		$json_invalid = ( $raw_json !== '' && ! is_array( json_decode( $raw_json, true ) ) );
+
 		$base = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		$warn = $json_invalid ? array( 'supcomp_json_warn' => 1 ) : array();
 
 		if ( $id > 0 ) {
 			$ok = Supcomp_Extract_Sites_Repo::update( $id, $data );
-			wp_safe_redirect( add_query_arg( 'supcomp_notice', $ok ? 'saved' : 'error', add_query_arg( array( 'action' => 'edit', 'id' => $id ), $base ) ) );
+			wp_safe_redirect( add_query_arg( array_merge( array( 'supcomp_notice' => $ok ? 'saved' : 'error' ), $warn ), add_query_arg( array( 'action' => 'edit', 'id' => $id ), $base ) ) );
 		} else {
 			$new_id = Supcomp_Extract_Sites_Repo::insert( $data );
 			if ( $new_id > 0 ) {
-				wp_safe_redirect( add_query_arg( 'supcomp_notice', 'created', add_query_arg( array( 'action' => 'edit', 'id' => $new_id ), $base ) ) );
+				wp_safe_redirect( add_query_arg( array_merge( array( 'supcomp_notice' => 'created' ), $warn ), add_query_arg( array( 'action' => 'edit', 'id' => $new_id ), $base ) ) );
 			} else {
 				wp_safe_redirect( add_query_arg( 'supcomp_notice', 'error', add_query_arg( 'action', 'new', $base ) ) );
 			}
 		}
+		exit;
+	}
+
+	/**
+	 * "Test mapping" — fetch page 1 of the configured JSON API with the mapping
+	 * currently in the form (saved or not), and stash the first few resolved
+	 * rows in a per-user transient that render_test_results() shows back on the
+	 * edit form. Never writes to the database.
+	 */
+	public static function handle_test_json() {
+		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission.', 'supplement-compare' ) );
+		}
+		check_admin_referer( self::NONCE_SAVE );
+
+		$id          = isset( $_POST['id'] ) ? absint( $_POST['id'] ) : 0;
+		$site_url    = isset( $_POST['site_url'] ) ? esc_url_raw( wp_unslash( $_POST['site_url'] ) ) : '';
+		$raw_config  = isset( $_POST['json_config'] ) ? wp_unslash( $_POST['json_config'] ) : '';
+		$config      = Supcomp_Extract_Sites_Repo::sanitize_json_handler( $raw_config );
+
+		$result = array();
+		if ( empty( $config['list_url'] ) ) {
+			$result = array(
+				'ok'    => false,
+				'error' => __( 'No valid list_url in the mapping. Provide a JSON object with at least a list_url (and check it parses as JSON).', 'supplement-compare' ),
+			);
+		} else {
+			$store = Supcomp_Extractor_Json::store_name_for( $site_url, $config );
+			$page  = Supcomp_Extractor_Json::fetch_page(
+				$site_url,
+				1,
+				'test',
+				current_time( 'c', true ),
+				$store,
+				'',
+				$config
+			);
+			if ( $page['status'] === 'ok' ) {
+				$result = array(
+					'ok'        => true,
+					'url'       => (string) $config['list_url'],
+					'row_count' => count( $page['rows'] ),
+					'sample'    => array_slice( $page['rows'], 0, 3 ),
+				);
+			} else {
+				$result = array(
+					'ok'          => false,
+					'url'         => (string) $config['list_url'],
+					'status'      => (string) $page['status'],
+					'http_status' => (int) $page['http_status'],
+					'error'       => sprintf(
+						/* translators: 1: status keyword, 2: HTTP code */
+						__( 'Fetch returned no products: %1$s (HTTP %2$d). Check list_url and products_path.', 'supplement-compare' ),
+						(string) $page['status'],
+						(int) $page['http_status']
+					),
+				);
+			}
+		}
+
+		set_transient( self::TEST_TRANSIENT . get_current_user_id(), $result, 120 );
+
+		$base = admin_url( 'admin.php?page=' . self::PAGE_SLUG );
+		$dest = $id > 0
+			? add_query_arg( array( 'action' => 'edit', 'id' => $id ), $base )
+			: add_query_arg( 'action', 'new', $base );
+		wp_safe_redirect( add_query_arg( 'supcomp_notice', 'json_tested', $dest ) );
 		exit;
 	}
 
@@ -433,6 +535,59 @@ class Supcomp_Extract_Sites_Screen {
 
 	// ---------- helpers ----------
 
+	/**
+	 * Render (and consume) the most recent "Test mapping" result for this user.
+	 */
+	private static function render_test_results() {
+		$key    = self::TEST_TRANSIENT . get_current_user_id();
+		$result = get_transient( $key );
+		if ( ! is_array( $result ) ) {
+			return;
+		}
+		delete_transient( $key );
+
+		if ( empty( $result['ok'] ) ) {
+			printf(
+				'<div class="notice notice-error"><p><strong>%s</strong> %s</p></div>',
+				esc_html__( 'Test mapping failed:', 'supplement-compare' ),
+				esc_html( isset( $result['error'] ) ? $result['error'] : __( 'Unknown error.', 'supplement-compare' ) )
+			);
+			return;
+		}
+
+		$sample = isset( $result['sample'] ) && is_array( $result['sample'] ) ? $result['sample'] : array();
+		echo '<div class="notice notice-success"><p><strong>';
+		printf(
+			/* translators: 1: number of rows, 2: API URL */
+			esc_html__( 'Test mapping OK — %1$d row(s) mapped from %2$s. Showing the first %3$d:', 'supplement-compare' ),
+			(int) $result['row_count'],
+			esc_html( (string) $result['url'] ),
+			(int) count( $sample )
+		);
+		echo '</strong></p>';
+
+		// Surface the fields that matter for the offer table; raw_attributes are
+		// shown compacted so the operator can confirm dosage/form came through.
+		$cols = array( 'product_title', 'variant_title', 'sku', 'current_price', 'regular_price', 'currency', 'stock_status', 'source_product_id', 'source_variant_id', 'raw_attributes_json' );
+		echo '<table class="widefat striped" style="margin:0 0 1em"><thead><tr>';
+		foreach ( $cols as $c ) {
+			echo '<th>' . esc_html( $c ) . '</th>';
+		}
+		echo '</tr></thead><tbody>';
+		foreach ( $sample as $row ) {
+			echo '<tr>';
+			foreach ( $cols as $c ) {
+				$val = isset( $row[ $c ] ) ? (string) $row[ $c ] : '';
+				if ( strlen( $val ) > 140 ) {
+					$val = substr( $val, 0, 140 ) . '…';
+				}
+				echo '<td style="font-family:monospace;font-size:12px">' . esc_html( $val ) . '</td>';
+			}
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
+	}
+
 	private static function merchant_label( $merchant_id ) {
 		if ( ! $merchant_id ) {
 			return '—';
@@ -442,6 +597,15 @@ class Supcomp_Extract_Sites_Screen {
 	}
 
 	private static function render_notice() {
+		// Independent of the main notice: a mapping that failed to parse as JSON
+		// was saved as empty. Shown alongside the save-success banner.
+		if ( ! empty( $_GET['supcomp_json_warn'] ) ) {
+			printf(
+				'<div class="notice notice-warning is-dismissible"><p>%s</p></div>',
+				esc_html__( 'The JSON handler mapping was not valid JSON and was cleared. Fix the syntax and use "Test mapping" before saving again.', 'supplement-compare' )
+			);
+		}
+
 		if ( empty( $_GET['supcomp_notice'] ) ) {
 			return;
 		}
