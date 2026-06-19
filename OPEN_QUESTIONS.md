@@ -675,6 +675,55 @@ per-site `settings_json` bag. Remaining loose ends:
 
 ---
 
+### Q-017: Etsy as a supported merchant platform (specific Etsy shops)
+
+**Status:** open (feasibility only — no decision, no build planned)
+**Blocks:** nothing
+**Raised:** 2026-06-19
+**Last touched:** 2026-06-19
+
+Could we add Etsy to the supported platforms so the operator can feature
+specific Etsy shops? Feasibility was scoped (no code).
+
+**Plumbing is cheap.** The extractor's per-platform handler pattern (static
+class exposing `fetch_store_meta()` + `fetch_page()` → `{rows, batch_size,
+status, http_status}`) makes a new `platform_hint = 'etsy'` a well-trodden
+add. Four registration points: `Supcomp_Installer::EXTRACT_SITE_PLATFORM_HINTS`
+(the enum — repo sanitize already validates against it),
+`Supcomp_Extractor_Worker::detect_and_fetch_first_page()` (page-1 dispatch),
+`fetch_subsequent_page()` + `pagination_for()` (page 2+), and the admin
+`<select>` in `class-extract-sites-screen.php`.
+
+**The fetch strategy is the whole decision.** Etsy is unlike Shopify/Woo —
+there's no public per-shop JSON endpoint to sniff (no `products.json`, no Store
+API). Two viable paths:
+
+- **Option A — Official Etsy Open API v3 (recommended).** `getListingsByShop`
+  returns structured price, currency, and quantity — the clean analog to the
+  Shopify/Woo structured-API handlers. Cost: the operator registers a free Etsy
+  app for an API key (`x-api-key` header), and a handler must carry that auth
+  header (the `json` handler doesn't pass custom auth headers today). Subject to
+  Etsy API rate limits and ToS. This is also the safer-positioning route.
+- **Option B — JSON-LD scraping (no key).** Etsy listing pages carry
+  `Product`/`Offer` JSON-LD, so the generic engine *could* parse them, but
+  (1) discovery doesn't fit — the generic handler finds URLs via root
+  `sitemap.xml`, which doesn't exist per-shop on Etsy; and (2) Etsy runs
+  aggressive anti-bot (Cloudflare-class), making it a likely **hard target**
+  (example-labs-tier, per the extractor merchant map).
+
+**Constraints to honor either way:** the Etsy API returns exact stock
+*quantity*, which must collapse to status-only per load-bearing rule #4 (no
+exact stock quantity) — trivial mapping (`quantity > 0 → in_stock`). Etsy's ToS
+on automated access is stricter than a typical Shopify store, which is a second
+reason to prefer the API route.
+
+**Recommendation if pursued:** Option A. The gate is whether the operator will
+register for an Etsy API key — that single choice separates "robust handler"
+from "fragile scrape." Deferred as feasibility-only; revisit if/when Etsy shops
+become a real onboarding target.
+
+---
+
 ## Resolved questions
 
 ### Q-010: Does a rejection survive Cleanup + re-extraction?
