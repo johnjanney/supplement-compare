@@ -312,6 +312,11 @@ class Supcomp_Extract_Sites_Repo {
 				}
 				if ( is_string( $spec ) ) {
 					$out['fields'][ $field ] = self::clean_path( $spec );
+				} elseif ( is_array( $spec ) && isset( $spec['template'] ) ) {
+					$tpl = self::clean_url_template( $spec['template'] );
+					if ( $tpl !== '' ) {
+						$out['fields'][ $field ] = array( 'template' => $tpl );
+					}
 				} elseif ( is_array( $spec ) && isset( $spec['from'] ) ) {
 					$entry = array( 'from' => self::clean_path_list( $spec['from'] ) );
 					if ( isset( $spec['transform'] ) && in_array( (string) $spec['transform'], $transforms, true ) ) {
@@ -409,6 +414,22 @@ class Supcomp_Extract_Sites_Repo {
 			$path = '/' . $path;
 		}
 		return $path;
+	}
+
+	/**
+	 * Sanitize a URL template like "https://store.com/catalog/{sku}". Must be an
+	 * http(s) URL and free of whitespace/quote/angle chars; `{placeholder}`
+	 * braces are preserved. Returns '' if it doesn't qualify.
+	 */
+	private static function clean_url_template( $tpl ) {
+		$tpl = trim( wp_strip_all_tags( (string) $tpl ) );
+		if ( ! preg_match( '#^https?://#i', $tpl ) ) {
+			return '';
+		}
+		if ( preg_match( '/[\s<>"\']/', $tpl ) ) {
+			return '';
+		}
+		return self::trim_to( $tpl, 512 );
 	}
 
 	/**
