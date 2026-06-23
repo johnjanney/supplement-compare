@@ -17,6 +17,18 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.37.0] — 2026-06-23
+
+### Added
+- **"Active offers" column on the Canonical Products list.** Each canonical row now shows its live active-offer count, using the same definition as the public site — `visibility_status = 'active'` and `last_synced_at` within the staleness-hide window (`supcomp_staleness_hide_hours`, default 168h). The count matches the "Active offers" figure already shown on the canonical edit screen and the ≥3 threshold that gates SEO indexing. Computed in a single grouped query (`Supcomp_Offers_Repo::count_active_by_canonical_map()`) rather than one query per row.
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
 ## [1.36.0] — 2026-06-19
 
 ### Added
