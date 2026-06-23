@@ -390,11 +390,28 @@ class Supcomp_Offers_Repo {
 	}
 
 	/**
+	 * Minimum number of active, non-stale offers a canonical must have before
+	 * it is published to any public surface (JSON export, /compare page,
+	 * sitemap) and counted in the dashboard "live" universe. Operator-set via
+	 * Settings; default 1, which is a no-op (publish any canonical that has at
+	 * least one active offer — the historical behavior). The count semantics
+	 * match count_active_by_canonical_map() / the admin "Active offers" column,
+	 * so the threshold the operator types equals the number they see there.
+	 */
+	public static function min_active_to_publish() {
+		return max( 1, (int) get_option( 'supcomp_min_active_offers_to_publish', 1 ) );
+	}
+
+	/**
 	 * Joined query for the public JSON exporter (Phase 8). Returns active,
 	 * canonical-matched offers within the hide threshold, with merchant +
 	 * canonical_product + ingredient fields attached. Ordered by canonical
 	 * then ascending cost-per-active-unit so the exporter can walk the
 	 * result set once and accumulate per-canonical rollups in order.
+	 *
+	 * Applies the publish threshold (min_active_to_publish): canonicals with
+	 * fewer than N active, fresh offers are dropped entirely. The gate is only
+	 * added when N > 1, so the default (1) leaves the query unchanged.
 	 */
 	public static function for_export( $hide_threshold_mysql ) {
 		global $wpdb;
@@ -402,6 +419,23 @@ class Supcomp_Offers_Repo {
 		$m  = $wpdb->prefix . 'supcomp_merchants';
 		$cp = $wpdb->prefix . 'supcomp_canonical_products';
 		$ci = $wpdb->prefix . 'supcomp_canonical_ingredients';
+
+		$min_active = self::min_active_to_publish();
+		$gate_join  = '';
+		$args       = array( $hide_threshold_mysql );
+		if ( $min_active > 1 ) {
+			$gate_join = "INNER JOIN (
+						SELECT canonical_product_id
+						FROM {$o}
+						WHERE visibility_status = 'active'
+						  AND canonical_product_id IS NOT NULL
+						  AND last_synced_at >= %s
+						GROUP BY canonical_product_id
+						HAVING COUNT(*) >= %d
+					) pub ON pub.canonical_product_id = o.canonical_product_id";
+			$args      = array( $hide_threshold_mysql, $min_active, $hide_threshold_mysql );
+		}
+
 		return $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT o.*,
@@ -418,11 +452,12 @@ class Supcomp_Offers_Repo {
 				 INNER JOIN {$m} m ON m.id = o.merchant_id AND m.status = 'active'
 				 INNER JOIN {$cp} cp ON cp.id = o.canonical_product_id AND cp.status <> 'retired'
 				 INNER JOIN {$ci} ci ON ci.id = cp.ingredient_id AND ci.status <> 'retired'
+				 {$gate_join}
 				 WHERE o.visibility_status = 'active'
 				   AND o.canonical_product_id IS NOT NULL
 				   AND o.last_synced_at >= %s
 				 ORDER BY cp.id ASC, o.cost_per_active_unit ASC, o.id ASC",
-				$hide_threshold_mysql
+				$args
 			)
 		);
 	}
@@ -434,7 +469,9 @@ class Supcomp_Offers_Repo {
 	 * canonical + ingredient) but selects only the two columns the widget needs.
 	 * Keeping the WHERE clause identical means the widget's "live offers" /
 	 * stock-split figures match what readers see, and the returned id set is the
-	 * exact set the public price-direction indicator runs over.
+	 * exact set the public price-direction indicator runs over. This includes
+	 * the publish threshold (min_active_to_publish), applied identically to
+	 * for_export() so the dashboard universe stays equal to the on-site one.
 	 */
 	public static function live_for_dashboard( $hide_threshold_mysql ) {
 		global $wpdb;
@@ -442,6 +479,23 @@ class Supcomp_Offers_Repo {
 		$m  = $wpdb->prefix . 'supcomp_merchants';
 		$cp = $wpdb->prefix . 'supcomp_canonical_products';
 		$ci = $wpdb->prefix . 'supcomp_canonical_ingredients';
+
+		$min_active = self::min_active_to_publish();
+		$gate_join  = '';
+		$args       = array( $hide_threshold_mysql );
+		if ( $min_active > 1 ) {
+			$gate_join = "INNER JOIN (
+						SELECT canonical_product_id
+						FROM {$o}
+						WHERE visibility_status = 'active'
+						  AND canonical_product_id IS NOT NULL
+						  AND last_synced_at >= %s
+						GROUP BY canonical_product_id
+						HAVING COUNT(*) >= %d
+					) pub ON pub.canonical_product_id = o.canonical_product_id";
+			$args      = array( $hide_threshold_mysql, $min_active, $hide_threshold_mysql );
+		}
+
 		return $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT o.id, o.stock_status
@@ -449,10 +503,11 @@ class Supcomp_Offers_Repo {
 				 INNER JOIN {$m} m ON m.id = o.merchant_id AND m.status = 'active'
 				 INNER JOIN {$cp} cp ON cp.id = o.canonical_product_id AND cp.status <> 'retired'
 				 INNER JOIN {$ci} ci ON ci.id = cp.ingredient_id AND ci.status <> 'retired'
+				 {$gate_join}
 				 WHERE o.visibility_status = 'active'
 				   AND o.canonical_product_id IS NOT NULL
 				   AND o.last_synced_at >= %s",
-				$hide_threshold_mysql
+				$args
 			)
 		);
 	}

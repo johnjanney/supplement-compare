@@ -78,6 +78,10 @@ class Supcomp_Sitemap {
 		$cp = $wpdb->prefix . 'supcomp_canonical_products';
 		$no = $wpdb->prefix . 'supcomp_normalized_offers';
 
+		// SEO floor is 3 active offers; but never list a page the publish
+		// threshold would 404, so require at least max(3, publish threshold).
+		$min_count = max( 3, Supcomp_Offers_Repo::min_active_to_publish() );
+
 		return $wpdb->get_results(
 			$wpdb->prepare(
 				"SELECT cp.slug, cp.updated_at, COUNT(o.id) AS active_count
@@ -88,9 +92,10 @@ class Supcomp_Sitemap {
 				   AND o.visibility_status = 'active'
 				   AND o.last_synced_at >= %s
 				 GROUP BY cp.id, cp.slug, cp.updated_at
-				 HAVING active_count >= 3
+				 HAVING active_count >= %d
 				 ORDER BY cp.updated_at DESC",
-				$hide_threshold_mysql
+				$hide_threshold_mysql,
+				$min_count
 			)
 		);
 	}

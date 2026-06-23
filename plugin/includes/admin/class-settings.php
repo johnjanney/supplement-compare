@@ -52,6 +52,12 @@ class Supcomp_Settings {
 	const SECTION_ID   = 'supcomp_general';
 
 	public static function register() {
+		// Changing the publish threshold reshapes the public universe, so the
+		// static JSON export must regenerate. Live surfaces (/compare page,
+		// sitemap) already read the option directly, but the exported file is
+		// only rebuilt on supcomp_data_changed — fire it when the value changes.
+		add_action( 'update_option_supcomp_min_active_offers_to_publish', array( __CLASS__, 'on_publish_threshold_changed' ), 10, 2 );
+
 		register_setting(
 			self::OPTION_GROUP,
 			'supcomp_default_currency',
@@ -79,6 +85,16 @@ class Supcomp_Settings {
 				'type'              => 'integer',
 				'sanitize_callback' => 'absint',
 				'default'           => 168,
+			)
+		);
+
+		register_setting(
+			self::OPTION_GROUP,
+			'supcomp_min_active_offers_to_publish',
+			array(
+				'type'              => 'integer',
+				'sanitize_callback' => array( __CLASS__, 'sanitize_min_active_offers' ),
+				'default'           => 1,
 			)
 		);
 
@@ -200,6 +216,14 @@ class Supcomp_Settings {
 		);
 
 		add_settings_field(
+			'supcomp_min_active_offers_to_publish',
+			__( 'Minimum active offers to publish', 'supplement-compare' ),
+			array( __CLASS__, 'render_min_active_offers_field' ),
+			self::PAGE_SLUG,
+			self::SECTION_ID
+		);
+
+		add_settings_field(
 			'supcomp_extract_stale_minutes',
 			__( 'Extractor: stale-run timeout (minutes)', 'supplement-compare' ),
 			array( __CLASS__, 'render_stale_minutes_field' ),
@@ -301,6 +325,28 @@ class Supcomp_Settings {
 		return min( $v, 1440 );
 	}
 
+	public static function on_publish_threshold_changed( $old_value, $value ) {
+		if ( (int) $old_value === (int) $value ) {
+			return;
+		}
+		do_action(
+			'supcomp_data_changed',
+			array( 'source' => 'publish_threshold', 'old' => (int) $old_value, 'new' => (int) $value )
+		);
+	}
+
+	public static function sanitize_min_active_offers( $value ) {
+		// At least 1 (0 would mean "publish canonicals with no offers", which the
+		// export's NOT NULL / active filters already preclude — clamp to the
+		// no-op default). Cap at 100 so a fat-fingered entry can't hide the
+		// entire catalogue by accident.
+		$v = absint( $value );
+		if ( $v < 1 ) {
+			$v = 1;
+		}
+		return min( $v, 100 );
+	}
+
 	public static function sanitize_price_move_window( $value ) {
 		// 0 disables the indicator; cap at ~10 years so a fat-fingered entry
 		// can't make "within the window" meaningless.
@@ -348,6 +394,15 @@ class Supcomp_Settings {
 			'<input type="number" min="1" name="supcomp_staleness_hide_hours" value="%d" class="small-text" /> <p class="description">%s</p>',
 			$value,
 			esc_html__( 'Offers older than this are excluded from the public JSON entirely. Default 168 hours (7 days).', 'supplement-compare' )
+		);
+	}
+
+	public static function render_min_active_offers_field() {
+		$value = (int) get_option( 'supcomp_min_active_offers_to_publish', 1 );
+		printf(
+			'<input type="number" min="1" name="supcomp_min_active_offers_to_publish" value="%d" class="small-text" /> <p class="description">%s</p>',
+			$value,
+			esc_html__( 'A canonical product is hidden from the public site (JSON export, /compare page, sitemap) until it has at least this many active, non-stale offers. It still accumulates offers while hidden — watch the "Active offers" column on the Canonical Products screen. Default 1 (publish as soon as it has any active offer).', 'supplement-compare' )
 		);
 	}
 

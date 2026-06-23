@@ -61,6 +61,15 @@ class Supcomp_Canonical_Page {
 		$hide_hours      = (int) get_option( 'supcomp_staleness_hide_hours', 168 );
 		$hide_threshold  = gmdate( 'Y-m-d H:i:s', time() - max( 1, $hide_hours ) * HOUR_IN_SECONDS );
 		$active_count    = Supcomp_Offers_Repo::count_active_for_canonical( (int) $canonical->id, $hide_threshold );
+
+		// Publish threshold: a canonical below the operator's minimum active-offer
+		// count is not yet published — 404 it the same way a retired one is, so it
+		// stays out of the public site while it accumulates offers.
+		if ( $active_count < Supcomp_Offers_Repo::min_active_to_publish() ) {
+			status_header( 404 );
+			return $template; // Let the theme render its 404 page.
+		}
+
 		$is_indexable    = ( (int) $canonical->seo_indexable === 1 ) && ( $active_count >= 3 );
 		$aggregate       = Supcomp_Offers_Repo::aggregate_for_canonical( (int) $canonical->id, $hide_threshold );
 		$ingredient      = $canonical->ingredient_id

@@ -17,6 +17,20 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.38.0] — 2026-06-23
+
+### Added
+- **"Minimum active offers to publish" setting (publish threshold).** New integer option on Settings (default 1). A canonical product stays hidden from every public surface — JSON export, `/compare/{slug}` page (404), and sitemap — until it has at least N active, non-stale offers, while remaining active so it keeps matching and accumulating offers. Lets the operator incubate thin listings and watch the "Active offers" column climb until a product is worth publishing. Default 1 is a no-op (current behavior: publish as soon as a canonical has any active offer). The gate uses the same count semantics as the admin "Active offers" column, and is applied identically to `for_export()` and `live_for_dashboard()` so the dashboard "At a Glance" figures stay equal to the on-site numbers. The static JSON regenerates automatically when the value changes; the sitemap floor is `max(3, threshold)` so it never lists a page the gate would 404.
+
+### Changed
+- **Matcher peer strategies now exclude retired canonicals.** The barcode / brand+SKU / brand+title / title+strength+count peer-match lookups previously ignored canonical status, so a newly imported offer could inherit a *retired* canonical from a sibling offer. They now join on `status <> 'retired'`, matching the direct/ingredient strategies — "retired" consistently means "no new offers attach" across every matching path.
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
 ## [1.37.0] — 2026-06-23
 
 ### Added

@@ -190,11 +190,13 @@ class Supcomp_Matcher {
 	private static function peer_by_barcode( $barcode ) {
 		global $wpdb;
 		$table = Supcomp_Offers_Repo::table();
+		$cp    = $wpdb->prefix . 'supcomp_canonical_products';
 		return $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT canonical_product_id FROM {$table}
-				 WHERE barcode = %s AND canonical_product_id IS NOT NULL
-				 ORDER BY id ASC LIMIT 1",
+				"SELECT o.canonical_product_id FROM {$table} o
+				 INNER JOIN {$cp} cp ON cp.id = o.canonical_product_id AND cp.status <> 'retired'
+				 WHERE o.barcode = %s AND o.canonical_product_id IS NOT NULL
+				 ORDER BY o.id ASC LIMIT 1",
 				$barcode
 			)
 		);
@@ -203,11 +205,13 @@ class Supcomp_Matcher {
 	private static function peer_by_brand_sku( $brand, $sku ) {
 		global $wpdb;
 		$table = Supcomp_Offers_Repo::table();
+		$cp    = $wpdb->prefix . 'supcomp_canonical_products';
 		return $wpdb->get_row(
 			$wpdb->prepare(
-				"SELECT canonical_product_id FROM {$table}
-				 WHERE LOWER(brand) = LOWER(%s) AND sku = %s AND canonical_product_id IS NOT NULL
-				 ORDER BY id ASC LIMIT 1",
+				"SELECT o.canonical_product_id FROM {$table} o
+				 INNER JOIN {$cp} cp ON cp.id = o.canonical_product_id AND cp.status <> 'retired'
+				 WHERE LOWER(o.brand) = LOWER(%s) AND o.sku = %s AND o.canonical_product_id IS NOT NULL
+				 ORDER BY o.id ASC LIMIT 1",
 				$brand,
 				$sku
 			)
@@ -217,12 +221,14 @@ class Supcomp_Matcher {
 	private static function peer_by_brand_title( $brand, $normalized_title ) {
 		global $wpdb;
 		$table = Supcomp_Offers_Repo::table();
+		$cp    = $wpdb->prefix . 'supcomp_canonical_products';
 		// Compare normalized title at query time by matching the LIKE pattern
 		// of each candidate. We narrow by brand first (cheap), then PHP-compare.
 		$rows = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, canonical_product_id, product_title FROM {$table}
-				 WHERE LOWER(brand) = LOWER(%s) AND canonical_product_id IS NOT NULL",
+				"SELECT o.id, o.canonical_product_id, o.product_title FROM {$table} o
+				 INNER JOIN {$cp} cp ON cp.id = o.canonical_product_id AND cp.status <> 'retired'
+				 WHERE LOWER(o.brand) = LOWER(%s) AND o.canonical_product_id IS NOT NULL",
 				$brand
 			)
 		);
@@ -237,13 +243,15 @@ class Supcomp_Matcher {
 	private static function peer_by_brand_title_strength_count( $brand, $normalized_title, $strength, $count ) {
 		global $wpdb;
 		$table = Supcomp_Offers_Repo::table();
+		$cp    = $wpdb->prefix . 'supcomp_canonical_products';
 		$rows  = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, canonical_product_id, product_title FROM {$table}
-				 WHERE LOWER(brand) = LOWER(%s)
-				   AND canonical_product_id IS NOT NULL
-				   AND ABS(strength_per_serving - %f) < 0.0001
-				   AND servings_per_container = %d",
+				"SELECT o.id, o.canonical_product_id, o.product_title FROM {$table} o
+				 INNER JOIN {$cp} cp ON cp.id = o.canonical_product_id AND cp.status <> 'retired'
+				 WHERE LOWER(o.brand) = LOWER(%s)
+				   AND o.canonical_product_id IS NOT NULL
+				   AND ABS(o.strength_per_serving - %f) < 0.0001
+				   AND o.servings_per_container = %d",
 				$brand,
 				(float) $strength,
 				(int) $count
@@ -260,12 +268,14 @@ class Supcomp_Matcher {
 	private static function peer_by_title_strength_count( $normalized_title, $strength, $count ) {
 		global $wpdb;
 		$table = Supcomp_Offers_Repo::table();
+		$cp    = $wpdb->prefix . 'supcomp_canonical_products';
 		$rows  = $wpdb->get_results(
 			$wpdb->prepare(
-				"SELECT id, canonical_product_id, product_title FROM {$table}
-				 WHERE canonical_product_id IS NOT NULL
-				   AND ABS(strength_per_serving - %f) < 0.0001
-				   AND servings_per_container = %d",
+				"SELECT o.id, o.canonical_product_id, o.product_title FROM {$table} o
+				 INNER JOIN {$cp} cp ON cp.id = o.canonical_product_id AND cp.status <> 'retired'
+				 WHERE o.canonical_product_id IS NOT NULL
+				   AND ABS(o.strength_per_serving - %f) < 0.0001
+				   AND o.servings_per_container = %d",
 				(float) $strength,
 				(int) $count
 			)
