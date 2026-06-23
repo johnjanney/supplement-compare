@@ -79,6 +79,13 @@ class Supcomp_Canonical_Products_Screen {
 			)
 		);
 		$ingredients = Supcomp_Ingredients_Repo::active_for_select();
+
+		// Active-offer counts, computed in one query and keyed by canonical id.
+		// "Active" mirrors the public site: visibility_status = 'active' AND
+		// last_synced_at within the staleness-hide window.
+		$hide_hours    = (int) get_option( 'supcomp_staleness_hide_hours', 168 );
+		$hide_ts       = gmdate( 'Y-m-d H:i:s', time() - max( 1, $hide_hours ) * HOUR_IN_SECONDS );
+		$active_counts = Supcomp_Offers_Repo::count_active_by_canonical_map( $hide_ts );
 		?>
 		<div class="wrap">
 			<h1 class="wp-heading-inline"><?php esc_html_e( 'Canonical Products', 'supplement-compare' ); ?></h1>
@@ -129,12 +136,13 @@ class Supcomp_Canonical_Products_Screen {
 						<th><?php esc_html_e( 'Std.', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'SEO', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'Status', 'supplement-compare' ); ?></th>
+						<th><?php esc_html_e( 'Active offers', 'supplement-compare' ); ?></th>
 						<th><?php esc_html_e( 'Actions', 'supplement-compare' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>
 					<?php if ( empty( $rows ) ) : ?>
-						<tr><td colspan="8"><?php esc_html_e( 'No canonical products match the current filter.', 'supplement-compare' ); ?></td></tr>
+						<tr><td colspan="9"><?php esc_html_e( 'No canonical products match the current filter.', 'supplement-compare' ); ?></td></tr>
 					<?php endif; ?>
 
 					<?php foreach ( $rows as $r ) : ?>
@@ -146,6 +154,7 @@ class Supcomp_Canonical_Products_Screen {
 							<td><?php echo $r->standardization_percentage !== null ? esc_html( self::trim_decimal( $r->standardization_percentage ) . '%' ) : '—'; ?></td>
 							<td><?php echo (int) $r->seo_indexable ? '✓' : '—'; ?></td>
 							<td><?php echo esc_html( $r->status ); ?></td>
+							<td><?php echo (int) ( isset( $active_counts[ (int) $r->id ] ) ? $active_counts[ (int) $r->id ] : 0 ); ?></td>
 							<td>
 								<a href="<?php echo esc_url( self::url( array( 'action' => 'edit', 'id' => $r->id ) ) ); ?>"><?php esc_html_e( 'Edit', 'supplement-compare' ); ?></a>
 								&nbsp;|&nbsp;

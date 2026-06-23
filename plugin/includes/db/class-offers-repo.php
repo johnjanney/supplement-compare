@@ -338,6 +338,33 @@ class Supcomp_Offers_Repo {
 	}
 
 	/**
+	 * Count active, non-stale offers grouped by canonical, in a single query.
+	 * Returns an array keyed by canonical_product_id => (int) count. Canonicals
+	 * with no active offers are absent from the map (treat as 0). Used by the
+	 * Canonical Products list screen to avoid an N+1 of count_active_for_canonical().
+	 */
+	public static function count_active_by_canonical_map( $hide_threshold_mysql ) {
+		global $wpdb;
+		$table = self::table();
+		$rows  = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT canonical_product_id AS cid, COUNT(*) AS n
+				 FROM {$table}
+				 WHERE canonical_product_id IS NOT NULL
+				   AND visibility_status = 'active'
+				   AND last_synced_at >= %s
+				 GROUP BY canonical_product_id",
+				$hide_threshold_mysql
+			)
+		);
+		$map = array();
+		foreach ( (array) $rows as $r ) {
+			$map[ (int) $r->cid ] = (int) $r->n;
+		}
+		return $map;
+	}
+
+	/**
 	 * Aggregate price stats per canonical for schema.org AggregateOffer
 	 * markup. Returns lowest_price / highest_price / offer_count / any_in_stock.
 	 */

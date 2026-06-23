@@ -1,6 +1,6 @@
 # Supplement Compare
 
-**Current version:** 1.35.1
+**Current version:** 1.37.0
 
 A WordPress-powered affiliate comparison engine for single-ingredient
 supplements (nootropics, longevity, sports nutrition). Lets price-conscious
