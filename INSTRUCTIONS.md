@@ -738,6 +738,31 @@ when the canonical groups varying brand strengths), `ingredient_form`,
 The `ingredient_slug` must match an existing canonical ingredient — import
 ingredients first.
 
+### Incubating thin canonicals (publish threshold) — v1.38.0+
+
+A canonical with only one or two offers makes a thin, low-value comparison
+page. Instead of retiring it (which stops new offers from matching to it),
+you can set a **publish threshold** so thin canonicals stay hidden from the
+public site but keep collecting offers until they're worth publishing.
+
+- **The control:** Settings → **Minimum active offers to publish** (default 1).
+  Set it to, say, 4 and any canonical with fewer than 4 active, non-stale
+  offers is hidden from the public JSON, its `/compare/{slug}` page returns
+  404, and it's left out of the sitemap. The moment it reaches 4 it publishes
+  automatically. Default 1 means "publish as soon as it has any active offer"
+  (the original behavior).
+- **It keeps accumulating.** Unlike Retire, a below-threshold canonical stays
+  **active**: new offers still match to it, flow through the pending queue, and
+  count up. Watch the **Active offers** column on the Canonical Products screen
+  (added v1.37.0) to see each one climb toward the threshold.
+- **The count is the same number** shown in that column and on the canonical
+  edit screen — what you set as the threshold is exactly the figure you watch.
+- **Takes effect immediately.** Changing the value regenerates the public JSON
+  on save; the `/compare` page and sitemap read it live.
+- **Note:** the SEO indexing floor is still 3 offers. If you set the threshold
+  above 3, the sitemap follows the higher number so it never links a page that
+  would 404.
+
 ## 9. Working the pending queue
 
 **WP Admin → Supplement Compare → Pending Queue.** This is the operator's main
