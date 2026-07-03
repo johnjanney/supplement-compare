@@ -84,6 +84,14 @@ Before editing or creating non-trivial code, view:
 
 Treat documentation updates as part of the change, not as cleanup. A pull request that adds a CSV import endpoint without updating `INSTRUCTIONS.md` to explain how to use it is incomplete.
 
+### No real merchant domains or brand names in anything committed to git
+
+Extractor Sites config necessarily references real third-party merchant websites — that's operational data, lives in the WordPress database, and is unaffected by this rule.
+
+But Markdown docs (`CHANGELOG.md`, `OPEN_QUESTIONS.md`, `INSTRUCTIONS.md`, `PROJECTBRIEF.md`, this file), code comments, and commit messages are different: they're permanently committed to git history. History is expensive to scrub after the fact — a rewrite requires a force-push across every branch and tag, and even then GitHub retains merged-PR diffs forever, independent of branch history.
+
+When writing anything that will be committed — changelog entries, worked examples, open-questions notes, code comments describing a merchant-specific quirk — never name the real domain or brand. Use a placeholder (`example.com`, `example-shop.com`, an invented name) and describe the underlying *pattern* instead (e.g., "a headless WooCommerce store whose Store API leaks a staging hostname," not the merchant's actual name). If unsure whether a domain is safe to name, treat it as unsafe.
+
 ### Match depth to complexity
 
 Most tasks are not architectural. A copy fix is a copy fix. A new admin screen is a real change. Calibrate ceremony accordingly.
