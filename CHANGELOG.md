@@ -10,6 +10,7 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ### Added
 ### Changed
+- **Scrubbed third-party merchant domains and brand names from the Markdown docs.** Replaced references to specific external storefronts — in CHANGELOG history, `OPEN_QUESTIONS.md`, `INSTRUCTIONS.md`, and `EXTRACTOR_RUN_DASHBOARD_FIX_PLAN.md` — with neutral `example.com`-style placeholders. Docs-only, no code or behavior change (no version bump). Platform names (WordPress, WooCommerce, Shopify, Wix, Etsy) and infrastructure/standards references (`schema.org`, `github.com`, etc.) are left as-is.
 ### Deprecated
 ### Removed
 ### Fixed
