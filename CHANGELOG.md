@@ -10,7 +10,27 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ### Added
 ### Changed
-- **Scrubbed third-party merchant domains and brand names from the Markdown docs.** Replaced references to specific external storefronts — in CHANGELOG history, `OPEN_QUESTIONS.md`, `INSTRUCTIONS.md`, and `EXTRACTOR_RUN_DASHBOARD_FIX_PLAN.md` — with neutral `example.com`-style placeholders. Docs-only, no code or behavior change (no version bump). Platform names (WordPress, WooCommerce, Shopify, Wix, Etsy) and infrastructure/standards references (`schema.org`, `github.com`, etc.) are left as-is.
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
+## [1.39.0] — 2026-07-05
+
+### Added
+- **Merchant filter and price-range filter on the public list view.** Two new independently-toggleable list controls (Settings → List view filter controls): an "All merchants" dropdown and min/max price inputs. The price-range filter's matching logic already existed in the frontend (`minPrice`/`maxPrice` state) but had no control rendering it; the merchant filter is new end-to-end — both the UI and the underlying filter predicate (the old `merchant` state field was dead, never read). New settings: `supcomp_filter_merchant_enabled`, `supcomp_filter_price_range_enabled` (both default on).
+- **Brand and "Last synced" sortable columns on the detail comparison table.** Completes the Phase 9 sort-mode requirement (cost-per-mg, price, brand, merchant, recency). Both columns are desktop-only — hidden via a new `supcomp-hide-mobile` CSS rule so the existing mobile 2-row grid layout (keyed to a fixed 4/5-column count via `supcomp-cols-4`/`supcomp-cols-5`) is unaffected.
+- **Alias-aware ingredient search.** The public JSON export now includes each canonical's `ingredient.aliases` (from `canonical_ingredients.aliases_json`), and the frontend search box matches against them — e.g. searching "Suntheanine" now finds L-Theanine. Closes the last piece of the Phase 9 "search: alias matching" requirement.
+
+### Changed
+- **Scrubbed third-party merchant domains and brand names from the Markdown docs.** Replaced references to specific external storefronts — in CHANGELOG history, `OPEN_QUESTIONS.md`, `INSTRUCTIONS.md`, and `EXTRACTOR_RUN_DASHBOARD_FIX_PLAN.md` — with neutral `example.com`-style placeholders. Docs-only, no code or behavior change. Platform names (WordPress, WooCommerce, Shopify, Wix, Etsy) and infrastructure/standards references (`schema.org`, `github.com`, etc.) are left as-is.
+- **`README.md` rewritten to match the shipped architecture.** Removed claims that the plugin "never talks to merchant sites directly" and that it is a "Phase 0 stub" — both were only ever true before the Phase 11 in-plugin extractor and Phases 1–10 shipped. README now describes both ingestion paths (in-plugin extractor as canonical, Python CSV upload as legacy/local-debug) and an accurate build-phase/version status.
+- **`PROJECTBRIEF.md` §1 wedge description reconciled with §3.3.** The "within-form comparison only" bullet was stale, left over from before the v1.1.0 ingredient-level-canonical pivot; it now matches the model §3.3 (and `CLAUDE.md` load-bearing rule #7) already documents. Also corrected "cost-per-mg-of-active-compound" → "cost-per-active-unit" in §1 to match §6's actual metric.
+- **`PROJECTBRIEF.md` §9 example JSON payload updated** to include `merchant.coupon_code`/`coupon_details`, `price_move`, and `ingredient.aliases` — fields the exporter has shipped for several versions but the documented contract example didn't show.
+- **Settings page copy no longer references "Phase 3."** Per-merchant currency overrides shipped with Phase 3 long ago; the settings intro paragraph still said "once Phase 3 lands."
+- **License question resolved.** `plugin/supplement-compare.php` already declared `License: Proprietary` while `README.md` and `OPEN_QUESTIONS.md` Q-005 said "TBD." Closed Q-005 as Proprietary and updated README to match.
 ### Deprecated
 ### Removed
 ### Fixed

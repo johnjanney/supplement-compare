@@ -447,7 +447,8 @@ class Supcomp_Offers_Repo {
 						cp.standardization_compound AS canonical_std_compound,
 						cp.standardization_percentage AS canonical_std_pct,
 						ci.id AS ingredient_id_join, ci.name AS ingredient_name,
-						ci.category AS ingredient_category, ci.default_unit AS ingredient_unit
+						ci.category AS ingredient_category, ci.default_unit AS ingredient_unit,
+						ci.aliases_json AS ingredient_aliases_json
 				 FROM {$o} o
 				 INNER JOIN {$m} m ON m.id = o.merchant_id AND m.status = 'active'
 				 INNER JOIN {$cp} cp ON cp.id = o.canonical_product_id AND cp.status <> 'retired'

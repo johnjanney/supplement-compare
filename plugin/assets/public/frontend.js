@@ -40,6 +40,8 @@
 	var showSearch = filterToggles.search !== false;
 	var showForm = filterToggles.form !== false;
 	var showIngredient = filterToggles.ingredient !== false;
+	var showMerchant = filterToggles.merchant !== false;
+	var showPriceRange = filterToggles.priceRange !== false;
 
 	var subheadToggles = (config.subheads && typeof config.subheads === 'object') ? config.subheads : {};
 	var showDetailSubhead = subheadToggles.detail !== false;
@@ -82,6 +84,8 @@
 		cost_per_serving: 'asc',
 		cost_per_active_unit: 'asc',
 		current_price: 'asc',
+		brand: 'asc',
+		last_synced_at: 'desc',
 	};
 
 	if (!config.jsonUrl) {
@@ -464,6 +468,8 @@
 				html += sortHeader('cost_per_active_unit', costPerActiveHeader, state.detailSort, { numeric: true });
 			}
 			html += sortHeader('current_price', i18n.priceColumn || 'Price', state.detailSort, { numeric: true });
+			html += sortHeader('brand', i18n.brandColumn || 'Brand', state.detailSort, { hideMobile: true });
+			html += sortHeader('last_synced_at', i18n.lastSyncedColumn || 'Last synced', state.detailSort, { hideMobile: true });
 			html += '<th>' + escapeHtml(i18n.couponCodeColumn || 'Coupon code') + '</th>';
 			html += '<th>' + escapeHtml(i18n.couponDetailsColumn || 'Coupon details') + '</th>';
 			html += '<th>' + escapeHtml(i18n.buyColumn || 'Buy') + '</th>';
@@ -498,6 +504,8 @@
 					html += '<br><span class="supcomp-was">' + escapeHtml(formatPrice(o.regular_price, o.currency)) + '</span>';
 				}
 				html += '</td>';
+				html += '<td class="supcomp-hide-mobile">' + (o.brand ? escapeHtml(o.brand) : '<span class="supcomp-meta">—</span>') + '</td>';
+				html += '<td class="supcomp-hide-mobile">' + (o.last_synced_at ? escapeHtml(formatTimestamp(o.last_synced_at)) : '<span class="supcomp-meta">—</span>') + '</td>';
 				html += '<td>';
 				var couponCode = o.merchant && o.merchant.coupon_code ? String(o.merchant.coupon_code) : '';
 				if (couponCode) {
@@ -560,6 +568,7 @@
 		var f = state.listFilters;
 		var forms = showForm ? uniqueSorted(data.canonical_products.map(function (c) { return c.form; })) : [];
 		var ingredients = showIngredient ? uniqueIngredients(data.canonical_products) : [];
+		var merchants = showMerchant ? uniqueMerchants(data.offers) : [];
 
 		var h = '<div class="supcomp-filters">';
 		if (showSearch) {
@@ -580,6 +589,18 @@
 				h += '<option value="' + escapeAttr(ing.name) + '"' + (f.ingredient === ing.name ? ' selected' : '') + '>' + escapeHtml(ing.name) + '</option>';
 			});
 			h += '</select>';
+		}
+		if (showMerchant) {
+			h += '<select data-field="merchant">';
+			h += '<option value="">' + escapeHtml(i18n.allMerchants || 'All merchants') + '</option>';
+			merchants.forEach(function (m) {
+				h += '<option value="' + escapeAttr(m.slug) + '"' + (f.merchant === m.slug ? ' selected' : '') + '>' + escapeHtml(m.name) + '</option>';
+			});
+			h += '</select>';
+		}
+		if (showPriceRange) {
+			h += '<input type="number" min="0" step="0.01" inputmode="decimal" data-field="minPrice" value="' + escapeAttr(f.minPrice) + '" placeholder="' + escapeAttr(i18n.minPricePlaceholder || 'Min price') + '" class="supcomp-price-input">';
+			h += '<input type="number" min="0" step="0.01" inputmode="decimal" data-field="maxPrice" value="' + escapeAttr(f.maxPrice) + '" placeholder="' + escapeAttr(i18n.maxPricePlaceholder || 'Max price') + '" class="supcomp-price-input">';
 		}
 
 		if (showInStock) {
@@ -631,6 +652,7 @@
 		var classes = 'supcomp-sortable';
 		if (opts.numeric) classes += ' supcomp-num';
 		if (active) classes += ' supcomp-sorted';
+		if (opts.hideMobile) classes += ' supcomp-hide-mobile';
 		return '<th class="' + classes + '" data-sort-key="' + escapeAttr(key) + '" aria-sort="' + ariaSort + '" tabindex="0" role="button">' +
 			escapeHtml(label || key) +
 			'<span class="supcomp-sort-arrow" aria-hidden="true">' + arrow + '</span>' +
@@ -648,6 +670,7 @@
 			if (f.coaOnly && !o.coa_available) return false;
 			if (f.minPrice !== '' && o.current_price != null && o.current_price < parseFloat(f.minPrice)) return false;
 			if (f.maxPrice !== '' && o.current_price != null && o.current_price > parseFloat(f.maxPrice)) return false;
+			if (f.merchant && (!o.merchant || o.merchant.slug !== f.merchant)) return false;
 			if (f.form || f.ingredient) {
 				var cp = data.canonical_products.find(function (c) { return c.id === o.canonical_product_id; });
 				if (f.form && (!cp || cp.form !== f.form)) return false;
@@ -655,8 +678,9 @@
 			}
 			if (search) {
 				var cp2 = data.canonical_products.find(function (c) { return c.id === o.canonical_product_id; });
+				var aliases = (cp2 && cp2.ingredient && cp2.ingredient.aliases) || [];
 				var haystack = ((o.product_title || '') + ' ' + (o.brand || '') + ' ' +
-					(cp2 ? cp2.display_name + ' ' + (cp2.ingredient && cp2.ingredient.name || '') : '')).toLowerCase();
+					(cp2 ? cp2.display_name + ' ' + (cp2.ingredient && cp2.ingredient.name || '') + ' ' + aliases.join(' ') : '')).toLowerCase();
 				if (haystack.indexOf(search) === -1) return false;
 			}
 			return true;
@@ -705,10 +729,23 @@
 				return numericCompareDir(a.servings_per_container, b.servings_per_container, s.dir);
 			case 'cost_per_serving':
 				return numericCompareDir(a.cost_per_serving, b.cost_per_serving, s.dir);
+			case 'brand':
+				return textCompare(a.brand || '', b.brand || '', s.dir);
+			case 'last_synced_at':
+				return numericCompareDir(parseTimestamp(a.last_synced_at), parseTimestamp(b.last_synced_at), s.dir);
 			case 'cost_per_active_unit':
 			default:
 				return numericCompareDir(a.cost_per_active_unit, b.cost_per_active_unit, s.dir);
 		}
+	}
+
+	// Epoch ms, or null for missing/unparseable timestamps so numericCompareDir
+	// sorts them to the bottom regardless of direction, same as any other
+	// missing numeric field.
+	function parseTimestamp(iso) {
+		if (!iso) return null;
+		var ts = Date.parse(iso);
+		return isNaN(ts) ? null : ts;
 	}
 
 	// Numeric compare with nulls always at the bottom regardless of direction.
@@ -770,6 +807,18 @@
 			if (c.ingredient && c.ingredient.name && !seen[c.ingredient.name]) {
 				seen[c.ingredient.name] = true;
 				out.push(c.ingredient);
+			}
+		});
+		return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
+	}
+
+	function uniqueMerchants(offers) {
+		var seen = {};
+		var out = [];
+		offers.forEach(function (o) {
+			if (o.merchant && o.merchant.slug && !seen[o.merchant.slug]) {
+				seen[o.merchant.slug] = true;
+				out.push(o.merchant);
 			}
 		});
 		return out.sort(function (a, b) { return a.name.localeCompare(b.name); });
@@ -875,16 +924,18 @@
 		return b;
 	}
 
-	function footer() {
-		var stamp = '';
-		if (data && data.generated_at) {
-			try {
-				var d = new Date(data.generated_at);
-				stamp = d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
-			} catch (e) {
-				stamp = data.generated_at;
-			}
+	// Shared by the footer's "Data last updated" stamp and the detail table's
+	// per-offer "Last synced" column — same UTC "YYYY-MM-DD HH:MM" rendering.
+	function formatTimestamp(iso) {
+		try {
+			return new Date(iso).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+		} catch (e) {
+			return iso;
 		}
+	}
+
+	function footer() {
+		var stamp = data && data.generated_at ? formatTimestamp(data.generated_at) : '';
 		var h = '<div class="supcomp-footer">';
 		if (config.affiliateDisclosure) {
 			h += '<p class="supcomp-disclosure">' + escapeHtml(config.affiliateDisclosure) + '</p>';

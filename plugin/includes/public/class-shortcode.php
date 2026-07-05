@@ -118,6 +118,8 @@ class Supcomp_Shortcode {
 					'search'         => (bool) get_option( 'supcomp_filter_search_enabled', true ),
 					'form'           => (bool) get_option( 'supcomp_filter_form_enabled', true ),
 					'ingredient'     => (bool) get_option( 'supcomp_filter_ingredient_enabled', true ),
+					'merchant'       => (bool) get_option( 'supcomp_filter_merchant_enabled', true ),
+					'priceRange'     => (bool) get_option( 'supcomp_filter_price_range_enabled', true ),
 				),
 				// Nested object (not top-level scalars) so wp_localize_script
 				// keeps the booleans as real booleans — see 1.16.1 note.
@@ -151,6 +153,10 @@ class Supcomp_Shortcode {
 			'allForms'               => __( 'All forms', 'supplement-compare' ),
 			'allIngredients'         => __( 'All ingredients', 'supplement-compare' ),
 			'allMerchants'           => __( 'All merchants', 'supplement-compare' ),
+			'minPricePlaceholder'    => __( 'Min price', 'supplement-compare' ),
+			'maxPricePlaceholder'    => __( 'Max price', 'supplement-compare' ),
+			'brandColumn'            => __( 'Brand', 'supplement-compare' ),
+			'lastSyncedColumn'       => __( 'Last synced', 'supplement-compare' ),
 			'inStockOnly'            => __( 'In stock only', 'supplement-compare' ),
 			'thirdPartyOnly'         => __( 'Third-party tested only', 'supplement-compare' ),
 			'coaOnly'                => __( 'COA available only', 'supplement-compare' ),

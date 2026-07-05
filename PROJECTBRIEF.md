@@ -12,14 +12,14 @@
 
 ## 1. What this project is
 
-A WordPress-powered affiliate comparison site for **single-ingredient supplements** in three verticals: **nootropics, longevity, and sports nutrition**. The site lets price-conscious buyers compare the same compound across multiple participating merchants on a **cost-per-mg-of-active-compound** basis.
+A WordPress-powered affiliate comparison site for **single-ingredient supplements** in three verticals: **nootropics, longevity, and sports nutrition**. The site lets price-conscious buyers compare the same compound across multiple participating merchants on a **cost-per-active-unit** basis (§6).
 
 The site does not sell anything. Every product listing links out to a participating merchant via an affiliate URL. The site's value to shoppers is honest, normalized, current price comparison that no single merchant provides and that general retailers (Amazon, iHerb) do not surface clearly.
 
 ### The wedge
 
 - **Single-ingredient only.** No blends, no proprietary stacks, no multi-ingredient formulas. The comparison math only works when you can compare one compound at a time.
-- **Within-form comparison only.** Magnesium glycinate is not compared to magnesium oxide. L-theanine capsules are not compared to L-theanine powder. The user filters by form first, then sees price-per-mg within that form.
+- **Ingredient-level comparison by default.** As of v1.1.0 the default canonical spans all forms and brand strengths of one ingredient — magnesium glycinate and magnesium oxide both roll up under "Magnesium," and L-theanine capsules and L-theanine powder both roll up under "L-Theanine." Cost-per-active-unit is the apples-to-apples metric across forms of the same compound; the comparison table surfaces each offer's form, total active unit, serving size, and # servings so a reader can judge form-specific tradeoffs themselves. An operator can still pin a canonical to one form or one strength for a tighter comparison concept (e.g. "L-Theanine 200mg Capsules") — see §3.3 — but that's an override, not the default rule.
 - **Curation, not aggregation.** Every offer goes through a manual approval queue before appearing on the public site. The site's trust signal is that the operator has personally vetted every listed product.
 - **Affiliate-relationship-required.** Merchants must have an affiliate program the operator has joined. The data ingestion mechanism (described below) is separate from the affiliate relationship.
 
@@ -603,7 +603,7 @@ The contract between the WordPress plugin and the public frontend.
       "id": 42,
       "slug": "l-theanine-200mg-capsule",
       "display_name": "L-Theanine 200mg Capsules",
-      "ingredient": { "id": 7, "name": "L-Theanine", "category": "nootropic" },
+      "ingredient": { "id": 7, "name": "L-Theanine", "category": "nootropic", "aliases": ["theanine", "Suntheanine"] },
       "form": "capsule",
       "strength_per_serving": 200,
       "strength_unit": "mg",
@@ -618,7 +618,13 @@ The contract between the WordPress plugin and the public frontend.
     {
       "id": 1881,
       "canonical_product_id": 42,
-      "merchant": { "id": 3, "slug": "nootropics-depot", "name": "Nootropics Depot" },
+      "merchant": {
+        "id": 3,
+        "slug": "nootropics-depot",
+        "name": "Nootropics Depot",
+        "coupon_code": "SAVE10",
+        "coupon_details": "10% off orders over $50"
+      },
       "brand": "Nootropics Depot",
       "product_title": "L-Theanine 200mg Capsules",
       "variant_title": "60 Count",
@@ -640,11 +646,14 @@ The contract between the WordPress plugin and the public frontend.
       "certifications": [],
       "buy_url": "/out/1881",
       "last_synced_at": "2026-05-18T08:00:00Z",
-      "is_stale": false
+      "is_stale": false,
+      "price_move": { "dir": "down", "pct": 8.3 }
     }
   ]
 }
 ```
+
+`merchant.coupon_code` / `merchant.coupon_details` are omitted (`null`) when the merchant has none configured. `price_move` is present only when the offer's effective price last changed within the operator-configured window (`supcomp_price_move_window_days`, §6); most offer entries in a real payload won't have it. `ingredient.aliases` mirrors `canonical_ingredients.aliases_json` (§3.2) and feeds the frontend's alias-aware search.
 
 **Note:** no raw affiliate URLs. No product descriptions. No merchant API tokens. Nothing internal.
 

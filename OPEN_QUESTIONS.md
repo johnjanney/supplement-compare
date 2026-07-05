@@ -82,23 +82,6 @@ Resolve once the operator commits to a real cadence after the first merchant goe
 
 ---
 
-### Q-005: License for the codebase
-
-**Status:** open
-**Blocks:** publishing to a public repo; nothing if kept private
-
-What license does this project use?
-
-Options:
-- **Private** (no license, all rights reserved) — fine for now since the repo isn't public
-- **GPL-2.0+** — required if distributed as a WordPress plugin via the WordPress.org plugin directory (which we may never do, but worth knowing)
-- **MIT** — permissive, common for tooling
-- **Proprietary** — explicitly all-rights-reserved with a custom notice
-
-Defer until there's a reason to publish.
-
----
-
 ### Q-006: Woo mid-page execution-time cursor
 
 **Status:** open (watch-only; surfaces only if it bites)
@@ -885,6 +868,15 @@ and consulted by the importer before insert. Decisions taken with the operator:
 USD is the default for the `supcomp_default_currency` option set on activation. The static JSON payload, the comparison frontend, and the cost-per-active-unit math all assume a single currency; no FX rate handling exists. Merchants whose Store/Shopify endpoints return a different currency code import as-is into the offer row, but the public site renders the operator's configured default currency symbol.
 
 Multi-currency is a deliberate non-goal for the 1.x line. Revisit only if a multi-region expansion becomes a real product goal — at which point it's a Phase-scale change, not a setting flip.
+
+### Q-005: License for the codebase
+
+**Status:** resolved — **Proprietary**
+**Resolved:** 2026-07-05
+
+`plugin/supplement-compare.php` already declared `License: Proprietary` in its header; this closes the question so `README.md` and the plugin metadata agree instead of one saying "TBD" while the other had already committed to an answer.
+
+The repo remains private. "Proprietary" here means all-rights-reserved with no redistribution license granted — revisit only if there's a concrete reason to open-source or publish to the WordPress.org plugin directory (which would force GPL-2.0+ instead).
 
 ---
 

@@ -77,7 +77,8 @@
 	border-radius: 4px;
 }
 .supcomp-filters select,
-.supcomp-filters input[type="search"] {
+.supcomp-filters input[type="search"],
+.supcomp-filters input[type="number"] {
 	padding: 0.35em 0.5em;
 	border: 1px solid #ccc;
 	border-radius: 3px;
@@ -86,6 +87,9 @@
 .supcomp-filters input.supcomp-search {
 	min-width: 12em;
 	flex: 1 1 12em;
+}
+.supcomp-filters input.supcomp-price-input {
+	width: 6em;
 }
 .supcomp-filters label {
 	font-size: 14px;
@@ -413,6 +417,16 @@ button.supcomp-coupon {
 		background: #fff;
 	}
 	.supcomp-detail thead th:nth-last-child(-n+3) {
+		display: none;
+	}
+	/* Brand and Last synced are desktop-only columns (the mobile 2-row grid
+	   above is sized to exactly 4 or 5 row-A columns via supcomp-cols-4/5;
+	   these two sit between Price and Coupon code so they never participate
+	   in that grid). Hiding them here removes them from layout entirely, so
+	   the trailing nth-last-child(-n+3)/(3)/(2)/(1) placements above — which
+	   count from the end of the row regardless of what's hidden earlier —
+	   still land on coupon code / coupon details / Buy exactly as before. */
+	.supcomp-hide-mobile {
 		display: none;
 	}
 	.supcomp-detail tbody td:nth-last-child(3) {

@@ -27,6 +27,8 @@
  *   supcomp_filter_search_enabled   — whether the search-ingredient input renders on the list view
  *   supcomp_filter_form_enabled     — whether the "All forms" select renders on the list view
  *   supcomp_filter_ingredient_enabled — whether the "All ingredients" select renders on the list view
+ *   supcomp_filter_merchant_enabled — whether the "All merchants" select renders on the list view
+ *   supcomp_filter_price_range_enabled — whether the min/max price inputs render on the list view
  *   supcomp_subhead_detail_enabled  — whether the canonical-product detail page renders the
  *                                     subhead under the title (ingredient · category · form · unit).
  *                                     Applies to both the JS-rendered shortcode detail view and
@@ -301,6 +303,8 @@ class Supcomp_Settings {
 			'supcomp_filter_search_enabled'     => __( 'Search ingredient (text input)', 'supplement-compare' ),
 			'supcomp_filter_form_enabled'       => __( 'All forms (dropdown)', 'supplement-compare' ),
 			'supcomp_filter_ingredient_enabled' => __( 'All ingredients (dropdown)', 'supplement-compare' ),
+			'supcomp_filter_merchant_enabled'   => __( 'All merchants (dropdown)', 'supplement-compare' ),
+			'supcomp_filter_price_range_enabled' => __( 'Price range (min/max)', 'supplement-compare' ),
 		);
 	}
 
@@ -367,7 +371,7 @@ class Supcomp_Settings {
 	}
 
 	public static function render_section_intro() {
-		echo '<p>' . esc_html__( 'Site-wide defaults. Per-merchant overrides for currency are configured on the Merchants screen once Phase 3 lands.', 'supplement-compare' ) . '</p>';
+		echo '<p>' . esc_html__( 'Site-wide defaults. Per-merchant overrides for currency are configured on the Merchants screen.', 'supplement-compare' ) . '</p>';
 	}
 
 	public static function render_currency_field() {
@@ -462,7 +466,7 @@ class Supcomp_Settings {
 				<?php echo esc_html( $label ); ?>
 			</label>
 		<?php endforeach; ?>
-			<p class="description"><?php esc_html_e( 'Each enabled control appears above the main (list) table. Disable any of these to simplify the filter bar — useful when the dataset is small enough that a search field or form/ingredient dropdown is unnecessary. The detail view (per-canonical comparison) is unaffected. Pre-filtering via shortcode attributes (e.g. [supplement_compare ingredient="L-Theanine"]) still applies even when the matching control is hidden.', 'supplement-compare' ); ?></p>
+			<p class="description"><?php esc_html_e( 'Each enabled control appears above the main (list) table. Disable any of these to simplify the filter bar — useful when the dataset is small enough that a search field, a dropdown, or the price-range inputs is unnecessary. The detail view (per-canonical comparison) is unaffected. Pre-filtering via shortcode attributes (e.g. [supplement_compare ingredient="L-Theanine"]) still applies even when the matching control is hidden.', 'supplement-compare' ); ?></p>
 		</fieldset>
 		<?php
 	}

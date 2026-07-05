@@ -167,6 +167,7 @@ class Supcomp_JSON_Exporter {
 				'id'       => (int) $row->ingredient_id_join,
 				'name'     => (string) $row->ingredient_name,
 				'category' => (string) $row->ingredient_category,
+				'aliases'  => Supcomp_Ingredients_Repo::decode_aliases( $row->ingredient_aliases_json ),
 			),
 			'form'                        => (string) $row->canonical_form,
 			'strength_per_serving'        => self::cast_number( $row->canonical_strength ),

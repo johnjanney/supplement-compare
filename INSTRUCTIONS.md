@@ -1008,15 +1008,21 @@ shortcode there.
 
 **What renders:**
 - Top filter bar (list view): search-ingredient input, "All forms"
-  dropdown, "All ingredients" dropdown, and the in-stock-only / 3PT /
-  COA checkboxes. Each control is independently toggleable on the
-  Settings page:
-  - **List view filter controls** — show/hide the search input, the
-    form dropdown, and the ingredient dropdown. Useful when the dataset
-    is small enough that a search field or one of the dropdowns is
-    unnecessary. Pre-filtering via shortcode attributes (e.g.
+  dropdown, "All ingredients" dropdown, "All merchants" dropdown, min/max
+  price inputs, and the in-stock-only / 3PT / COA checkboxes. Each control
+  is independently toggleable on the Settings page:
+  - **List view filter controls** — show/hide the search input, the form
+    dropdown, the ingredient dropdown, the merchant dropdown, and the
+    price-range inputs. Useful when the dataset is small enough that a
+    search field, one of the dropdowns, or price filtering is unnecessary.
+    Pre-filtering via shortcode attributes (e.g.
     `[supplement_compare ingredient="L-Theanine"]`) still applies even
     when the matching control is hidden.
+  - **Search matches aliases.** The search box matches product title,
+    brand, canonical display name, ingredient name, and any aliases
+    recorded on the ingredient (Ingredients screen → Aliases field) — so
+    a visitor searching a common brand name for a compound (e.g.
+    "Suntheanine") still finds the right canonical product.
   - **Filter checkboxes** — show/hide in-stock-only, third-party-only,
     COA-only. These appear on both the list and detail filter bars.
     Unchecking one is useful when your dataset doesn't populate that
@@ -1037,7 +1043,9 @@ shortcode there.
   first; total active / servings / merchant count descending — most first;
   text ascending — A→Z); a second click on the same column toggles
   direction. The active column shows a ▲/▼ indicator. Keyboard users can
-  Tab to a header and press Enter or Space.
+  Tab to a header and press Enter or Space. The detail table additionally
+  sorts by **Brand** (text, A→Z) and **Last synced** (recency, newest
+  first) — both desktop-only columns, hidden on the mobile layout below.
 - On the detail (per-canonical) view: a **Show: Cost / Serving | Cost /
   Active Unit** radio toggle above the table (visible only when **Multi
   compare-table view** is checked on the Settings page — see below). Both
@@ -1074,8 +1082,10 @@ sortable comparison columns sit under their tappable `<th>` headers on
 the top line, and the coupon code, coupon details, and Buy button wrap
 onto a second line underneath. Column headers stay visible and
 tappable so visitors can still re-sort by Price, Cost / unit, etc. on
-their phone. Desktop layout is unchanged. No operator setting controls
-this; it's the default frontend behaviour.
+their phone. The detail table's **Brand** and **Last synced** columns are
+desktop-only and don't appear on mobile at all (still fully sortable on
+desktop). Desktop layout is otherwise unchanged. No operator setting
+controls this; it's the default frontend behaviour.
 
 **Cache busting:** the shortcode appends `?ver={last-generated timestamp}`
 to the JSON URL, so visitors get the freshest data when the JSON
