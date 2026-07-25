@@ -17,6 +17,21 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.40.0] — 2026-07-25
+
+### Added
+- **Sitemap-probe diagnostics on generic/Wix discovery failures.** When the generic JSON-LD handler discovers zero product URLs, the run failure message (Extractor Runs detail) now appends a per-candidate trail — each sitemap path with its HTTP status and parse outcome — so an operator can tell apart the distinct causes: a sitemap that loaded but whose URLs didn't match the path hints (`→ HTTP 200, valid XML, but 0 product URLs matched`), a bot-challenge / blocked host IP (`→ HTTP 200 but body is not parseable XML …the host IP may be blocked`), an outright `→ HTTP 403`, or a `→ network error`. Previously all four collapsed into the same opaque "no product URLs discovered." `discover_product_urls()` gains an optional by-reference `$diag` parameter; the return value and existing callers are unchanged. See `INSTRUCTIONS.md` §2 for the operator playbook.
+
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **Legacy Python extractor now parses Wix (and other non-standard-capitalization) JSON-LD offers.** `extractor/aggregate_products.py`'s generic handler read offer fields with case-sensitive keys (`offers`, `availability`, …), so Wix pages — which emit `Offers`/`Availability` — produced rows with **empty prices** and `stock_status = unknown`. Ported the plugin's `ci_get()` case-insensitive lookup into `_jsonld_to_offers` and added the seller/brand store-name fallback for generic homepage defaults (Wix's "My Site"). The script's CSV schema is unchanged and still matches `Supcomp_Extractor_Offer::fieldnames()`. (The plugin already handled this correctly; only the legacy local-run script was affected.)
+
+### Security
+
+---
+
 ## [1.39.0] — 2026-07-05
 
 ### Added

@@ -117,20 +117,34 @@ class Supcomp_Extractor_Generic {
 	 *                          only cost is extra fetches, spread across the
 	 *                          chunked Action Scheduler pages.
 	 */
-	public static function discover_product_urls( $site, $probe_all = false ) {
+	public static function discover_product_urls( $site, $probe_all = false, &$diag = null ) {
+		$collect   = is_array( $diag );
 		$seen      = array();
 		$base_host = (string) wp_parse_url( $site, PHP_URL_HOST );
 		$home      = rtrim( $site, '/' );
 		foreach ( self::SITEMAP_CANDIDATES as $path ) {
 			$url      = rtrim( $site, '/' ) . $path;
 			$response = Supcomp_Extractor_Http::get( $url );
-			if ( is_wp_error( $response ) || $response['status'] !== 200 ) {
+			if ( is_wp_error( $response ) ) {
+				if ( $collect ) {
+					$diag[] = sprintf( '%s → network error: %s', $path, $response->get_error_message() );
+				}
+				continue;
+			}
+			if ( $response['status'] !== 200 ) {
+				if ( $collect ) {
+					$diag[] = sprintf( '%s → HTTP %d', $path, (int) $response['status'] );
+				}
 				continue;
 			}
 			if ( strpos( $response['body'], '<' ) === false ) {
+				if ( $collect ) {
+					$diag[] = sprintf( '%s → HTTP 200 but no XML markup (%d bytes; likely an HTML/challenge page)', $path, strlen( (string) $response['body'] ) );
+				}
 				continue;
 			}
 			$trust_all = ( $probe_all || strpos( $path, 'product' ) !== false );
+			$before    = count( $seen );
 			$urls = self::parse_sitemap( $response['body'], $trust_all, $base_host, 0 );
 			foreach ( $urls as $u ) {
 				$keep = $probe_all
@@ -141,6 +155,23 @@ class Supcomp_Extractor_Generic {
 					if ( count( $seen ) >= self::URL_DISCOVERY_CAP ) {
 						break;
 					}
+				}
+			}
+			if ( $collect ) {
+				$kept = count( $seen ) - $before;
+				if ( $kept > 0 ) {
+					$diag[] = sprintf( '%s → HTTP 200, %d product URL(s) discovered', $path, $kept );
+				} else {
+					// Distinguish "reached a real sitemap but nothing matched" from
+					// "got 200 but the body isn't parseable XML" (the classic
+					// bot-challenge / SPA-interstitial signature) — the two need
+					// very different operator responses.
+					libxml_use_internal_errors( true );
+					$xml_ok = simplexml_load_string( (string) $response['body'], 'SimpleXMLElement', LIBXML_NONET ) !== false;
+					libxml_clear_errors();
+					$diag[] = $xml_ok
+						? sprintf( '%s → HTTP 200, valid XML, but 0 product URLs matched (check URL path hints / enable "crawl all sitemap URLs")', $path )
+						: sprintf( '%s → HTTP 200 but body is not parseable XML (likely a bot-challenge/HTML page — the host IP may be blocked)', $path );
 				}
 			}
 			if ( ! empty( $seen ) ) {

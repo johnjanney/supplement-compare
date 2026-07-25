@@ -212,6 +212,31 @@ def jsonld_type_matches(node_type, target: str) -> bool:
     return node_type == target
 
 
+def _ci_get(d, *keys, default=None):
+    """
+    Case-insensitive dict lookup. Returns the first matching value for any of
+    `keys` (compared lowercased), else `default`. JSON-LD is case-sensitive per
+    spec, but some generators — notably Wix — emit non-standard capitalization
+    like "Offers" / "Availability". Mirrors Supcomp_Extractor_Generic::ci_get()
+    in the plugin (PROJECTBRIEF.md §4 — same schema, two emitters).
+    """
+    if not isinstance(d, dict):
+        return default
+    lower_map = {k.lower(): k for k in d.keys() if isinstance(k, str)}
+    for key in keys:
+        actual = lower_map.get(key.lower())
+        if actual is not None:
+            return d[actual]
+    return default
+
+
+# Weak / generic store names returned by various platforms' defaults
+# (lowercased). Wix homepages return "My Site"; a fresh WordPress returns the
+# others. When the homepage yields one of these we fall back to a product
+# page's seller/brand name. Mirrors _GENERIC_STORE_NAMES in the plugin.
+_GENERIC_STORE_NAMES = {"", "my site", "my wordpress site", "just another wordpress site"}
+
+
 # ---------- Shopify ----------
 
 def fetch_shopify_meta(session: requests.Session, site: str) -> tuple[str, str]:
@@ -922,11 +947,41 @@ def _find_org_name(node) -> str:
     return ""
 
 
+def _store_name_from_product_page(session: requests.Session, url: str) -> str:
+    """
+    Probe a single product page's JSON-LD for a seller or brand name. Used as a
+    fallback when the homepage store name is a generic default (e.g. Wix's
+    "My Site"). Mirrors _store_name_from_product_page in the plugin. Returns ""
+    on any miss.
+    """
+    r = get(session, url)
+    if r is None or r.status_code != 200:
+        return ""
+    for item in extract_jsonld_products(r.text):
+        offers_data = _ci_get(item, "offers")
+        candidates = offers_data if isinstance(offers_data, list) else [offers_data]
+        for o in candidates:
+            seller = _ci_get(o, "seller") if isinstance(o, dict) else None
+            if isinstance(seller, dict) and seller.get("name"):
+                return str(seller["name"]).strip()
+        brand = item.get("brand")
+        if isinstance(brand, dict) and brand.get("name"):
+            return str(brand["name"]).strip()
+    return ""
+
+
 def try_generic(session: requests.Session, site: str, run_id: str, exported_at: str) -> list[Offer] | None:
     urls = discover_product_urls(session, site)
     if not urls:
         return None
     store_name = fetch_generic_store_name(session, site)
+    # When the homepage yields a generic platform default (Wix's "My Site", a
+    # stock WordPress title, etc.), recover a seller/brand name from the first
+    # product page instead. Mirrors the plugin's fetch_store_meta fallback.
+    if store_name.strip().lower() in _GENERIC_STORE_NAMES:
+        seller = _store_name_from_product_page(session, urls[0])
+        if seller:
+            store_name = seller
     offers: list[Offer] = []
     for url in urls:
         r = get(session, url)
@@ -969,10 +1024,13 @@ def _jsonld_to_offers(item: dict, site: str, store_name: str, url: str, run_id: 
         or item.get("gtin8") or item.get("gtin") or ""
     )
 
-    offers_data = item.get("offers")
+    # Wix emits non-standard capitalization ("Offers", "Availability", etc.),
+    # so all offer-shaped lookups go through _ci_get().
+    offers_data = _ci_get(item, "offers")
     if isinstance(offers_data, dict):
-        if jsonld_type_matches(offers_data.get("@type"), "AggregateOffer") and isinstance(offers_data.get("offers"), list):
-            offer_list = offers_data["offers"]
+        inner = _ci_get(offers_data, "offers")
+        if jsonld_type_matches(offers_data.get("@type"), "AggregateOffer") and isinstance(inner, list):
+            offer_list = inner
         else:
             offer_list = [offers_data]
     elif isinstance(offers_data, list):
@@ -984,9 +1042,9 @@ def _jsonld_to_offers(item: dict, site: str, store_name: str, url: str, run_id: 
     for o in offer_list:
         if not isinstance(o, dict):
             continue
-        price = str(o.get("price") or o.get("lowPrice") or "")
-        currency = str(o.get("priceCurrency") or "")
-        avail = str(o.get("availability") or "").lower()
+        price = str(_ci_get(o, "price", "lowPrice") or "")
+        currency = str(_ci_get(o, "priceCurrency") or "")
+        avail = str(_ci_get(o, "availability") or "").lower()
         if "instock" in avail:
             stock = STOCK_IN
         elif "outofstock" in avail:
@@ -996,11 +1054,15 @@ def _jsonld_to_offers(item: dict, site: str, store_name: str, url: str, run_id: 
         else:
             stock = STOCK_UNKNOWN
 
-        sku = str(o.get("sku") or sku_top)
+        sku_val = _ci_get(o, "sku")
+        sku = str(sku_val) if sku_val not in (None, "") else sku_top
 
+        # Strip the fields we promoted to columns, case-insensitively, so a Wix
+        # "Availability" key doesn't survive into the raw blob twice.
+        _promoted = {"price", "pricecurrency", "availability", "sku"}
         raw = {
             "jsonld_category": category,
-            "jsonld_offer": {k: v for k, v in o.items() if k not in ("price", "priceCurrency", "availability", "sku")},
+            "jsonld_offer": {k: v for k, v in o.items() if not (isinstance(k, str) and k.lower() in _promoted)},
         }
 
         rows.append(Offer(

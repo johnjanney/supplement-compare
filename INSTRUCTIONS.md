@@ -390,6 +390,29 @@ work by running fewer sites at once.
   loads), it has no HTML for any of the three handlers to read — use the
   `json` handler instead (see "JSON-API storefronts" in §2). Otherwise
   fall back to the legacy Python extractor and upload its CSV via §3.
+- *"`wix`/`generic` endpoint did not return products. Generic probe: no
+  product URLs discovered from sitemap candidates."* → the generic JSON-LD
+  handler reached the site but discovered zero product URLs. As of v1.40.0
+  the message appends a **per-sitemap probe trail** so you can tell the
+  cases apart — read it before doing anything else. Examples:
+  - `…/sitemap.xml → HTTP 200, valid XML, but 0 product URLs matched` — the
+    sitemap loaded but its product URLs don't match the built-in path hints
+    (`/product`, `/products/`, `/shop/`, `/p/`, `/item/`, `/dp/`). Tick
+    **Crawl all sitemap URLs** (§2) so every sitemap URL carrying Product
+    structured data is kept regardless of path.
+  - `…/sitemap.xml → HTTP 403` or `→ HTTP 200 but body is not parseable XML
+    (likely a bot-challenge/HTML page — the host IP may be blocked)` — the
+    merchant's CDN/bot-mitigation is serving your **WordPress host's IP** a
+    block or a "checking your browser" page instead of the sitemap. This is
+    common on **Wix** and Cloudflare-fronted stores when the host is a
+    shared/datacenter IP. Nothing in the plugin config fixes an IP block;
+    fall back to the **legacy Python extractor run from your own machine**
+    (a residential IP the merchant serves normally) and upload its CSV via
+    §3. The Python script mirrors the plugin's Wix handling (case-insensitive
+    JSON-LD, seller-name recovery) so the CSV matches what the plugin would
+    have produced.
+  - `…/sitemap.xml → network error: …` — the host couldn't reach the site at
+    all (DNS/TLS/timeout). Re-run; if it persists the merchant may be down.
 - *"JSON handler is not configured…"* or *"JSON endpoint returned no
   products…"* (json only) → the mapping is missing a `list_url`, or
   `list_url`/`products_path` is wrong. Open the site, click **Test

@@ -526,7 +526,8 @@ class Supcomp_Extractor_Worker {
 		}
 		if ( $try_generic ) {
 			$probe_all = ! empty( $state['crawl_all_sitemap_urls'] );
-			$urls = Supcomp_Extractor_Generic::discover_product_urls( $state['site_url'], $probe_all );
+			$diag      = array();
+			$urls = Supcomp_Extractor_Generic::discover_product_urls( $state['site_url'], $probe_all, $diag );
 			if ( ! empty( $urls ) ) {
 				// Pass the first product URL so fetch_store_meta can recover a
 				// seller/brand name when the homepage returns a generic default
@@ -553,6 +554,10 @@ class Supcomp_Extractor_Worker {
 				);
 			}
 			$gen_msg = __( 'Generic probe: no product URLs discovered from sitemap candidates.', 'supplement-compare' );
+			if ( ! empty( $diag ) ) {
+				/* translators: %s: semicolon-separated per-sitemap diagnostic trail. */
+				$gen_msg .= ' ' . sprintf( __( 'Sitemap probes: %s.', 'supplement-compare' ), implode( '; ', $diag ) );
+			}
 			$last_failure = $last_failure !== '' ? ( $last_failure . ' ' . $gen_msg ) : $gen_msg;
 		}
 
