@@ -201,6 +201,50 @@ If you're asked to do something that assumes SSH / WP-CLI / host-level cron, fla
 
 ---
 
+## Committing to this repo
+
+**`main` is protected by a GitHub ruleset that rejects unsigned commits.** An
+unsigned push fails with `GH013: Repository rule violations found` and the
+commit never lands. This is the one repo constraint that will silently waste
+your time if you don't know it up front, because the commit succeeds locally
+and only the push is refused.
+
+Signing is SSH-based, using the key that is already registered on GitHub as a
+**signing** key (registering a key for auth does not make it a signing key —
+they are separate lists in GitHub settings). The working configuration:
+
+```
+git config --global gpg.format ssh
+git config --global user.signingkey ~/.ssh/id_ed25519.pub
+git config --global commit.gpgsign true
+git config --global gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers
+```
+
+`allowed_signers` holds one line per trusted identity and is only used for
+*local* verification — GitHub does not read it, and signing works without it:
+
+```
+johnjanney@gmail.com namespaces="git" ssh-ed25519 AAAA... johnjanney@gmail.com
+```
+
+Without that file, `git log --show-signature` errors with
+`gpg.ssh.allowedSignersFile needs to be configured` even though the commit is
+correctly signed. Check a commit with `git log --format='%h %G? %s' -1` — `G`
+means good signature, `N` means none.
+
+Notes:
+
+- **Commits predating the ruleset are unsigned and stay that way.** The rule
+  gates new pushes only. Don't re-sign history — it would need a force-push
+  across every branch and tag.
+- **Signing never blocks a local commit**, only a push to a host that requires
+  it. A misconfigured key surfaces at push time, not commit time.
+- If a push is rejected for signatures, fix the config and
+  `git commit --amend --no-edit -S` rather than stacking a new commit — but
+  only while the commit is still unpushed.
+
+---
+
 ## Use the user's memory
 
 Memory entries indicate John works in WSL2 with Claude Code, has Notion MCP integrations, and has done significant work on WordPress plugins and Claude Skills. Assume technical fluency. Don't over-explain WordPress or Claude Code basics. Do explain non-obvious architectural choices for this specific project.

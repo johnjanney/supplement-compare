@@ -22,6 +22,7 @@ version bump. See `CLAUDE.md` § "Repo-level changes: changelog yes, version
 bump no."
 
 - **`AGENTS.md` added as a pointer to `CLAUDE.md`.** Codex reads `AGENTS.md` by convention the way Claude Code reads `CLAUDE.md`. Rather than maintain two copies of the conventions, `AGENTS.md` is a short file directing Codex to `CLAUDE.md`, which is now the single authoritative working-instructions file for every coding agent in the repo. `CLAUDE.md`'s "Where things live" tree records the split. (Initially committed as a full 213-line duplicate of `CLAUDE.md`, then collapsed to the 19-line pointer in the same unreleased cycle — the duplication had already produced drift between the copies.)
+- **Commit signing requirement documented.** `CLAUDE.md` gains a "Committing to this repo" section: `main` is protected by a GitHub ruleset that rejects unsigned commits (`GH013`), so pushes fail unless SSH commit signing is configured. Records the working `git config` incantation, the separate-lists gotcha (a key registered for auth is not automatically a signing key), the `allowedSignersFile` needed for local `--show-signature` verification, and the fact that pre-ruleset commits stay unsigned rather than being rewritten.
 - **Local-only review write-ups are gitignored.** `CODEX-REVIEW.md`, `CODEX-REVIEW-RESPONSE.md`, and `COMPLIANCE-REVIEW-ISO27001-SOC2.md` are working notes from external-model critiques and a compliance pass, not project documentation; root-anchored `.gitignore` entries keep them out of git history.
 
 ---
