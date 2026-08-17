@@ -15,6 +15,15 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 ### Fixed
 ### Security
 
+### Repo
+
+Repository-level changes that ship no new plugin build, so they carry no
+version bump. See `CLAUDE.md` § "Repo-level changes: changelog yes, version
+bump no."
+
+- **`AGENTS.md` added as a pointer to `CLAUDE.md`.** Codex reads `AGENTS.md` by convention the way Claude Code reads `CLAUDE.md`. Rather than maintain two copies of the conventions, `AGENTS.md` is a short file directing Codex to `CLAUDE.md`, which is now the single authoritative working-instructions file for every coding agent in the repo. `CLAUDE.md`'s "Where things live" tree records the split. (Initially committed as a full 213-line duplicate of `CLAUDE.md`, then collapsed to the 19-line pointer in the same unreleased cycle — the duplication had already produced drift between the copies.)
+- **Local-only review write-ups are gitignored.** `CODEX-REVIEW.md`, `CODEX-REVIEW-RESPONSE.md`, and `COMPLIANCE-REVIEW-ISO27001-SOC2.md` are working notes from external-model critiques and a compliance pass, not project documentation; root-anchored `.gitignore` entries keep them out of git history.
+
 ---
 
 ## [1.40.0] — 2026-07-25

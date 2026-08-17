@@ -20,11 +20,24 @@ These files exist and MUST be kept current as part of the same change that adds 
 |---|---|
 | `README.md` | The install/quickstart story changes, or the project's headline changes |
 | `INSTRUCTIONS.md` | Any operator-facing workflow changes (a new admin screen, a new way to import, a new failure mode and its fix) |
-| `CHANGELOG.md` | Every functional change. Updates go under `[Unreleased]` until a version bump moves them to a dated section |
+| `CHANGELOG.md` | Every functional change, **and every repo-level change** (tooling, `.gitignore`, agent instruction files, scripts, CI config). Updates go under `[Unreleased]` until a version bump moves them to a dated section |
 | `PROJECTBRIEF.md` | Architectural decisions change. Not updated for routine feature work |
 | `OPEN_QUESTIONS.md` | A new question/ambiguity surfaces, or an existing one is resolved. Lighter-weight than the others; no version coupling |
 
 If you add a feature without updating the relevant doc(s), you have not finished the task. State explicitly in your response which docs you updated.
+
+### Repo-level changes: changelog yes, version bump no
+
+Changes that touch the repository rather than the shipped plugin — `.gitignore`,
+`scripts/`, `CLAUDE.md`/`AGENTS.md`, editor or CI config — still get a
+`CHANGELOG.md` entry under `[Unreleased]`. They do **not** bump the plugin
+version, because the version exists to tell John which build he uploaded to
+WordPress, and a repo-only change produces no new build. Put them under a
+`### Repo` heading in the `[Unreleased]` block so they're easy to separate from
+user-facing changes when cutting a release.
+
+Do not silently skip the changelog on the grounds that a change is "just
+hygiene." If it landed as a commit, it gets a line.
 
 ---
 
