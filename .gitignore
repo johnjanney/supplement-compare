@@ -29,3 +29,9 @@ venv/
 
 # WSL / Windows NTFS alternate-data-stream cruft
 *:Zone.Identifier
+
+# Local-only review write-ups (external model critiques, compliance passes).
+# Kept out of git history — they're working notes, not project docs.
+/CODEX-REVIEW.md
+/CODEX-REVIEW-RESPONSE.md
+/COMPLIANCE-REVIEW-ISO27001-SOC2.md
