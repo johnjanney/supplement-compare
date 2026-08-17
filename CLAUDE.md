@@ -54,7 +54,8 @@ The plugin version visible in the WordPress admin Plugins list is **how John ver
 
 ```
 PROJECTBRIEF.md     — architecture (authoritative)
-CLAUDE.md           — this file (how to work in the repo)
+CLAUDE.md           — this file (how to work in the repo; applies to all agents)
+AGENTS.md           — pointer to this file for Codex; holds no rules of its own
 README.md           — front door
 INSTRUCTIONS.md     — operator runbook
 CHANGELOG.md        — version history
