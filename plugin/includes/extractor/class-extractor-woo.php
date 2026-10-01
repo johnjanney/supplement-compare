@@ -5,7 +5,7 @@
  *
  * Public API is page-oriented (same shape as Supcomp_Extractor_Shopify):
  * each AS action tick fetches one page of /wp-json/wc/store/v1/products
- * (up to 100 products) and inline-fetches variations for variable
+ * (up to PAGE_SIZE = 20 products) and inline-fetches variations for variable
  * products. The worker chains follow-on pages when a batch comes back
  * full.
  *
@@ -40,8 +40,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Extractor_Woo {
 
-	const PAGE_SIZE = 100;
-	const MAX_PAGES = 50;
+	const PAGE_SIZE = 20;   // Small: each variable product costs 1–2 extra variation requests.
+	const MAX_PAGES = 250;  // PAGE_SIZE × MAX_PAGES = 5,000-product ceiling.
 
 	/**
 	 * Fetch one page of /wp-json/wc/store/v1/products and convert to
