@@ -3,7 +3,7 @@
  * Action Scheduler worker for the extractor.
  *
  * Each `supcomp_extract_page` AS action processes ONE platform page (≤250
- * Shopify products / ≤100 Woo products / one chunk of generic JSON-LD
+ * Shopify products / ≤20 Woo products / one chunk of generic JSON-LD
  * URLs). Multi-page sites chain follow-on actions from inside the worker.
  *
  * State is passed through AS args, not stored externally — one $state array

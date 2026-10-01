@@ -362,6 +362,23 @@ catalog is likely too large for the host's per-request limits — set up the
 5-minute pinger above so the queue drains in smaller bites, or split the
 work by running fewer sites at once.
 
+What "Reaped by the stale-run safety net" actually means: the host killed
+the PHP worker **partway through a single tick** (one page of one site),
+before it could queue the next page or close the attempt. The reaper is only
+the cleanup crew; it didn't cause the failure. That's why **raising the
+stale-run timeout doesn't help**: it only changes how long the dead row
+lingers before being marked failed. The fix is making each tick do less work.
+
+- **Known cause before v1.40.1: variant-heavy WooCommerce stores.** The Woo
+  handler fetches variations inline, at 1–2 extra requests per variable
+  product. With 100 products per tick, a WooCommerce store where every
+  product is variable made ~100–200 requests in one tick, which outlasted
+  even a 300-second `max_execution_time`. As of v1.40.1 Woo pulls **20
+  products per tick** (with up to 250 pages, so the 5,000-product ceiling
+  is unchanged). Re-run the site after upgrading.
+- If a Woo store still gets reaped on v1.40.1+, check its products for
+  unusually large variation counts, and check the host's PHP memory limit.
+
 **What can go wrong:**
 
 - *Run completes but pulls **0 offers**, and visiting the site bounces you

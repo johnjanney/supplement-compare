@@ -21,6 +21,20 @@ Repository-level changes that ship no new plugin build, so they carry no
 version bump. See `CLAUDE.md` § "Repo-level changes: changelog yes, version
 bump no."
 
+---
+
+## [1.40.1] — 2026-09-30
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **WooCommerce runs on variant-heavy stores no longer die mid-tick.** The Woo handler pulled 100 products per Action Scheduler tick and inline-fetches variations for every variable product (1–2 extra requests each, plus the 0.5 s politeness delay), so on a store where every product is variable a single tick made ~100–200 HTTP calls and blew past the host's execution limit even at `max_execution_time = 300`. The worker was killed, and the attempt was later failed with "Reaped by the stale-run safety net…". `Supcomp_Extractor_Woo::PAGE_SIZE` drops from 100 to **20** products per tick, and `MAX_PAGES` rises from 50 to **250**, keeping the same 5,000-product ceiling. End-of-list detection already derives from these constants, so no worker changes were needed. Variation fetches still request up to 100 variations per parent (that's per-product, not product paging). See `INSTRUCTIONS.md` § "Runs stuck at in flight".
+### Security
+
+### Repo
+
 - **`AGENTS.md` added as a pointer to `CLAUDE.md`.** Codex reads `AGENTS.md` by convention the way Claude Code reads `CLAUDE.md`. Rather than maintain two copies of the conventions, `AGENTS.md` is a short file directing Codex to `CLAUDE.md`, which is now the single authoritative working-instructions file for every coding agent in the repo. `CLAUDE.md`'s "Where things live" tree records the split. (Initially committed as a full 213-line duplicate of `CLAUDE.md`, then collapsed to the 19-line pointer in the same unreleased cycle — the duplication had already produced drift between the copies.)
 - **Commit signing requirement documented.** `CLAUDE.md` gains a "Committing to this repo" section: `main` is protected by a GitHub ruleset that rejects unsigned commits (`GH013`), so pushes fail unless SSH commit signing is configured. Records the working `git config` incantation, the separate-lists gotcha (a key registered for auth is not automatically a signing key), the `allowedSignersFile` needed for local `--show-signature` verification, and the fact that pre-ruleset commits stay unsigned rather than being rewritten.
 - **Local-only review write-ups are gitignored.** `CODEX-REVIEW.md`, `CODEX-REVIEW-RESPONSE.md`, and `COMPLIANCE-REVIEW-ISO27001-SOC2.md` are working notes from external-model critiques and a compliance pass, not project documentation; root-anchored `.gitignore` entries keep them out of git history.
