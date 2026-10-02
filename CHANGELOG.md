@@ -21,6 +21,8 @@ Repository-level changes that ship no new plugin build, so they carry no
 version bump. See `CLAUDE.md` § "Repo-level changes: changelog yes, version
 bump no."
 
+- **Ruleset scope documented.** `CLAUDE.md` § "Committing to this repo" now records that the GitHub ruleset also blocks deleting and force-pushing `main`, and that it targets the default branch only. Feature branches carry no rules and are deleted normally on merge, but their commits still need signing because the signature rule applies to everything that lands on `main`. (The ruleset previously targeted all branches, which silently blocked `gh pr merge --delete-branch` from removing merged branches; it was narrowed to the default branch.)
+
 ---
 
 ## [1.40.1] — 2026-09-30
