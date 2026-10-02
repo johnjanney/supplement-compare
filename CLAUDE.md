@@ -209,6 +209,13 @@ commit never lands. This is the one repo constraint that will silently waste
 your time if you don't know it up front, because the commit succeeds locally
 and only the push is refused.
 
+The same ruleset also blocks **deleting** `main` and **force-pushing** to it.
+It targets the default branch only: feature branches carry no rules, so they
+can be force-pushed, and are deleted normally on merge
+(`gh pr merge --delete-branch`). Commits on a feature branch still need to be
+signed, though — the signature rule checks every commit that lands on `main`,
+including ones arriving through a PR merge.
+
 Signing is SSH-based, using the key that is already registered on GitHub as a
 **signing** key (registering a key for auth does not make it a signing key —
 they are separate lists in GitHub settings). The working configuration:
