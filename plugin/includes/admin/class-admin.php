@@ -37,6 +37,7 @@ class Supcomp_Admin {
 			array( 'supcomp-ingredients',    __( 'Ingredients', 'supplement-compare' ),         array( 'Supcomp_Ingredients_Screen', 'render' ) ),
 			array( 'supcomp-canonical',      __( 'Canonical Products', 'supplement-compare' ),  array( 'Supcomp_Canonical_Products_Screen', 'render' ) ),
 			array( 'supcomp-match-memory',   __( 'Learned Mappings', 'supplement-compare' ),    array( 'Supcomp_Match_Memory_Screen', 'render' ) ),
+			array( 'supcomp-total-diagnostic', __( 'Total Active Diagnostic', 'supplement-compare' ), array( 'Supcomp_Total_Diagnostic_Screen', 'render' ) ),
 			array( 'supcomp-clicks',         __( 'Clicks', 'supplement-compare' ),              array( 'Supcomp_Clicks_Screen', 'render' ) ),
 			array( 'supcomp-cleanup',        __( 'Cleanup', 'supplement-compare' ),             array( 'Supcomp_Cleanup_Screen', 'render' ) ),
 			array( 'supcomp-suppression',    __( 'Suppression List', 'supplement-compare' ),    array( 'Supcomp_Suppression_Screen', 'render' ) ),

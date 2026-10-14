@@ -156,6 +156,10 @@ class Supcomp_Offers_Repo {
 	public static function apply_derivations( $id, $d ) {
 		self::$derivations[ $id ] = $d;
 	}
+	public static function is_operator_field( $offer, $field ) {
+		$owned = isset( $offer->operator_fields_json ) ? json_decode( (string) $offer->operator_fields_json, true ) : array();
+		return is_array( $owned ) && in_array( $field, $owned, true );
+	}
 }
 
 $inc = dirname( __DIR__ ) . '/plugin/includes/';
@@ -301,6 +305,14 @@ $wpdb->offers[999] = offer( 999, 5, 'Example-Tz 5mg' );
 $r = Supcomp_Rematcher::rematch_unmatched();
 check( 'cursor walks past a full chunk of misses', array( 'checked' => Supcomp_Rematcher::CHUNK_SIZE + 6, 'matched' => 1, 'complete' => true ), $r );
 check( 'late offer matched', '10', (string) $wpdb->offers[999]->canonical_product_id );
+
+// Q-020: a field the operator cleared stays blank even though the canonical has a value.
+reset_state();
+Supcomp_Match_Memory_Repo::record( 5, 'example tz', 10, 'Example-Tz', 'approval' );
+$wpdb->offers[40] = offer( 40, 5, 'Example-Tz 10mg', array( 'operator_fields_json' => '["ingredient_id"]' ) );
+Supcomp_Rematcher::rematch_unmatched( array( 40 ) );
+check( 'operator-cleared offer still gets a canonical', '10', (string) $wpdb->offers[40]->canonical_product_id );
+check( 'operator-cleared ingredient NOT refilled', null, $wpdb->offers[40]->ingredient_id );
 
 check( 'non-canonical data_changed ignored', null, Supcomp_Rematcher::on_data_changed( array( 'source' => 'offer_form' ) ) );
 

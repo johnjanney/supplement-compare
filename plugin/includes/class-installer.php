@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '15';
+	const SCHEMA_VERSION = '16';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -110,6 +110,13 @@ class Supcomp_Installer {
 		// (schema 14). Idempotent — only touches rows where settings_json IS NULL.
 		if ( class_exists( 'Supcomp_Extract_Sites_Repo' ) ) {
 			Supcomp_Extract_Sites_Repo::backfill_settings_json();
+		}
+
+		// Seed operator_fields_json for offers that predate the column
+		// (schema 16). One-time, option-gated: see
+		// Supcomp_Offers_Repo::backfill_operator_fields().
+		if ( class_exists( 'Supcomp_Offers_Repo' ) ) {
+			Supcomp_Offers_Repo::backfill_operator_fields();
 		}
 
 		update_option( self::SCHEMA_OPTION, self::SCHEMA_VERSION );
@@ -293,6 +300,7 @@ class Supcomp_Installer {
 			match_confidence DECIMAL(3,2) NULL,
 			variation_retrieval_status VARCHAR(32) NOT NULL DEFAULT 'not_applicable',
 			operator_notes TEXT NULL,
+			operator_fields_json TEXT NULL,
 			last_seen_import_run_id BIGINT(20) UNSIGNED NULL,
 			first_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			last_synced_at DATETIME NULL,

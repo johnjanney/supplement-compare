@@ -17,6 +17,21 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.42.0] — 2026-10-14
+
+### Added
+- **Per-field provenance for offer values (resolves Q-020).** New `normalized_offers.operator_fields_json` column (schema 15 → 16) records which dose/composition fields you set by hand in the offer editor: ingredient, form, strength, strength unit, servings, total active / container and standardization %. A field is recorded when a save actually changes its value, including clearing it. Values the form posts back unchanged are not claimed, so pre-filled fields aren't marked on every save. Automated passes must leave recorded fields alone even when they're blank. This is groundwork for Total-active auto-extraction; nothing shows it in the UI yet, and it never reaches the public JSON.
+- **One-time provenance backfill.** On update, offers that already have a Total active / container are marked as operator-set for that field, since only the offer editor has ever written it. Other fields on older offers can't be attributed after the fact and stay unrecorded. Gated by the `supcomp_operator_fields_backfilled` option so a later schema bump can't mistake a future auto-filled total for yours.
+- **Total Active Diagnostic screen** (Supplement Compare → Total Active Diagnostic). Read-only. For every offer whose total is already confirmed (typed in, or approved with a computed total), it re-reads the latest raw merchant row and reports where that total appears (title, a named product attribute, pack notation like "2 x 10mg", description only, or only as per-serving × count) and whether today's strength × servings math reproduces it. It also flags offers where the "strength" picked up was really the container total and got multiplied by the count. Shows a summary, attribute names that hold totals, a per-merchant breakdown and the first 100 wrong or missing offers, and exports every row as CSV. Runs on demand, up to 5,000 offers in a ~20-second budget. See `INSTRUCTIONS.md` § 9b.
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **Re-run matching no longer refills a field you cleared.** When the re-matcher fills blank ingredient, form, strength or standardization values from the matched canonical, it now skips fields recorded as operator-set. Before, clearing a value in the offer editor and then re-running matching could put the canonical's value straight back.
+### Security
+
+---
+
 ## [1.41.0] — 2026-10-14
 
 ### Added
@@ -38,6 +53,8 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 Repository-level changes that ship no new plugin build, so they carry no
 version bump. See `CLAUDE.md` § "Repo-level changes: changelog yes, version
 bump no."
+
+- **`tests/total-active-test.php` added.** Standalone PHP script (`php tests/total-active-test.php`) covering the provenance diff, backfill gating, and the diagnostic probe's amount scanning, attribute-name handling and classification. `tests/match-memory-test.php` gained an `is_operator_field` stub and a case confirming an operator-cleared ingredient isn't refilled.
 
 - **`tests/match-memory-test.php` added.** A standalone PHP script (no PHPUnit, no WordPress) that exercises title-key normalization, mapping record/lookup, matcher tier order and the re-matcher against a fake `$wpdb`. Run with `php tests/match-memory-test.php` from the repo root. It lives outside `plugin/`, so it is not packaged.
 

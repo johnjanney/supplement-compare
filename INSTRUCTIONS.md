@@ -861,6 +861,14 @@ about:
 - **Defer** — marks `needs_review`. Operator wants to think about this one.
   Stays in the pending queue under the "Needs review" visibility.
 
+**Your edits are remembered as yours (v1.42.0+).** When a save in the offer
+editor changes Ingredient, Form, Total active / container, Servings, Active
+mass / serving, its unit, or Standardization %, including clearing it, the
+plugin records that field as set by you. Automated passes such as **Re-run
+matching** never refill or overwrite those fields, even when you left them
+blank on purpose. Fields you didn't change on a save aren't recorded. There's
+no way to release a field back to automatic yet.
+
 ### Learned suggestions and re-running matching (v1.41.0+)
 
 **Approving teaches the matcher.** Each of these records the offer's title →
@@ -922,6 +930,52 @@ common wins. Unmatched queue offers with those keys are then re-matched.
 - Mappings pointing at a retired canonical are ignored. Hard-deleting a
   retired canonical deletes its mappings.
 - Very short keys (under three characters) are not remembered.
+
+## 9b. Total Active Diagnostic
+
+**WP Admin → Supplement Compare → Total Active Diagnostic** (v1.42.0+).
+Read-only; it changes nothing. It measures how merchants present the
+total active amount per container, so automatic Total-active extraction can
+be aimed at the patterns that matter. That extraction isn't built yet.
+
+Click **Run diagnostic** to compute the report (it doesn't run on page load).
+**Download CSV** exports one row per offer with every field the report uses.
+
+**What it looks at.** Offers whose total is already confirmed:
+- **Typed in**: offers with a Total active / container you entered in the
+  offer editor. This is the honest test set.
+- **Approved**: active or paused offers with a computed total. These totals
+  usually came from the same strength × servings math being tested, so they
+  flatter it. Weigh the Typed-in column more.
+
+For each one it re-reads the latest raw merchant row, re-runs today's
+normalizer, and looks for the confirmed total in the merchant data. Amounts
+within 1% count as a match; mg, mcg, g and kg convert into each other, IU and
+billion CFU only match themselves, and "12,000 mg" style commas are handled.
+
+**Reading the report.**
+- **Sample**: how many offers were checked, split Typed in / Approved, how
+  many had no raw merchant row left (titles only), and how many queue offers
+  have no total at all.
+- **Where the confirmed total appears**: the best place it was found. Order of
+  preference: title / variant title, then a product attribute, then pack
+  notation ("2 x 10mg" = 20 mg), then description only. "Only as per-serving
+  × count" means no explicit total exists, but some per-serving figure times
+  the parsed count reaches it. "Not found" means neither.
+- **Today's automatic total**: whether strength × servings matches, is wrong,
+  or is missing. "Strength picked up was already the container total" counts
+  offers where a total (for example an attribute reading "6000mg") was taken as
+  the per-serving dose and multiplied by the count.
+- **Attribute names holding the total**: which attribute names carry
+  totals, most common first. Useful for deciding which names to trust.
+- **By merchant**: the same counts per merchant. Patterns are usually
+  store-specific.
+- **Offers where the automatic total is wrong or missing**: the first 100,
+  each linked to its offer editor, with a snippet of where the total was
+  found. The CSV has all of them.
+
+**Limits.** Up to 5,000 offers and about 20 seconds per run. A partial run
+says so on screen, and the CSV ends with a `# partial run` line.
 
 ## 10. Editing an active offer
 

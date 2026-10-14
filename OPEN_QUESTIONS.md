@@ -833,29 +833,42 @@ feasibility-only.
 
 ---
 
-### Q-020: Per-field provenance before auto-filling Total active
+### Q-021: Strength rule misreads comma thousands
 
 **Status:** open
-**Blocks:** nothing today; a future Total-active auto-extraction feature
+**Blocks:** nothing hard; affects per-serving strength on some offers
 **Raised:** 2026-10-14
 
-v1.41.0's re-matcher can safely re-run on queued offers because it only
-touches `canonical_product_id` when it is blank, and a blank canonical reliably
-means nobody has set one. A future feature that auto-fills
-`total_active_per_container` (explicit totals, "N × M mg" packs, single-vial
-products) would want the same re-run ability, but blank is not a reliable
-signal there: if the parser fills in a wrong total and the operator clears it,
-a later pass would refill it. The plugin currently can't tell an
-operator-entered value from an auto-filled one.
-
-Options: a per-field "set by operator" marker (e.g. a JSON column of
-operator-owned field names written by the offer editor), or limiting
-auto-fill to first insert only. Decide before building Total-active
-extraction.
+`Supcomp_Strength_Rule` matches numbers with `\d+(?:\.\d+)?`, so "12,000 mg"
+is read as "000 mg" (0 mg). Found while building the Total Active Diagnostic
+(v1.42.0), whose own scanner handles commas. Most per-serving doses are under
+1,000 so the impact is limited, but a container total written with a comma is
+silently zeroed rather than skipped. Fix alongside Total-active extraction, or
+sooner if the diagnostic shows it in practice.
 
 ---
 
 ## Resolved questions
+
+### Q-020: Per-field provenance before auto-filling Total active
+
+**Status:** resolved — **per-field provenance (v1.42.0)**
+**Resolved:** 2026-10-14
+
+A future Total-active auto-fill needs to re-run on queued offers, but a blank
+value isn't a reliable "nobody set this" signal: if the parser filled a wrong
+total and the operator cleared it, a later pass would refill it.
+
+Decision: a per-field marker, `normalized_offers.operator_fields_json`
+(PROJECTBRIEF §3.5), listing the dose/composition fields the operator set by
+hand. The offer editor records a field when a save changes its value,
+including clearing it. Automated passes skip recorded fields; the re-matcher
+already does. Existing totals were backfilled as operator-set, because only
+the editor ever wrote that column.
+
+Rejected: auto-fill on first insert only. It would leave every offer imported
+before the extractor improves, or before its ingredient exists, stuck without
+an automatic total, the same trap v1.41.0 fixed for canonical matching.
 
 ### Q-010: Does a rejection survive Cleanup + re-extraction?
 

@@ -12,6 +12,11 @@
  *   3. State columns: visibility_status (operator-set mostly, but a 'stale'
  *      offer that reappears in a fresh import is auto-restored to 'active').
  *
+ * Within layer 2, operator_fields_json (schema 16, Q-020) records which
+ * dose/composition fields the operator set by hand, as opposed to values the
+ * normalizer filled. Automated passes must leave those fields alone even when
+ * they are blank — a cleared value is an operator decision too.
+ *
  * `insert_from_csv()` and `update_csv_columns()` enforce this split — the
  * caller only passes a CSV row and the repo builds the right column set.
  */
@@ -195,6 +200,22 @@ class Supcomp_Offers_Repo {
 	public static function manual_update( $id, $data ) {
 		global $wpdb;
 		$clean = self::sanitize_operator_edit( $data );
+
+		// Q-020 provenance: any dose/composition field whose value the save
+		// actually changes (including clearing it) becomes operator-owned.
+		// Fields posted back unchanged are not claimed, so the form's
+		// pre-filled values don't mark everything on every save.
+		$before = self::get( $id );
+		if ( $before ) {
+			$owned = array_values( array_unique( array_merge(
+				self::operator_fields( $before ),
+				self::changed_fields( $before, $clean )
+			) ) );
+			if ( $owned !== self::operator_fields( $before ) ) {
+				$clean['operator_fields_json'] = wp_json_encode( $owned );
+			}
+		}
+
 		$clean['updated_at'] = current_time( 'mysql', true );
 		$result = $wpdb->update( self::table(), $clean, array( 'id' => (int) $id ) );
 		return array(
@@ -270,6 +291,111 @@ class Supcomp_Offers_Repo {
 		}
 
 		return $clean;
+	}
+
+	/**
+	 * Fields whose provenance is tracked (Q-020): the dose / composition
+	 * values the normalizer fills and a future auto-fill pass may refill.
+	 * Canonical choice is not tracked here — the re-matcher keys off a
+	 * blank canonical, which is already a reliable signal.
+	 */
+	const PROVENANCE_FIELDS = array(
+		'ingredient_id',
+		'ingredient_form',
+		'strength_per_serving',
+		'strength_unit',
+		'servings_per_container',
+		'total_active_per_container',
+		'standardization_percentage',
+	);
+
+	const PROVENANCE_BACKFILL_OPTION = 'supcomp_operator_fields_backfilled';
+
+	/**
+	 * Field names the operator has set (or cleared) by hand on this offer.
+	 * Absent from the list means the value, if any, came from the
+	 * normalizer / matcher and an automated pass may replace it.
+	 *
+	 * @param object|array $offer
+	 * @return string[]
+	 */
+	public static function operator_fields( $offer ) {
+		$json = is_array( $offer )
+			? ( isset( $offer['operator_fields_json'] ) ? $offer['operator_fields_json'] : '' )
+			: ( isset( $offer->operator_fields_json ) ? $offer->operator_fields_json : '' );
+		if ( $json === null || $json === '' ) {
+			return array();
+		}
+		$decoded = json_decode( (string) $json, true );
+		if ( ! is_array( $decoded ) ) {
+			return array();
+		}
+		return array_values( array_intersect( self::PROVENANCE_FIELDS, array_map( 'strval', $decoded ) ) );
+	}
+
+	public static function is_operator_field( $offer, $field ) {
+		return in_array( $field, self::operator_fields( $offer ), true );
+	}
+
+	/**
+	 * Which tracked fields an edit actually changes. Numeric fields compare
+	 * as numbers (the DB returns "200.0000" for a posted "200"); null and ''
+	 * are both "blank".
+	 *
+	 * @param object $before Stored offer row.
+	 * @param array  $clean  Sanitized edit about to be written.
+	 * @return string[]
+	 */
+	public static function changed_fields( $before, array $clean ) {
+		$changed = array();
+		foreach ( self::PROVENANCE_FIELDS as $field ) {
+			if ( ! array_key_exists( $field, $clean ) ) {
+				continue;
+			}
+			$old = isset( $before->$field ) ? $before->$field : null;
+			$new = $clean[ $field ];
+			$old_blank = ( $old === null || $old === '' );
+			$new_blank = ( $new === null || $new === '' );
+			if ( $old_blank || $new_blank ) {
+				if ( $old_blank !== $new_blank ) {
+					$changed[] = $field;
+				}
+				continue;
+			}
+			if ( is_numeric( $old ) && is_numeric( $new ) ) {
+				if ( abs( (float) $old - (float) $new ) > 0.00005 ) {
+					$changed[] = $field;
+				}
+			} elseif ( (string) $old !== (string) $new ) {
+				$changed[] = $field;
+			}
+		}
+		return $changed;
+	}
+
+	/**
+	 * One-time seeding for offers that predate operator_fields_json
+	 * (schema 16). total_active_per_container has only ever been written by
+	 * the offer editor, so a stored value is operator-owned. Other fields
+	 * can't be attributed after the fact; they stay unclaimed. Option-gated
+	 * so a later schema bump can't mistake a future auto-filled total for an
+	 * operator one.
+	 */
+	public static function backfill_operator_fields() {
+		if ( get_option( self::PROVENANCE_BACKFILL_OPTION ) ) {
+			return;
+		}
+		global $wpdb;
+		$table = self::table();
+		$wpdb->query(
+			$wpdb->prepare(
+				"UPDATE {$table} SET operator_fields_json = %s
+				 WHERE total_active_per_container IS NOT NULL
+				   AND ( operator_fields_json IS NULL OR operator_fields_json = '' )",
+				wp_json_encode( array( 'total_active_per_container' ) )
+			)
+		);
+		update_option( self::PROVENANCE_BACKFILL_OPTION, 1 );
 	}
 
 	private static function truthy( $val ) {
