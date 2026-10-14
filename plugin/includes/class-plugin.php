@@ -93,6 +93,7 @@ class Supcomp_Plugin {
 		require_once $inc . 'normalization/class-matcher.php';
 		require_once $inc . 'normalization/class-offer-derivations.php';
 		require_once $inc . 'normalization/class-rematcher.php';
+		require_once $inc . 'normalization/class-total-active-probe.php';
 
 		// Canonical created / edited / re-statused / CSV-imported → offers
 		// waiting with no canonical get another matching pass.
@@ -145,6 +146,7 @@ class Supcomp_Plugin {
 		require_once $admin_dir . 'class-cleanup-screen.php';
 		require_once $admin_dir . 'class-suppression-screen.php';
 		require_once $admin_dir . 'class-match-memory-screen.php';
+		require_once $admin_dir . 'class-total-diagnostic-screen.php';
 
 		add_action( 'admin_menu', array( 'Supcomp_Admin', 'register_menu' ) );
 		add_action( 'admin_init', array( 'Supcomp_Settings', 'register' ) );
@@ -167,6 +169,7 @@ class Supcomp_Plugin {
 		Supcomp_Cleanup_Screen::register_hooks();
 		Supcomp_Suppression_Screen::register_hooks();
 		Supcomp_Match_Memory_Screen::register_hooks();
+		Supcomp_Total_Diagnostic_Screen::register_hooks();
 
 		// One-time seeding of the learned-mappings table from offers approved
 		// before v1.41.0. Runs on admin_init (domain classes loaded, schema

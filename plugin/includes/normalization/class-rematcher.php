@@ -13,7 +13,8 @@
  *     has set one, so nothing the operator chose is ever overwritten.
  *   - Writes canonical_product_id + match_confidence. Ingredient, form,
  *     strength and standardization are filled from the canonical ONLY where
- *     the offer's own field is still blank.
+ *     the offer's own field is still blank and the operator hasn't cleared
+ *     it by hand (operator_fields_json, Q-020).
  *
  * Triggered by: recording a learned mapping (targeted to that title key),
  * creating/editing/re-statusing/importing canonical products (full pass), and
@@ -166,7 +167,8 @@ class Supcomp_Rematcher {
 		);
 		foreach ( $fill as $field => $value ) {
 			$blank = ! isset( $offer->$field ) || $offer->$field === null || $offer->$field === '';
-			if ( $blank && $value !== null && $value !== '' ) {
+			// A field the operator cleared is blank but not unset (Q-020).
+			if ( $blank && $value !== null && $value !== '' && ! Supcomp_Offers_Repo::is_operator_field( $offer, $field ) ) {
 				$data[ $field ] = $value;
 			}
 		}

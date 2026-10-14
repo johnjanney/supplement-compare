@@ -208,6 +208,7 @@ visibility_status           ENUM('pending','active','paused','rejected','stale',
 match_confidence            DECIMAL(3,2) NULL        0.00–1.00; see section 3.6
 variation_retrieval_status  ENUM('not_applicable','retrieved','failed','fallback_parent_only')
 operator_notes              TEXT
+operator_fields_json        TEXT NULL                JSON array of dose/composition fields the operator set by hand (v1.42.0, Q-020)
 last_seen_import_run_id     BIGINT, FK → import_runs
 first_seen_at               DATETIME
 last_synced_at              DATETIME
