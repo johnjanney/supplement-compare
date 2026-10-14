@@ -334,6 +334,7 @@ class Supcomp_Deletion_Service {
 
 		$wpdb->query( $wpdb->prepare( "UPDATE {$prefix}normalized_offers SET canonical_product_id = NULL WHERE canonical_product_id = %d", $cid ) );
 		$wpdb->query( $wpdb->prepare( "UPDATE {$prefix}click_log SET canonical_product_id = NULL WHERE canonical_product_id = %d", $cid ) );
+		Supcomp_Match_Memory_Repo::delete_for_canonical( $cid );
 		$deleted = $wpdb->delete( $prefix . 'canonical_products', array( 'id' => $cid ), array( '%d' ) );
 
 		do_action( 'supcomp_data_changed', array( 'source' => 'deletion', 'canonical_deleted' => $cid ) );

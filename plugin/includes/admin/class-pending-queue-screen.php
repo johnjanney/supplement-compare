@@ -111,8 +111,12 @@ class Supcomp_Pending_Queue_Screen {
 							<option value="reject"><?php esc_html_e( 'Reject', 'supplement-compare' ); ?></option>
 							<option value="defer"><?php esc_html_e( 'Defer (needs review)', 'supplement-compare' ); ?></option>
 							<option value="pause"><?php esc_html_e( 'Pause', 'supplement-compare' ); ?></option>
+							<option value="rematch"><?php esc_html_e( 'Re-run matching', 'supplement-compare' ); ?></option>
 						</select>
 						<?php submit_button( __( 'Apply', 'supplement-compare' ), '', '', false ); ?>
+					</div>
+					<div class="alignleft actions">
+						<button type="submit" name="rematch_all" value="1" class="button" title="<?php esc_attr_e( 'Runs canonical matching again for every offer in the queue that has no canonical yet. Offers that already have one are left alone.', 'supplement-compare' ); ?>"><?php esc_html_e( 'Re-run matching on all unmatched', 'supplement-compare' ); ?></button>
 					</div>
 				</div>
 
@@ -279,6 +283,9 @@ class Supcomp_Pending_Queue_Screen {
 		$notice = 'error';
 		if ( $id && isset( $map[ $action ] ) ) {
 			$ok = Supcomp_Offers_Repo::set_visibility( $id, $map[ $action ] );
+			if ( $ok && $action === 'approve' ) {
+				self::learn_from_approved( array( $id ) );
+			}
 			$notice = $ok ? $action . 'd' : 'error';
 			if ( $action === 'defer' || $action === 'review' ) {
 				$notice = 'deferred';
@@ -301,6 +308,29 @@ class Supcomp_Pending_Queue_Screen {
 		$ids    = isset( $_POST['ids'] ) ? (array) wp_unslash( $_POST['ids'] ) : array();
 		$return = isset( $_POST['return'] ) ? esc_url_raw( wp_unslash( $_POST['return'] ) ) : self::url();
 
+		// Re-run matching: the toolbar button covers the whole queue, the bulk
+		// option covers the ticked rows. Either way only offers without a
+		// canonical are touched (Supcomp_Rematcher).
+		if ( ! empty( $_POST['rematch_all'] ) || $bulk === 'rematch' ) {
+			if ( empty( $_POST['rematch_all'] ) && empty( $ids ) ) {
+				wp_safe_redirect( add_query_arg( 'supcomp_notice', 'noop', $return ) );
+				exit;
+			}
+			$result = Supcomp_Rematcher::rematch_unmatched( empty( $_POST['rematch_all'] ) ? $ids : null );
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'supcomp_notice' => 'rematched',
+						'n'              => $result['checked'],
+						'm'              => $result['matched'],
+						'partial'        => $result['complete'] ? 0 : 1,
+					),
+					$return
+				)
+			);
+			exit;
+		}
+
 		$map = array(
 			'approve' => 'active',
 			'reject'  => 'rejected',
@@ -312,6 +342,9 @@ class Supcomp_Pending_Queue_Screen {
 			exit;
 		}
 		$n = Supcomp_Offers_Repo::bulk_set_visibility( $ids, $map[ $bulk ] );
+		if ( $n > 0 && $bulk === 'approve' ) {
+			self::learn_from_approved( $ids );
+		}
 		if ( $n > 0 ) {
 			do_action( 'supcomp_data_changed', array( 'source' => 'offer_bulk_action', 'count' => $n, 'action' => $bulk ) );
 		}
@@ -320,6 +353,24 @@ class Supcomp_Pending_Queue_Screen {
 	}
 
 	// ---------- helpers ----------
+
+	/**
+	 * Approving an offer confirms its canonical: remember the title → canonical
+	 * mapping, then give other unmatched queue offers with the same title key
+	 * a matching pass so they pick the suggestion up immediately.
+	 */
+	private static function learn_from_approved( array $ids ) {
+		$keys = array();
+		foreach ( array_filter( array_map( 'absint', $ids ) ) as $id ) {
+			$key = Supcomp_Match_Memory_Repo::learn_from_offer( Supcomp_Offers_Repo::get( $id ), 'approval' );
+			if ( $key !== null ) {
+				$keys[ $key ] = true;
+			}
+		}
+		if ( $keys ) {
+			Supcomp_Rematcher::rematch_for_keys( array_keys( $keys ) );
+		}
+	}
 
 	public static function url( $args = array() ) {
 		$args = array_merge( array( 'page' => self::PAGE_SLUG ), $args );
@@ -372,6 +423,8 @@ class Supcomp_Pending_Queue_Screen {
 		}
 		$type = sanitize_key( wp_unslash( $_GET['supcomp_notice'] ) );
 		$n    = isset( $_GET['n'] ) ? (int) wp_unslash( $_GET['n'] ) : 0;
+		$m    = isset( $_GET['m'] ) ? (int) wp_unslash( $_GET['m'] ) : 0;
+		$partial = ! empty( $_GET['partial'] );
 		$messages = array(
 			'approved'      => array( 'success', __( 'Offer approved.', 'supplement-compare' ) ),
 			'rejected'      => array( 'success', __( 'Offer rejected.', 'supplement-compare' ) ),
@@ -381,6 +434,7 @@ class Supcomp_Pending_Queue_Screen {
 			'bulk_reject'   => array( 'success', sprintf( __( 'Rejected %d offers.', 'supplement-compare' ), $n ) ),
 			'bulk_pause'    => array( 'success', sprintf( __( 'Paused %d offers.', 'supplement-compare' ), $n ) ),
 			'bulk_defer'    => array( 'success', sprintf( __( 'Deferred %d offers.', 'supplement-compare' ), $n ) ),
+			'rematched'     => array( 'success', sprintf( __( 'Re-ran matching on %1$d unmatched offers; %2$d now have a suggested canonical. Offers that already had a canonical were skipped.', 'supplement-compare' ), $n, $m ) . ( $partial ? ' ' . __( 'Stopped early to avoid a timeout — click "Re-run matching on all unmatched" again to continue.', 'supplement-compare' ) : '' ) ),
 			'noop'          => array( 'warning', __( 'No bulk action / no rows selected.', 'supplement-compare' ) ),
 			'error'         => array( 'error',   __( 'Something went wrong.', 'supplement-compare' ) ),
 		);

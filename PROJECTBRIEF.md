@@ -426,16 +426,26 @@ cost_per_active_unit = current_price / active_compound_total
 
 Used by the matching layer to suggest `canonical_product_id` for new offers. The score appears in the pending queue UI so the operator can fast-approve high-confidence matches.
 
+Tiers are evaluated **in the order listed** and the matcher returns the first hit, so the score reflects which rule fired, not a ranking across all rules.
+
 | Score | Criteria |
 |---|---|
-| 1.00 | Barcode (UPC/GTIN/EAN) exact match with an existing offer's barcode AND ingredient/form/strength match |
+| 1.00 | Barcode (UPC/GTIN/EAN) exact match with an already-matched offer's barcode |
 | 0.95 | Brand + manufacturer SKU exact match (offer-to-offer) |
-| 0.85 | Brand + normalized product title exact match |
+| 0.90 | Learned mapping recorded at the **same merchant** for this title key (v1.41.0) |
+| 0.80 | Learned mapping recorded at **other merchants**, all agreeing on one canonical (v1.41.0) |
+| 0.85 | Direct canonical match: detected ingredient + form + strength identify exactly one canonical |
+| 0.85 | Brand + normalized product title exact match (offer-to-offer) |
 | 0.75 | Brand + normalized title + strength + count match |
 | 0.65 | Normalized title + strength + count match (no brand) |
-| < 0.65 | No suggested match; manual canonical assignment required |
+| 0.55 | Exactly one canonical exists for the detected ingredient and it pins neither form nor strength |
+| — | No suggested match; manual canonical assignment required |
 
-**Title normalization** for matching: lowercase, strip punctuation, collapse whitespace, remove common stop tokens (`capsules`, `tablets`, `softgels`, `count`, `ct`, `serving`, brand names already extracted into the brand field).
+**Title normalization** for matching: lowercase; join letter-hyphen-digit sequences so code-style names stay whole (`ex-290` → `ex290`, `omega-3` → `omega3`); replace remaining punctuation with spaces; drop form/count stop tokens (`capsules`, `tablets`, `softgels`, `powder`, `count`, `ct`, `serving`, …), bare numbers, unit tokens (`mg`, `mgs`, `mcg`, `ug`, `g`, `kg`, `iu`, `ml`) and strength glued to a unit (`10mg`, `500mcg`). The result is strength-agnostic: every strength of one product reduces to the same key. It is computed at comparison time only and never stored on the offer.
+
+**Learned mappings** (v1.41.0). When the operator confirms a canonical (Approve, bulk Approve, or choosing a canonical in the offer editor), the normalized title is stored as a key in `match_memory`, scoped to the offer's merchant. A same-merchant mapping outranks every heuristic tier because it is an operator decision, not a guess; a cross-merchant mapping ranks lower because two shops can use one name for different products. Keys shorter than three characters are not remembered; mappings to retired canonicals are ignored.
+
+**Re-matching** (v1.41.0). Normalization is sticky across re-imports (operator edits survive), so the importer matches an offer once, on insert. To stop offers imported before their canonical existed from staying unmatched, `Supcomp_Rematcher` re-runs the matcher for queue offers (`pending` / `needs_review`) whose canonical is blank: automatically on canonical create/edit/status change/CSV import and on learning a mapping, and on demand from the Pending Queue. It never touches an offer that already has a canonical, and fills ingredient/form/strength/standardization from the canonical only where the offer's field is blank.
 
 **No auto-publish.** Even confidence 1.00 goes to the pending queue. The operator approves; the system never approves itself. This is core to the curation positioning.
 

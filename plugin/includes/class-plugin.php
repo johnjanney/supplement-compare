@@ -79,6 +79,7 @@ class Supcomp_Plugin {
 		require_once $inc . 'db/class-suppressions-repo.php';
 		require_once $inc . 'db/class-extract-sites-repo.php';
 		require_once $inc . 'db/class-extract-runs-repo.php';
+		require_once $inc . 'db/class-match-memory-repo.php';
 
 		require_once $inc . 'import/class-canonical-csv-importer.php';
 		require_once $inc . 'import/class-csv-validator.php';
@@ -91,6 +92,11 @@ class Supcomp_Plugin {
 		require_once $inc . 'normalization/class-normalizer.php';
 		require_once $inc . 'normalization/class-matcher.php';
 		require_once $inc . 'normalization/class-offer-derivations.php';
+		require_once $inc . 'normalization/class-rematcher.php';
+
+		// Canonical created / edited / re-statused / CSV-imported → offers
+		// waiting with no canonical get another matching pass.
+		add_action( 'supcomp_data_changed', array( 'Supcomp_Rematcher', 'on_data_changed' ) );
 
 		require_once $inc . 'import/class-csv-importer.php';
 
@@ -138,6 +144,7 @@ class Supcomp_Plugin {
 		require_once $admin_dir . 'class-deletion-admin.php';
 		require_once $admin_dir . 'class-cleanup-screen.php';
 		require_once $admin_dir . 'class-suppression-screen.php';
+		require_once $admin_dir . 'class-match-memory-screen.php';
 
 		add_action( 'admin_menu', array( 'Supcomp_Admin', 'register_menu' ) );
 		add_action( 'admin_init', array( 'Supcomp_Settings', 'register' ) );
@@ -159,5 +166,19 @@ class Supcomp_Plugin {
 		Supcomp_Deletion_Admin::register_hooks();
 		Supcomp_Cleanup_Screen::register_hooks();
 		Supcomp_Suppression_Screen::register_hooks();
+		Supcomp_Match_Memory_Screen::register_hooks();
+
+		// One-time seeding of the learned-mappings table from offers approved
+		// before v1.41.0. Runs on admin_init (domain classes loaded, schema
+		// upgraded) and records completion in an option.
+		add_action( 'admin_init', array( __CLASS__, 'maybe_backfill_match_memory' ) );
+	}
+
+	public static function maybe_backfill_match_memory() {
+		if ( get_option( Supcomp_Match_Memory_Repo::BACKFILL_OPTION ) || ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
+			return;
+		}
+		$keys = Supcomp_Match_Memory_Repo::backfill_from_approved();
+		Supcomp_Rematcher::rematch_for_keys( $keys );
 	}
 }

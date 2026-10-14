@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Supcomp_Installer {
 
-	const SCHEMA_VERSION = '14';
+	const SCHEMA_VERSION = '15';
 	const SCHEMA_OPTION  = 'supcomp_schema_version';
 
 	// Allowed enum-like values, documented in PROJECTBRIEF.md §3.
@@ -99,6 +99,7 @@ class Supcomp_Installer {
 			self::extract_sites_sql( $prefix, $cc ),
 			self::extract_runs_sql( $prefix, $cc ),
 			self::offer_suppressions_sql( $prefix, $cc ),
+			self::match_memory_sql( $prefix, $cc ),
 		);
 
 		foreach ( $statements as $sql ) {
@@ -394,6 +395,27 @@ class Supcomp_Installer {
 			UNIQUE KEY suppress_natural (merchant_id, source_product_id, source_variant_id),
 			KEY merchant_id (merchant_id),
 			KEY created_at (created_at)
+		) {$cc};";
+	}
+
+	private static function match_memory_sql( $prefix, $cc ) {
+		// Learned title → canonical mappings (v1.41.0). Written when the
+		// operator confirms a canonical; read by Supcomp_Matcher. title_key is
+		// VARCHAR(191) so the unique key stays under the utf8mb4 index limit.
+		return "CREATE TABLE {$prefix}match_memory (
+			id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+			merchant_id BIGINT(20) UNSIGNED NOT NULL,
+			title_key VARCHAR(191) NOT NULL,
+			canonical_product_id BIGINT(20) UNSIGNED NOT NULL,
+			sample_title VARCHAR(512) NOT NULL DEFAULT '',
+			source VARCHAR(16) NOT NULL DEFAULT 'approval',
+			times_confirmed INT NOT NULL DEFAULT 1,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			last_confirmed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY  (id),
+			UNIQUE KEY merchant_key (merchant_id, title_key),
+			KEY title_key (title_key),
+			KEY canonical_product_id (canonical_product_id)
 		) {$cc};";
 	}
 

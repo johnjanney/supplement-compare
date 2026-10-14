@@ -861,6 +861,68 @@ about:
 - **Defer** — marks `needs_review`. Operator wants to think about this one.
   Stays in the pending queue under the "Needs review" visibility.
 
+### Learned suggestions and re-running matching (v1.41.0+)
+
+**Approving teaches the matcher.** Each of these records the offer's title →
+canonical as a learned mapping (see §9a):
+
+- the row **Approve** button, or the **Approve** bulk action;
+- **Save & Approve** in the offer editor;
+- **Save** in the offer editor, *only if* you changed the Canonical product
+  dropdown. Saving with the suggestion untouched does not count as a
+  confirmation.
+
+After that, other offers whose titles reduce to the same key get the canonical
+as their suggestion, at every strength: **0.90** if the mapping was learned at
+the same merchant, **0.80** if it was learned at other merchants that all
+agree. Unmatched offers already sitting in the queue pick it up immediately.
+
+**Re-run matching.** Offers are matched when first imported, and again
+automatically when you create, edit, re-status or CSV-import canonical
+products, or when a mapping is learned. To force a pass yourself:
+
+- tick rows, pick **Re-run matching** from Bulk actions, and click Apply; or
+- click **Re-run matching on all unmatched** next to Bulk actions.
+
+Either way, only queue offers that have **no** canonical are touched. Offers
+that already have one (suggested or picked by you) are skipped, and fields you
+filled in are never overwritten. On a very large queue a pass stops after
+about 20 seconds to avoid a timeout; the notice says so, and clicking the
+button again continues.
+
+## 9a. Learned mappings
+
+**WP Admin → Supplement Compare → Learned Mappings.** Every mapping the
+matcher has learned from your approvals: the title key (the title with
+strength, units, form words and punctuation removed; for example
+"Example-Tz 10mg Vial" becomes `example tz vial`), an example title, the merchant it
+was learned at, the canonical it points to, and how many times it has been
+confirmed.
+
+- **Re-point** — pick a different canonical in the row's dropdown and click
+  **Save**. Unmatched queue offers with that key pick up the new suggestion.
+  Offers that already have a canonical are not changed.
+- **Delete** — removes the mapping. Offers already matched keep their
+  canonical; new offers with that key no longer get this suggestion. Use this
+  when one wrong approval keeps producing a wrong suggestion.
+- **Rebuild from approved offers** — adds mappings for approved offers that
+  aren't remembered yet. It never overwrites an existing mapping, so your
+  re-points survive.
+
+**After updating to 1.41.0** the table is seeded once, automatically, on the
+first admin page load: every approved offer (anything with a canonical that
+isn't pending, needs-review or rejected) contributes a mapping; where one
+merchant's offers with the same key point at different canonicals, the most
+common wins. Unmatched queue offers with those keys are then re-matched.
+
+**Limits.**
+- The first offer of a product name the matcher has never seen still needs
+  you to pick its canonical. After one approval, every strength and re-import
+  of that name from that merchant is suggested.
+- Mappings pointing at a retired canonical are ignored. Hard-deleting a
+  retired canonical deletes its mappings.
+- Very short keys (under three characters) are not remembered.
+
 ## 10. Editing an active offer
 
 **WP Admin → Supplement Compare → Active Offers** lists everything currently

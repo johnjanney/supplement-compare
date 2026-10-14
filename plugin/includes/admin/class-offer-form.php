@@ -327,6 +327,9 @@ class Supcomp_Offer_Form {
 
 		self::resolve_total_active_input( $data );
 
+		$before        = Supcomp_Offers_Repo::get( $id );
+		$old_canonical = $before && $before->canonical_product_id ? (int) $before->canonical_product_id : 0;
+
 		Supcomp_Offers_Repo::manual_update( $id, $data );
 
 		// Recompute derivations off the fresh state.
@@ -335,6 +338,17 @@ class Supcomp_Offer_Form {
 			$ingredient = $offer->ingredient_id ? Supcomp_Ingredients_Repo::get( (int) $offer->ingredient_id ) : null;
 			$derived    = Supcomp_Offer_Derivations::compute( $offer, $ingredient );
 			Supcomp_Offers_Repo::apply_derivations( $id, $derived );
+
+			// Learn the title → canonical mapping when the operator picked a
+			// different canonical or approved. A plain save with the matcher's
+			// suggestion untouched is not treated as a confirmation.
+			$new_canonical = $offer->canonical_product_id ? (int) $offer->canonical_product_id : 0;
+			if ( $new_canonical && ( $new_canonical !== $old_canonical || $post_action === 'approve' ) ) {
+				$key = Supcomp_Match_Memory_Repo::learn_from_offer( $offer, $post_action === 'approve' ? 'approval' : 'edit' );
+				if ( $key !== null ) {
+					Supcomp_Rematcher::rematch_for_keys( array( $key ) );
+				}
+			}
 		}
 
 		do_action( 'supcomp_data_changed', array( 'source' => 'offer_form', 'offer_id' => $id ) );
