@@ -9,6 +9,13 @@
  *
  *   1.00  Barcode (UPC/GTIN/EAN) match against a peer offer with that barcode.
  *   0.95  Brand + SKU match against a peer offer.
+ *   0.90  Learned mapping (v1.41.0) recorded from an operator approval at
+ *         the SAME merchant: title key → canonical. See
+ *         Supcomp_Match_Memory_Repo. Ranked above every heuristic tier
+ *         below because it is an operator decision, not a guess.
+ *   0.80  Learned mapping recorded at OTHER merchant(s), all agreeing on
+ *         one canonical. Lower than same-merchant because two shops can
+ *         use one product name for different things.
  *   0.85  Direct canonical match: extracted (ingredient, form, strength)
  *         finds exactly one canonical_product. Brief-strict reading of §7
  *         doesn't list this tier, but without it new ingredients ship with
@@ -40,6 +47,8 @@ class Supcomp_Matcher {
 		'sublingual',
 	);
 
+	const UNIT_TOKENS = array( 'mg', 'mgs', 'mcg', 'ug', 'g', 'kg', 'iu', 'ml' );
+
 	/**
 	 * @param array $offer       Offer fields. Read: barcode, brand, sku,
 	 *                           product_title.
@@ -66,6 +75,17 @@ class Supcomp_Matcher {
 			if ( $peer ) {
 				return self::pack( (int) $peer->canonical_product_id, 0.95 );
 			}
+		}
+
+		// 0.90 / 0.80: learned mapping (operator-confirmed title key).
+		$merchant_id = (int) self::s( $offer, 'merchant_id' );
+		if ( $merchant_id === 0 ) {
+			// CSV-importer rows carry the validator-resolved merchant here.
+			$merchant_id = (int) self::s( $offer, '_merchant_id' );
+		}
+		$learned = Supcomp_Match_Memory_Repo::lookup( $merchant_id, Supcomp_Match_Memory_Repo::key_for_title( $title ) );
+		if ( $learned ) {
+			return self::pack( (int) $learned['canonical_product_id'], (float) $learned['confidence'] );
 		}
 
 		// 0.85: direct canonical lookup by ingredient+form+strength
@@ -163,6 +183,11 @@ class Supcomp_Matcher {
 	 */
 	public static function normalize_title( $title ) {
 		$t = strtolower( (string) $title );
+		// Keep code-style names whole: "ex-290" → "ex290", "omega-3" →
+		// "omega3". Otherwise the number is split off and dropped as a bare
+		// digit below, and every "<letters>-<number>" product collapses onto
+		// the same letters (or a key too short to be useful).
+		$t = preg_replace( '/([a-z])-(\d)/', '$1$2', $t );
 		// Replace anything non-alphanumeric with a space.
 		$t = preg_replace( '/[^a-z0-9]+/', ' ', $t );
 		$tokens = preg_split( '/\s+/', $t, -1, PREG_SPLIT_NO_EMPTY );
@@ -177,7 +202,15 @@ class Supcomp_Matcher {
 				continue;
 			}
 			// "mg" / "mcg" / "iu" — drop unit tokens.
-			if ( in_array( $tok, array( 'mg', 'mcg', 'g', 'iu' ), true ) ) {
+			if ( in_array( $tok, self::UNIT_TOKENS, true ) ) {
+				continue;
+			}
+			// Strength glued to its unit ("10mg", "500mcg", "5ml"). Without
+			// this, every strength of one product normalized to a different
+			// title, so a match on the 10 mg listing never carried over to
+			// the 20 mg listing. Decimals were already split on the "." above
+			// ("2.5mg" → "2" + "5mg"), so integer digits suffice here.
+			if ( preg_match( '/^\d+(?:' . implode( '|', self::UNIT_TOKENS ) . ')$/', $tok ) ) {
 				continue;
 			}
 			$kept[] = $tok;

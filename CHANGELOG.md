@@ -15,11 +15,31 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 ### Fixed
 ### Security
 
+---
+
+## [1.41.0] — 2026-10-14
+
+### Added
+- **Learned canonical mappings.** Approving an offer now remembers its canonical against a strength-agnostic key built from its title, scoped to the merchant. New `{prefix}supcomp_match_memory` table (schema 14 → 15). The matcher checks it right after the barcode and brand + SKU tiers: **0.90** for a mapping learned at the same merchant, **0.80** for one learned elsewhere when every other merchant's mapping for that key agrees on one canonical. One approval covers every strength of a product. Still only a suggestion; every offer still needs approval. Recorded on Pending Queue row Approve, bulk Approve, offer-editor Save & Approve, and offer-editor Save when the canonical was changed (a plain Save with the suggestion untouched does not count as a confirmation). See `PROJECTBRIEF.md` §7 and `INSTRUCTIONS.md` § 9a.
+- **Learned Mappings screen** (Supplement Compare → Learned Mappings). Search by key or title, re-point a mapping at a different canonical, or delete it. "Rebuild from approved offers" adds mappings for approved offers that aren't remembered yet and never overwrites an existing one.
+- **One-time backfill.** On the first admin page load after updating, mappings are built from offers already approved (anything with a canonical that isn't pending, needs-review or rejected; the most common canonical wins per merchant + key), then unmatched queue offers with those keys are re-matched.
+- **Re-run matching** in the Pending Queue: a bulk action for ticked rows, and a "Re-run matching on all unmatched" toolbar button.
+### Changed
+- **Title normalization for matching** now strips strength glued to its unit (`10mg`, `500mcg`, `3ml`) and keeps code-style names whole by joining letter-hyphen-digit sequences (`ex-290` → `ex290`) before splitting. Previously "Example-Tz 10mg" and "Example-Tz 20mg" normalized to different titles, while "EX-290" and "EX-300" both collapsed to `ex`. This applies to the existing peer-title tiers as well as the new memory.
+### Deprecated
+### Removed
+### Fixed
+- **Offers no longer stay at "no match" forever.** Matching used to run only when an offer was first inserted, so anything imported before its canonical existed was never matched. Queue offers with no canonical are now re-matched automatically when a canonical product is created, edited, re-statused or CSV-imported, and when a mapping is learned or re-pointed (one pass works through the queue in id order with a ~20-second budget so a large queue can't time out the request). Re-matching touches only pending / needs-review offers with no canonical, writes the canonical and confidence, and fills ingredient, form, strength and standardization from the canonical only where the offer's own field is blank.
+- Hard-deleting a retired canonical also deletes its learned mappings.
+### Security
+
 ### Repo
 
 Repository-level changes that ship no new plugin build, so they carry no
 version bump. See `CLAUDE.md` § "Repo-level changes: changelog yes, version
 bump no."
+
+- **`tests/match-memory-test.php` added.** A standalone PHP script (no PHPUnit, no WordPress) that exercises title-key normalization, mapping record/lookup, matcher tier order and the re-matcher against a fake `$wpdb`. Run with `php tests/match-memory-test.php` from the repo root. It lives outside `plugin/`, so it is not packaged.
 
 - **Ruleset scope documented.** `CLAUDE.md` § "Committing to this repo" now records that the GitHub ruleset also blocks deleting and force-pushing `main`, and that it targets the default branch only. Feature branches carry no rules and are deleted normally on merge, but their commits still need signing because the signature rule applies to everything that lands on `main`. (The ruleset previously targeted all branches, which silently blocked `gh pr merge --delete-branch` from removing merged branches; it was narrowed to the default branch.)
 

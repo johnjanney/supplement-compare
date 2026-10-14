@@ -833,6 +833,28 @@ feasibility-only.
 
 ---
 
+### Q-020: Per-field provenance before auto-filling Total active
+
+**Status:** open
+**Blocks:** nothing today; a future Total-active auto-extraction feature
+**Raised:** 2026-10-14
+
+v1.41.0's re-matcher can safely re-run on queued offers because it only
+touches `canonical_product_id` when it is blank, and a blank canonical reliably
+means nobody has set one. A future feature that auto-fills
+`total_active_per_container` (explicit totals, "N × M mg" packs, single-vial
+products) would want the same re-run ability, but blank is not a reliable
+signal there: if the parser fills in a wrong total and the operator clears it,
+a later pass would refill it. The plugin currently can't tell an
+operator-entered value from an auto-filled one.
+
+Options: a per-field "set by operator" marker (e.g. a JSON column of
+operator-owned field names written by the offer editor), or limiting
+auto-fill to first insert only. Decide before building Total-active
+extraction.
+
+---
+
 ## Resolved questions
 
 ### Q-010: Does a rejection survive Cleanup + re-extraction?
