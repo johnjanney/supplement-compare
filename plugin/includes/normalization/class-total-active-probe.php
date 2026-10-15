@@ -32,7 +32,7 @@ class Supcomp_Total_Active_Probe {
 	);
 
 	// Number: "12,000", "1.5", "200". Unit words longest-first so "mg" wins over "g".
-	const AMOUNT_PATTERN = '/(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*(billion\s*cfu|milligrams?|micrograms?|kilograms?|grams?|mcg|µg|ug|mg|kg|iu|g)(?![a-z])/iu';
+	const AMOUNT_PATTERN = '/(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*(billion\s*cfu|milligrams?|micrograms?|kilograms?|grams?|mcg|µg|ug|mg|kg|iu|g)(?![a-z])(?!\s*(?:\/|·|per\s)\s*mol)/iu';
 
 	// "2 x 10mg", "2×10 mg" (count first) and "10mg x 2" (amount first).
 	const PACK_COUNT_FIRST  = '/(?<![\d.,])(\d{1,3})\s*[x×]\s*(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s*(milligrams?|micrograms?|grams?|mcg|µg|ug|mg|iu|g)(?![a-z])/iu';

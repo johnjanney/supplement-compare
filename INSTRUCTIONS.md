@@ -1477,8 +1477,10 @@ specific price. Variations with `variation_retrieval_status=failed` may
 have the parent's price. Phase 5's normalization will surface these
 better; for v0.5.0, the operator has to spot them in the pending queue.
 
-**A product shows a year (like 2025) as its servings, or a literal "&#8211;"
-in its title.** Both were normalizer input bugs fixed in 1.42.1. Normalization
+**A product shows a year (like 2025) as its servings, a strength of hundreds
+of grams, or a literal "&#8211;" in its title.** These were normalizer input
+bugs fixed in 1.42.1 and 1.42.2 (the large grams were molecular weights such
+as "403.9 g/mol" read from the description). Normalization
 runs once, when an offer is first imported, so offers imported earlier keep
 what the old rules stored.
 - Titles fix themselves: they're rewritten on every run, and are now decoded.

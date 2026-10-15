@@ -148,6 +148,21 @@ check( 'plain amount unchanged', 10.0, $s['value'] );
 $s = Supcomp_Strength_Rule::extract( 'Example 12,000 mg' );
 check( 'never "000 mg"', 12000.0, $s['value'] );
 
+// ---------- 4b. Molecular weights are not amounts (v1.42.2) ----------
+
+$s = Supcomp_Strength_Rule::extract( 'Example Peptide | Molecular Weight: 403.9 g/mol | Purity 99%' );
+check( 'g/mol is not a strength', null, $s );
+$s = Supcomp_Strength_Rule::extract( 'Example Peptide 403.9 g·mol and more' );
+check( 'g·mol is not a strength', null, $s );
+$s = Supcomp_Strength_Rule::extract( 'Example Peptide | Molar mass: 751.9 g' );
+check( 'labelled molar mass without /mol', null, $s );
+$s = Supcomp_Strength_Rule::extract( 'Example Peptide 10mg | Molecular Weight: 403.9 g/mol' );
+check( 'real dose still read beside a molecular weight', 10.0, $s['value'] );
+$n = norm( 'Example Peptide', null, array( 'description' => 'Research use only. Molecular Weight: 751.9 g/mol. Sequence: example.' ) );
+check( 'description molecular weight ignored', null, $n['strength_per_serving'] );
+$s = Supcomp_Strength_Rule::extract( 'Example Powder 5 g per scoop' );
+check( 'plain grams unchanged', 5.0, $s['value'] );
+
 // ---------- 5. Learned-mapping re-key ----------
 
 $wpdb->memory = array(
