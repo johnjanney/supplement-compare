@@ -48,7 +48,7 @@ class Supcomp_Normalizer {
 		// often have a strength figure with positive context that would
 		// out-score the bare variant_title number in the full-text scan,
 		// pinning every variant to the same wrong mg.
-		$variant_title = self::field( $offer, 'variant_title' );
+		$variant_title = self::decode_entities( self::field( $offer, 'variant_title' ) );
 		$strength      = $variant_title !== '' ? Supcomp_Strength_Rule::extract( $variant_title ) : null;
 		if ( $strength === null ) {
 			$strength = Supcomp_Strength_Rule::extract( $text );
@@ -75,9 +75,9 @@ class Supcomp_Normalizer {
 	 */
 	private static function collect_text( $offer ) {
 		$parts = array(
-			self::field( $offer, 'variant_title' ),
-			self::field( $offer, 'product_title' ),
-			self::field( $offer, 'description' ),
+			self::decode_entities( self::field( $offer, 'variant_title' ) ),
+			self::decode_entities( self::field( $offer, 'product_title' ) ),
+			self::decode_entities( self::field( $offer, 'description' ) ),
 		);
 
 		// Flatten raw_attributes_json: pull out top-level string values so
@@ -86,7 +86,7 @@ class Supcomp_Normalizer {
 		if ( $raw !== '' ) {
 			$decoded = json_decode( $raw, true );
 			if ( is_array( $decoded ) ) {
-				$parts[] = self::flatten_for_search( $decoded );
+				$parts[] = self::decode_entities( self::flatten_for_search( $decoded ) );
 			}
 		}
 
@@ -104,9 +104,26 @@ class Supcomp_Normalizer {
 	}
 
 	/**
-	 * Walk a JSON structure and concatenate all string-ish leaf values.
+	 * JSON keys whose subtrees never describe the product's dose: shipping
+	 * weight and dimensions, prices, ratings, links. Matched lowercase.
+	 * A shipping weight like {"value": 751.9, "unitText": "g"} would
+	 * otherwise read as a 751.9 g strength.
+	 */
+	const FLATTEN_SKIP_KEYS = array(
+		'weight', 'shippingweight', 'shippingdetails', 'height', 'width',
+		'depth', 'length', 'dimensions', 'price', 'prices', 'pricespecification',
+		'aggregaterating', 'review', 'reviews', 'url', 'permalink', 'image', 'images',
+	);
+
+	/**
+	 * Walk a JSON structure and join its string leaf values with " | ".
 	 * Used to expose attribute values to the rule scanners without binding
 	 * the rules to platform-specific JSON shapes.
+	 *
+	 * Leaves are joined with a separator, not a bare space, so a number from
+	 * one field can't fuse with a unit from the next into a fake amount.
+	 * Bare numeric leaves (ids, positions, prices) are dropped for the same
+	 * reason; a {"value": N, "unitText": "mg"} pair is kept as one "N mg".
 	 */
 	private static function flatten_for_search( $node, $depth = 0 ) {
 		if ( $depth > 6 ) {
@@ -115,17 +132,49 @@ class Supcomp_Normalizer {
 		if ( is_string( $node ) ) {
 			return $node;
 		}
-		if ( is_scalar( $node ) ) {
-			return (string) $node;
+		if ( ! is_array( $node ) ) {
+			return '';
 		}
-		if ( is_array( $node ) ) {
-			$parts = array();
-			foreach ( $node as $v ) {
-				$parts[] = self::flatten_for_search( $v, $depth + 1 );
+		if ( isset( $node['value'] ) && is_numeric( $node['value'] ) ) {
+			$unit = isset( $node['unitText'] ) && is_string( $node['unitText'] ) ? $node['unitText'] : '';
+			if ( $unit !== '' ) {
+				return $node['value'] . ' ' . $unit;
 			}
-			return implode( ' ', array_filter( $parts, 'strlen' ) );
 		}
-		return '';
+		$parts = array();
+		foreach ( $node as $key => $v ) {
+			if ( is_string( $key ) && in_array( strtolower( $key ), self::FLATTEN_SKIP_KEYS, true ) ) {
+				continue;
+			}
+			$parts[] = self::flatten_for_search( $v, $depth + 1 );
+		}
+		return implode( ' | ', array_filter( $parts, 'strlen' ) );
+	}
+
+	/**
+	 * Decode HTML entities ("&#8211;", "&amp;", "&#038;") in merchant text.
+	 * Two passes cover the double-encoded "&amp;#8211;" some stores emit.
+	 */
+	public static function decode_entities( $text ) {
+		$text = (string) $text;
+		for ( $i = 0; $i < 2 && strpos( $text, '&' ) !== false; $i++ ) {
+			$text = html_entity_decode( $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+		}
+		return $text;
+	}
+
+	/**
+	 * Decode entities in a CSV row's free-text fields. raw_attributes_json
+	 * is left alone — decoding "&quot;" inside it would break the JSON; its
+	 * values are decoded after json_decode in collect_text().
+	 */
+	public static function decode_row_text( array $row ) {
+		foreach ( array( 'product_title', 'variant_title', 'brand', 'description' ) as $field ) {
+			if ( isset( $row[ $field ] ) && is_string( $row[ $field ] ) ) {
+				$row[ $field ] = self::decode_entities( $row[ $field ] );
+			}
+		}
+		return $row;
 	}
 
 	/**

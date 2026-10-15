@@ -175,6 +175,19 @@ class Supcomp_Plugin {
 		// before v1.41.0. Runs on admin_init (domain classes loaded, schema
 		// upgraded) and records completion in an option.
 		add_action( 'admin_init', array( __CLASS__, 'maybe_backfill_match_memory' ) );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_rekey_match_memory' ) );
+	}
+
+	/**
+	 * One-time re-key of learned mappings whose titles carried HTML entities
+	 * (v1.42.1 decodes entities before keying). See
+	 * Supcomp_Match_Memory_Repo::rekey_for_decoded_entities().
+	 */
+	public static function maybe_rekey_match_memory() {
+		if ( get_option( Supcomp_Match_Memory_Repo::REKEY_OPTION ) || ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
+			return;
+		}
+		Supcomp_Match_Memory_Repo::rekey_for_decoded_entities();
 	}
 
 	public static function maybe_backfill_match_memory() {

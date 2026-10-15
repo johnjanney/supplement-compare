@@ -182,7 +182,9 @@ class Supcomp_Matcher {
 	 * title in.
 	 */
 	public static function normalize_title( $title ) {
-		$t = strtolower( (string) $title );
+		// Decode first so a title stored before v1.42.1 ("A &amp; B") and its
+		// decoded re-import ("A & B") produce the same key.
+		$t = strtolower( Supcomp_Normalizer::decode_entities( $title ) );
 		// Keep code-style names whole: "ex-290" → "ex290", "omega-3" →
 		// "omega3". Otherwise the number is split off and dropped as a bare
 		// digit below, and every "<letters>-<number>" product collapses onto

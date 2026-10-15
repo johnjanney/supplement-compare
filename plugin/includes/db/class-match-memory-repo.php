@@ -37,6 +37,7 @@ class Supcomp_Match_Memory_Repo {
 	const SOURCES = array( 'approval', 'edit', 'backfill', 'manual' );
 
 	const BACKFILL_OPTION = 'supcomp_match_memory_backfilled';
+	const REKEY_OPTION    = 'supcomp_match_memory_rekeyed_entities';
 
 	public static function table() {
 		global $wpdb;
@@ -177,6 +178,56 @@ class Supcomp_Match_Memory_Repo {
 			)
 		);
 		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * One-time re-key after v1.42.1 started decoding HTML entities before
+	 * keying. A title with a named entity ("A &amp; B") used to key with
+	 * the entity's letters ("a amp b"); the decoded title keys as "a b".
+	 * Each mapping is re-keyed from its stored sample title. When the new key
+	 * already exists for that merchant, the old row is left as is — a stale
+	 * key that simply never matches, rather than a merge that could override
+	 * an operator re-point.
+	 *
+	 * @return int Rows re-keyed.
+	 */
+	public static function rekey_for_decoded_entities() {
+		if ( get_option( self::REKEY_OPTION ) ) {
+			return 0;
+		}
+		global $wpdb;
+		$table = self::table();
+		$rows  = (array) $wpdb->get_results(
+			"SELECT id, merchant_id, title_key, sample_title FROM {$table} WHERE sample_title LIKE '%&%;%'"
+		);
+		$n = 0;
+		foreach ( $rows as $r ) {
+			$key = self::key_for_title( $r->sample_title );
+			if ( $key === '' || $key === $r->title_key ) {
+				continue;
+			}
+			$taken = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT id FROM {$table} WHERE merchant_id = %d AND title_key = %s",
+					(int) $r->merchant_id,
+					$key
+				)
+			);
+			if ( $taken ) {
+				continue;
+			}
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$table} SET title_key = %s, sample_title = %s WHERE id = %d",
+					$key,
+					Supcomp_Normalizer::decode_entities( $r->sample_title ),
+					(int) $r->id
+				)
+			);
+			++$n;
+		}
+		update_option( self::REKEY_OPTION, 1 );
+		return $n;
 	}
 
 	/**

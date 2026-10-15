@@ -36,8 +36,12 @@ class Supcomp_Count_Rule {
 			}
 		}
 
-		// "x60" (some merchants use "x60" or "/60" to denote count)
-		if ( preg_match( '/[x×\/]\s*(\d{1,4})\b/u', $text, $m ) ) {
+		// "x60" / "× 60" (some merchants use these to denote count). The
+		// x must stand alone — not the tail of a word or code — and the
+		// number must not run on into a date or decimal. "/60" used to count
+		// too, but it read dates ("10/14/2025") and URLs as 2025 servings.
+		// A number followed by a unit is an amount, not a count ("2 x 10mg").
+		if ( preg_match( '/(?<![a-z0-9\-])[x×]\s*(\d{1,4})(?![\d.,\/\-])(?!\s*(?:mg|mcg|µg|g|iu|ml)\b)/iu', $text, $m ) ) {
 			$n = (int) $m[1];
 			if ( $n > 0 && $n < self::MAX_PLAUSIBLE ) {
 				return $n;

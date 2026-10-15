@@ -1477,6 +1477,15 @@ specific price. Variations with `variation_retrieval_status=failed` may
 have the parent's price. Phase 5's normalization will surface these
 better; for v0.5.0, the operator has to spot them in the pending queue.
 
+**A product shows a year (like 2025) as its servings, or a literal "&#8211;"
+in its title.** Both were normalizer input bugs fixed in 1.42.1. Normalization
+runs once, when an offer is first imported, so offers imported earlier keep
+what the old rules stored.
+- Titles fix themselves: they're rewritten on every run, and are now decoded.
+- A wrong servings or strength value stays until you correct it in the offer
+  editor. Saving it there also marks the field as yours, so automated passes
+  leave it alone.
+
 **Operator-edited fields got wiped by re-import.** Should not happen by
 design — only CSV-direct fields update on re-import. If a curated field
 was overwritten, file a bug; `Supcomp_Offers_Repo::update_csv_columns()`
