@@ -170,6 +170,11 @@ class Supcomp_CSV_Importer {
 
 				self::insert_raw( $merchant_id, $row, $run_id, $now );
 
+				// The raw snapshot keeps the merchant's text verbatim; everything
+				// downstream (stored titles, public JSON, normalizer, matcher)
+				// sees decoded text, so "&#8211;" never reaches a visitor.
+				$row = Supcomp_Normalizer::decode_row_text( $row );
+
 				$existing = Supcomp_Offers_Repo::find_by_natural_key(
 					$merchant_id,
 					(string) $row['source_product_id'],

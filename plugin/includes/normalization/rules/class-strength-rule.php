@@ -22,6 +22,11 @@ class Supcomp_Strength_Rule {
 
 	private const CONTEXT_RADIUS = 25;
 
+	// "12,000" (comma thousands) or "200" / "1.5". The lookbehind keeps a
+	// match from starting mid-number, which is how "12,000 mg" used to read
+	// as "000 mg" (Q-021).
+	private const NUMBER = '(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)';
+
 	private const POSITIVE_TERMS = array(
 		'per serving',
 		'per dose',
@@ -85,7 +90,7 @@ class Supcomp_Strength_Rule {
 		}
 
 		$lower = strtolower( $text );
-		$best  = self::best_mass_match( $text, $lower, '/(\d+(?:\.\d+)?)\s*(mg|mcg|g|iu)\b/i' );
+		$best  = self::best_mass_match( $text, $lower, '/' . self::NUMBER . '\s*(mg|mcg|g|iu)\b/i' );
 		if ( $best !== null ) {
 			$unit = strtolower( $best['unit'] );
 			return array(
@@ -95,7 +100,7 @@ class Supcomp_Strength_Rule {
 		}
 
 		// "milligrams" / "micrograms" / "grams" — less common but seen on Woo.
-		$best = self::best_mass_match( $text, $lower, '/(\d+(?:\.\d+)?)\s*(milligrams?|micrograms?|grams?)\b/i' );
+		$best = self::best_mass_match( $text, $lower, '/' . self::NUMBER . '\s*(milligrams?|micrograms?|grams?)\b/i' );
 		if ( $best !== null ) {
 			$word = strtolower( $best['unit'] );
 			$unit = 'mg';
@@ -127,7 +132,7 @@ class Supcomp_Strength_Rule {
 
 		$best = null;
 		foreach ( $matches as $m ) {
-			$value      = (float) $m[1][0];
+			$value      = (float) str_replace( ',', '', $m[1][0] );
 			$unit_raw   = $m[2][0];
 			$offset     = $m[0][1];
 			$unit_lower = strtolower( $unit_raw );

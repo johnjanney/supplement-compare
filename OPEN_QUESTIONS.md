@@ -833,22 +833,18 @@ feasibility-only.
 
 ---
 
+## Resolved questions
+
 ### Q-021: Strength rule misreads comma thousands
 
-**Status:** open
-**Blocks:** nothing hard; affects per-serving strength on some offers
-**Raised:** 2026-10-14
+**Status:** resolved — **fixed in v1.42.1**
+**Resolved:** 2026-10-15
 
-`Supcomp_Strength_Rule` matches numbers with `\d+(?:\.\d+)?`, so "12,000 mg"
-is read as "000 mg" (0 mg). Found while building the Total Active Diagnostic
-(v1.42.0), whose own scanner handles commas. Most per-serving doses are under
-1,000 so the impact is limited, but a container total written with a comma is
-silently zeroed rather than skipped. Fix alongside Total-active extraction, or
-sooner if the diagnostic shows it in practice.
-
----
-
-## Resolved questions
+`Supcomp_Strength_Rule` read "12,000 mg" as "000 mg". Its number pattern now
+accepts comma thousands and can't start a match in the middle of a number.
+Fixed together with the other normalizer input problems the 1.42.0 Total
+Active Diagnostic surfaced (entities, dates read as counts, fused attribute
+values).
 
 ### Q-020: Per-field provenance before auto-filling Total active
 

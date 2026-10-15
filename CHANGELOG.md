@@ -17,6 +17,22 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.42.1] — 2026-10-15
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **HTML entities like "&#8211;" and "&#038;" are decoded on import.** About 290 offers in the 1.42.0 diagnostic had them, and because `product_title` ships in the public JSON, visitors could see the literal code. The importer now decodes `product_title`, `variant_title`, `brand` and `description` right after saving the raw snapshot, which stays verbatim. This covers extractor runs and CSV uploads. Stored titles clean up on each offer's next run.
+- **Learned mappings are re-keyed once for decoded titles.** Named entities used to end up in title keys ("A &amp; B" keyed as `a amp b`; it now keys as `a b`). On the first admin page load after updating, mappings whose sample title has an entity are re-keyed from that title. If the new key already exists for that merchant, the old row is left alone rather than merged, so no re-point you made is overridden. Gated by the `supcomp_match_memory_rekeyed_entities` option.
+- **Dates and URLs are no longer read as servings.** The count rule's "x60" pattern also accepted "/60", so "10/14/2025" became 2025 servings (about 50 offers in the diagnostic). "/" no longer counts. "x" / "×" must stand alone, not end a word or a hyphenated code, and a number followed by a unit ("2 x 10mg") is an amount, not a count.
+- **Attribute values can no longer fuse into fake amounts.** The normalizer joined every attribute leaf with a space, ids and prices included, so a number from one field could pair with a unit from the next, and shipping weights (e.g. 751.9 g) were read as strengths. Leaves are now joined with " | ", bare numeric leaves are dropped, a `{value, unitText}` pair is kept as one "N unit", and weight / shipping / dimension / price / rating / review / URL / image subtrees are skipped.
+- **"12,000 mg" now reads as 12,000 mg** (resolves Q-021). The strength rule used to read it as "000 mg", and could start a match in the middle of a number.
+### Security
+
+---
+
 ## [1.42.0] — 2026-10-14
 
 ### Added
@@ -53,6 +69,8 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 Repository-level changes that ship no new plugin build, so they carry no
 version bump. See `CLAUDE.md` § "Repo-level changes: changelog yes, version
 bump no."
+
+- **`tests/normalizer-cleanup-test.php` added.** Standalone PHP script (`php tests/normalizer-cleanup-test.php`, 30 checks) covering entity decoding, the title-key and learned-mapping re-key, date/amount rejection in the count rule, attribute flattening, and comma thousands.
 
 - **`tests/total-active-test.php` added.** Standalone PHP script (`php tests/total-active-test.php`) covering the provenance diff, backfill gating, and the diagnostic probe's amount scanning, attribute-name handling and classification. `tests/match-memory-test.php` gained an `is_operator_field` stub and a case confirming an operator-cleared ingredient isn't refilled.
 
