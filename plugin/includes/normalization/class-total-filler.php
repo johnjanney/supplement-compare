@@ -1,6 +1,7 @@
 <?php
 /**
- * Total active / container auto-fill — single-container default (v1.43.0).
+ * Total active / container auto-fill — single containers (v1.43.0), packs
+ * and blends (v1.44.0, see suggest_multi()).
  *
  * Most of the catalogue is single-vial products: the amount on the label *is*
  * the total in the container, and there is no servings count. The 1.42.x
@@ -42,6 +43,16 @@ class Supcomp_Total_Filler {
 	const SOURCE_VARIANT   = 'single_variant';
 	const SOURCE_TITLE     = 'single_title';
 	const SOURCE_ATTRIBUTE = 'single_attribute';
+	const SOURCE_PACK_COUNT   = 'pack_count';    // per-vial amount × vials
+	const SOURCE_PACK_STATED  = 'pack_stated';   // listing states the pack total
+	const SOURCE_BLEND_SUM    = 'blend_sum';     // sum of the blend's parts
+	const SOURCE_BLEND_STATED = 'blend_stated';  // listing states the blend total
+
+	const WORD_NUMBERS = array(
+		'two' => 2, 'three' => 3, 'four' => 4, 'five' => 5, 'six' => 6, 'seven' => 7,
+		'eight' => 8, 'nine' => 9, 'ten' => 10, 'twelve' => 12, 'twenty' => 20,
+	);
+	const MAX_PACK_COUNT = 100;
 
 	const DOSE_FORMS = array( 'capsule', 'tablet', 'softgel', 'gummy' );
 
@@ -50,6 +61,10 @@ class Supcomp_Total_Filler {
 	const PACK_WORD_PATTERN  = '/\bpack\s+of\b|\bbulk\b|\bkits?\b|\bcombo\b|\bbundle\b|(?<![a-z0-9\-])[x×]\s*\d|\b(?:two|three|four|five|six|seven|eight|nine|ten|twelve|twenty)[\s\-]*(?:packs?|vials?|kits?|bottles?)\b/i';
 	const BLEND_PATTERN      = '/\bblend\b|\bstack\b|\d\s*(?:mg|mcg|µg)?\/\d|[a-z0-9)]\s*(?:\+|&|\band\b)\s*[a-z]{2,}|[a-z]{2,}\/[a-z]{2,}/i';
 	const CONC_PATTERN       = '/\d\s*(?:mg|mcg|µg|iu)\s*(?:\/|per)\s*ml\b/i';
+	// Signals strong enough to add amounts together. A bare "5/10mg" is not
+	// one — stores use it for an options list.
+	const BLEND_SUM_PATTERN      = '/\bblend\b|\bstack\b|[a-z0-9)]\s*(?:\+|&|\band\b)\s*[a-z]{2,}|[a-z]{2,}\/[a-z]{2,}/i';
+	const PACK_WORD_ONLY_PATTERN = '/\bbulk\b|\bkits?\b|\bcombo\b|\bbundle\b/i';
 
 	/**
 	 * @param array $in {
@@ -69,10 +84,16 @@ class Supcomp_Total_Filler {
 			$variant_vals = array_merge( $variant_vals, $product_vals );
 			$product_vals = array();
 		}
-
-		if ( ! empty( $in['servings'] ) ) {
-			return null;
+		// A Woo variant title is built from its attribute values, so the same
+		// text arrives twice. Drop values the variant title already contains,
+		// or a blend would add "10mg vial | 10mg vial" up to 20 (v1.44.1).
+		if ( $variant !== '' ) {
+			$variant_vals = array_values( array_filter( $variant_vals, static function ( $v ) use ( $variant ) {
+				$v = trim( (string) $v );
+				return $v !== '' && stripos( $variant, $v ) === false;
+			} ) );
 		}
+
 		if ( isset( $in['ingredient_form'] ) && in_array( (string) $in['ingredient_form'], self::DOSE_FORMS, true ) ) {
 			return null;
 		}
@@ -82,12 +103,16 @@ class Supcomp_Total_Filler {
 		// "Size: 5mg | 10mg | 3 vials" on the parent says nothing about this
 		// variant being a pack.
 		$listing = trim( $variant . ' | ' . $product . ' | ' . implode( ' | ', $variant_vals ), ' |' );
-		if ( self::is_pack( $listing )
-			|| preg_match( self::DOSE_FORM_PATTERN, $listing )
-			|| preg_match( self::BLEND_PATTERN, $listing )
-			|| preg_match( self::CONC_PATTERN, $listing )
-			|| Supcomp_Count_Rule::extract( $listing ) !== null
-		) {
+		if ( preg_match( self::DOSE_FORM_PATTERN, $listing ) || preg_match( self::CONC_PATTERN, $listing ) ) {
+			return null;
+		}
+
+		// Packs and blends (v1.44.0) have their own arithmetic.
+		if ( self::is_pack( $listing ) || preg_match( self::BLEND_PATTERN, $listing ) ) {
+			return self::suggest_multi( $in, $product, $variant, $variant_vals, $product_vals );
+		}
+
+		if ( ! empty( $in['servings'] ) || Supcomp_Count_Rule::extract( $listing ) !== null ) {
 			return null;
 		}
 
@@ -112,6 +137,195 @@ class Supcomp_Total_Filler {
 			return null; // none, or the title and attributes/URL disagree
 		}
 		return self::pack_result( $all_amounts[0], $title_amounts ? self::SOURCE_TITLE : self::SOURCE_ATTRIBUTE );
+	}
+
+	/**
+	 * Packs and blends (v1.44.0). Reads one scope — the variant's own text
+	 * when it carries amounts, otherwise (no siblings only) the product
+	 * title — and works out:
+	 *
+	 *   per-container amount: one amount → that amount; a blend's
+	 *     components → their sum, or a stated total that equals the sum
+	 *     ("50mg + 10mg + 10mg (70mg)"). "(5MG Each)" amounts are per
+	 *     component and are not summed. Summing needs a real blend signal
+	 *     (blend / stack / + / & / and / Name/Name); a bare "5/10mg" is
+	 *     an options list, not a blend.
+	 *   container count: "10 vials", "3-Pack", "pack of 5", "10mg x 10",
+	 *     "2 x 10mg", "Ten Pack". Kit / bulk / combo with no number leave
+	 *     the count unknown.
+	 *   total: a stated pack total wins when it agrees ("10mg Kit (100mg)",
+	 *     "5mg … 50mg (10 vials)"); otherwise per-container × count.
+	 *
+	 * Anything ambiguous — several counts, an unknown count without a stated
+	 * total, amounts that don't reconcile — returns null.
+	 */
+	private static function suggest_multi( array $in, $product, $variant, array $variant_vals, array $product_vals ) {
+		$variant_text = trim( $variant . ' | ' . implode( ' | ', $variant_vals ), ' |' );
+		if ( self::amount_list( $variant_text ) ) {
+			$text   = $variant_text;
+			$source = 'variant';
+		} elseif ( empty( $in['has_siblings'] ) ) {
+			// Product attributes may list every option; they must not carry
+			// an amount the title doesn't.
+			$title_set = self::amount_set( $product );
+			foreach ( self::amount_set( implode( ' | ', $product_vals ) ) as $key => $unused ) {
+				if ( ! isset( $title_set[ $key ] ) ) {
+					return null;
+				}
+			}
+			$text   = $product;
+			$source = 'title';
+		} else {
+			return null;
+		}
+
+		// The count may sit in the product title even when the variant holds
+		// the amounts ("10-Pack Kits" product, "10mg Kit (100mg)" variant).
+		$counts = self::pack_counts( $text );
+		if ( ! $counts && $source === 'variant' ) {
+			$counts = self::pack_counts( $product );
+		}
+		if ( count( $counts ) > 1 ) {
+			return null;
+		}
+		$n = $counts ? (int) reset( $counts ) : 0; // 0 = no count found
+		if ( ! empty( $in['servings'] ) && (int) $in['servings'] !== $n ) {
+			return null; // a real servings count, not this pack's vial count
+		}
+		$count_unknown = $n === 0 && preg_match( self::PACK_WORD_ONLY_PATTERN, $text . ' | ' . $product );
+
+		$amounts = self::amount_list( $text );
+		if ( ! $amounts ) {
+			return null;
+		}
+		$blend = (bool) preg_match( self::BLEND_SUM_PATTERN, $text . ' | ' . $product );
+
+		$per    = null;
+		$kind   = '';
+		$values = array_map( static function ( $a ) { return $a['mg']; }, $amounts );
+		$unit   = $amounts[0]['unit'];
+		$family = $amounts[0]['family'];
+		foreach ( $amounts as $a ) {
+			if ( $a['family'] !== $family ) {
+				return null; // mg alongside IU — can't add them up
+			}
+		}
+
+		if ( count( $values ) >= 2 && $blend ) {
+			// A stated blend total equal to the other components' sum.
+			foreach ( $values as $i => $v ) {
+				$rest = $values;
+				unset( $rest[ $i ] );
+				if ( count( $rest ) >= 2 && self::same( $v, array_sum( $rest ) ) ) {
+					$per  = $v;
+					$kind = self::SOURCE_BLEND_STATED;
+					break;
+				}
+			}
+			if ( $per === null ) {
+				$max  = max( $values );
+				$rest = $values;
+				unset( $rest[ array_search( $max, $rest, true ) ] );
+				if ( $n > 1 && self::same( $max, array_sum( $rest ) * $n ) ) {
+					return self::multi_result( $max, $family, $unit, self::SOURCE_PACK_STATED );
+				}
+				$per  = array_sum( $values );
+				$kind = self::SOURCE_BLEND_SUM;
+			}
+		} else {
+			$distinct = array_values( array_unique( array_map( static function ( $v ) { return (string) round( $v, 6 ); }, $values ) ) );
+			if ( count( $distinct ) === 1 ) {
+				$per  = (float) $distinct[0];
+				$kind = $blend ? self::SOURCE_BLEND_STATED : '';
+			} elseif ( count( $distinct ) === 2 ) {
+				$lo = min( (float) $distinct[0], (float) $distinct[1] );
+				$hi = max( (float) $distinct[0], (float) $distinct[1] );
+				if ( $n > 1 && self::same( $hi, $lo * $n ) ) {
+					return self::multi_result( $hi, $family, $unit, self::SOURCE_PACK_STATED );
+				}
+				// "10mg Kit (100mg)": the larger amount in parentheses is the
+				// kit's stated total when it's a whole multiple of the vial.
+				$ratio = $hi / $lo;
+				if ( $n === 0 && abs( $ratio - round( $ratio ) ) < 0.01 && round( $ratio ) >= 2
+					&& preg_match( '/\(\s*' . preg_quote( self::fmt( $hi, $family, $amounts ), '/' ) . '\s*(?:mg|mcg|µg|g|iu)\s*\)/i', $text )
+				) {
+					return self::multi_result( $hi, $family, $unit, self::SOURCE_PACK_STATED );
+				}
+				return null;
+			} else {
+				return null;
+			}
+		}
+
+		if ( $n > 1 ) {
+			return self::multi_result( $per * $n, $family, $unit, $kind === '' ? self::SOURCE_PACK_COUNT : $kind . '_pack' );
+		}
+		if ( $count_unknown ) {
+			return null; // "Kit" / "Bulk" with no count and no stated total
+		}
+		if ( $kind === '' ) {
+			// Plain single amount that only reached here through a pack-ish
+			// word; leave it to the operator rather than guess.
+			return null;
+		}
+		return self::multi_result( $per, $family, $unit, $kind );
+	}
+
+	const BLEND_REPAIR_OPTION  = 'supcomp_blend_total_repair_done';
+	const BLEND_RECHECK_OPTION = 'supcomp_blend_total_recheck_ids';
+
+	/**
+	 * One-time repair after v1.44.1. 1.44.0 double-counted blend amounts on
+	 * WooCommerce variants (the variant title and its attribute values were
+	 * both read). An "auto" label is removed the moment the operator changes
+	 * a total, so any blend total still labelled is the filler's own work:
+	 *
+	 *   - queue offers: the auto blend total is cleared and filled again;
+	 *   - approved offers are never changed; those whose stored auto total no
+	 *     longer matches the corrected suggestion are listed for review
+	 *     (BLEND_RECHECK_OPTION, shown on the Pending Queue).
+	 *
+	 * @return array{refilled:int, recheck:int[]}
+	 */
+	public static function repair_blend_totals_once() {
+		if ( get_option( self::BLEND_REPAIR_OPTION ) ) {
+			return array( 'refilled' => 0, 'recheck' => array() );
+		}
+		global $wpdb;
+		$table = Supcomp_Offers_Repo::table();
+		$rows  = (array) $wpdb->get_results(
+			"SELECT * FROM {$table}
+			 WHERE total_active_source LIKE 'blend%'
+			   AND total_active_per_container IS NOT NULL"
+		);
+		$queue   = array();
+		$recheck = array();
+		foreach ( $rows as $offer ) {
+			if ( in_array( $offer->visibility_status, array( 'pending', 'needs_review' ), true ) ) {
+				$queue[] = (int) $offer->id;
+				continue;
+			}
+			$s = self::suggest( self::inputs_for( $offer ) );
+			$unit = $offer->strength_unit ? Supcomp_Total_Active_Probe::canonical_unit( $offer->strength_unit ) : null;
+			$now  = ( $s && $unit ) ? Supcomp_Total_Active_Probe::convert( $s['total'], $s['unit'], $unit ) : null;
+			if ( $now === null || abs( $now - (float) $offer->total_active_per_container ) > 0.01 * max( $now, 1e-9 ) ) {
+				$recheck[] = (int) $offer->id;
+			}
+		}
+		if ( $queue ) {
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$table} SET total_active_per_container = NULL, total_active_source = NULL
+					 WHERE id IN (" . implode( ',', array_fill( 0, count( $queue ), '%d' ) ) . ")
+					   AND total_active_source LIKE 'blend%%'",
+					$queue
+				)
+			);
+			self::fill( $queue );
+		}
+		update_option( self::BLEND_RECHECK_OPTION, $recheck, false );
+		update_option( self::BLEND_REPAIR_OPTION, 1 );
+		return array( 'refilled' => count( $queue ), 'recheck' => $recheck );
 	}
 
 	/**
@@ -283,6 +497,18 @@ class Supcomp_Total_Filler {
 				return __( 'single container, from the product title', 'supplement-compare' );
 			case self::SOURCE_ATTRIBUTE:
 				return __( 'single container, from a product attribute', 'supplement-compare' );
+			case self::SOURCE_PACK_COUNT:
+				return __( 'pack: per-vial amount × number of vials', 'supplement-compare' );
+			case self::SOURCE_PACK_STATED:
+				return __( 'pack: total stated on the listing', 'supplement-compare' );
+			case self::SOURCE_BLEND_SUM:
+				return __( 'blend: sum of the listed parts', 'supplement-compare' );
+			case self::SOURCE_BLEND_STATED:
+				return __( 'blend: total stated on the listing', 'supplement-compare' );
+			case self::SOURCE_BLEND_SUM . '_pack':
+				return __( 'blend pack: sum of the parts × number of vials', 'supplement-compare' );
+			case self::SOURCE_BLEND_STATED . '_pack':
+				return __( 'blend pack: stated blend total × number of vials', 'supplement-compare' );
 		}
 		return '';
 	}
@@ -347,6 +573,137 @@ class Supcomp_Total_Filler {
 			}
 		}
 		return array_values( $seen );
+	}
+
+	/**
+	 * Container counts in $text (each > 1, ≤ MAX_PACK_COUNT). Numbers glued
+	 * to a code ("CJC-1295 Kit") are not counts.
+	 *
+	 * @return int[] distinct counts
+	 */
+	private static function pack_counts( $text ) {
+		$words = implode( '|', array_keys( self::WORD_NUMBERS ) );
+		$found = array();
+		$patterns = array(
+			'/(?<![a-z0-9\-.,])(\d{1,3}|' . $words . ')\s*-?\s*(?:packs?|pk|vials?|kits?|bottles?|pcs|pieces)\b/i',
+			'/\bpack\s+of\s+(\d{1,3}|' . $words . ')\b/i',
+			'/(?:mg|mcg|µg|g|iu)\s*[x×]\s*(\d{1,3})(?![\d.])/i',
+			'/(?<![a-z0-9\-])[x×]\s*(\d{1,3})\s*(?:vials?|pcs|pieces)\b/i',
+			'/(?<![\d.,])(\d{1,2})\s*[x×]\s*\d/i',
+		);
+		foreach ( $patterns as $p ) {
+			if ( preg_match_all( $p, $text, $m ) ) {
+				foreach ( $m[1] as $raw ) {
+					$k = strtolower( $raw );
+					$n = isset( self::WORD_NUMBERS[ $k ] ) ? self::WORD_NUMBERS[ $k ] : (int) $raw;
+					if ( $n > 1 && $n <= self::MAX_PACK_COUNT ) {
+						$found[ $n ] = $n;
+					}
+				}
+			}
+		}
+		return array_values( $found );
+	}
+
+	/**
+	 * Every amount in $text, in order, with duplicates kept (a blend's
+	 * "5mg & 5mg" is two components). Slash lists share a trailing unit
+	 * ("13/3MG", "70/10/10mg"). Amounts followed by "each" are per
+	 * component and dropped; molecular weights are skipped by the scanner.
+	 *
+	 * @return array<int, array{mg: float, unit: string, family: string, value: float}>
+	 */
+	private static function amount_list( $text ) {
+		$out   = array();
+		$spans = array();
+		$num   = '(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)';
+		$unit  = '(mcg|µg|ug|mg|g|iu)';
+		if ( preg_match_all( '/(?<![\d.,])' . $num . '(?:\s*' . $unit . ')?(?:\s*\/\s*' . $num . '(?:\s*' . $unit . ')?)+(?![a-z])/iu', $text, $lists, PREG_SET_ORDER | PREG_OFFSET_CAPTURE ) ) {
+			foreach ( $lists as $l ) {
+				preg_match_all( '/' . $num . '(?:\s*' . $unit . ')?/iu', $l[0][0], $parts, PREG_SET_ORDER );
+				$last = '';
+				foreach ( $parts as $part ) {
+					if ( ! empty( $part[2] ) ) {
+						$last = $part[2];
+					}
+				}
+				if ( $last === '' ) {
+					continue;
+				}
+				foreach ( $parts as $part ) {
+					$a = self::amount_entry( (float) str_replace( ',', '', $part[1] ), ! empty( $part[2] ) ? $part[2] : $last );
+					if ( $a ) {
+						$out[] = $a;
+					}
+				}
+				$spans[] = array( $l[0][1], $l[0][1] + strlen( $l[0][0] ) );
+			}
+		}
+		foreach ( Supcomp_Total_Active_Probe::scan_amounts( $text ) as $a ) {
+			foreach ( $spans as $sp ) {
+				if ( $a['offset'] >= $sp[0] && $a['offset'] < $sp[1] ) {
+					continue 2;
+				}
+			}
+			if ( preg_match( '/^\s*each\b/i', substr( $text, $a['offset'] + $a['length'] ) ) ) {
+				continue;
+			}
+			$e = self::amount_entry( $a['value'], $a['unit'] );
+			if ( $e ) {
+				$out[] = $e;
+			}
+		}
+		return $out;
+	}
+
+	private static function amount_entry( $value, $raw_unit ) {
+		$unit = Supcomp_Total_Active_Probe::canonical_unit( $raw_unit );
+		if ( $unit === null ) {
+			return null;
+		}
+		$mg = Supcomp_Total_Active_Probe::convert( $value, $unit, 'mg' );
+		return array(
+			'value'  => (float) $value,
+			'unit'   => $unit === 'kg' ? 'g' : $unit,
+			'family' => $mg !== null ? 'mass' : $unit,
+			'mg'     => $mg !== null ? $mg : (float) $value,
+		);
+	}
+
+	/** @return array<string, true> distinct amounts keyed like distinct_amounts(). */
+	private static function amount_set( $text ) {
+		$set = array();
+		foreach ( self::amount_list( $text ) as $a ) {
+			$set[ $a['family'] . ':' . round( $a['mg'], 6 ) ] = true;
+		}
+		return $set;
+	}
+
+	private static function same( $a, $b ) {
+		return abs( (float) $a - (float) $b ) <= 0.01 * max( abs( (float) $b ), 1e-9 );
+	}
+
+	/** The literal number as written for $mg_value, for the "(100mg)" check. */
+	private static function fmt( $mg_value, $family, array $amounts ) {
+		foreach ( $amounts as $a ) {
+			if ( abs( $a['mg'] - $mg_value ) < 1e-9 ) {
+				$s = rtrim( rtrim( number_format( $a['value'], 4, '.', '' ), '0' ), '.' );
+				return $s;
+			}
+		}
+		return (string) $mg_value;
+	}
+
+	/**
+	 * Build a result from an amount expressed in mg (mass) or in its own unit
+	 * (IU / billion CFU). Mass results are reported in mg unless the
+	 * listing's first unit was grams or mcg and the value is still whole in it.
+	 */
+	private static function multi_result( $value, $family, $unit, $source ) {
+		if ( $family !== 'mass' ) {
+			return array( 'total' => round( (float) $value, 4 ), 'unit' => $family, 'source' => $source );
+		}
+		return array( 'total' => round( (float) $value, 4 ), 'unit' => 'mg', 'source' => $source );
 	}
 
 	private static function pack_result( array $amount, $source ) {

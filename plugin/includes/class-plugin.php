@@ -177,6 +177,7 @@ class Supcomp_Plugin {
 		// upgraded) and records completion in an option.
 		add_action( 'admin_init', array( __CLASS__, 'maybe_backfill_match_memory' ) );
 		add_action( 'admin_init', array( __CLASS__, 'maybe_rekey_match_memory' ) );
+		add_action( 'admin_init', array( __CLASS__, 'maybe_repair_blend_totals' ) );
 	}
 
 	/**
@@ -184,6 +185,17 @@ class Supcomp_Plugin {
 	 * (v1.42.1 decodes entities before keying). See
 	 * Supcomp_Match_Memory_Repo::rekey_for_decoded_entities().
 	 */
+	/**
+	 * One-time repair of 1.44.0's doubled blend totals. See
+	 * Supcomp_Total_Filler::repair_blend_totals_once().
+	 */
+	public static function maybe_repair_blend_totals() {
+		if ( get_option( Supcomp_Total_Filler::BLEND_REPAIR_OPTION ) || ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
+			return;
+		}
+		Supcomp_Total_Filler::repair_blend_totals_once();
+	}
+
 	public static function maybe_rekey_match_memory() {
 		if ( get_option( Supcomp_Match_Memory_Repo::REKEY_OPTION ) || ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
 			return;
