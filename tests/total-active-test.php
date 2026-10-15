@@ -44,6 +44,10 @@ $GLOBALS['wpdb'] = new Fake_WPDB();
 
 $inc = dirname( __DIR__ ) . '/plugin/includes/';
 require $inc . 'db/class-offers-repo.php';
+foreach ( array( 'strength', 'count', 'form', 'standardization' ) as $rule ) {
+	require $inc . "normalization/rules/class-{$rule}-rule.php";
+}
+require $inc . 'normalization/class-normalizer.php';
 require $inc . 'normalization/class-total-active-probe.php';
 
 // ---------- Tiny assertion helper ----------

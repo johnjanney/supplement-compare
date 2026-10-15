@@ -184,6 +184,22 @@ check(
 );
 check( 'two variant amounts → blank', null, s( 'Example', array( 'variant_title' => '10mg / 20mg' ) ) );
 
+check(
+	'JSON-API dosage + unit as variant data',
+	array( 50.0, 'mg', 'single_attribute' ),
+	s( 'Example Peptide', array( 'raw_attributes_json' => attrs( array( 'form' => 'injectable', 'dosage' => 50, 'dosage_unit' => 'mg' ) ), 'has_siblings' => true, 'variant_level_attributes' => true ) )
+);
+check(
+	'JSON-API extras without the flag stay product-level',
+	null,
+	s( 'Example Peptide', array( 'raw_attributes_json' => attrs( array( 'dosage' => 50, 'dosage_unit' => 'mg' ) ), 'has_siblings' => true ) )
+);
+check(
+	'resolved Woo variant label',
+	array( 5.0, 'mg', 'single_variant' ),
+	s( 'Example Peptide', array( 'variant_title' => '5 MG', 'has_siblings' => true ) )
+);
+
 // ---------- 3. Guards ----------
 
 check( 'N-pack', null, s( 'Example Peptide 30mg 3-Pack' ) );
@@ -195,6 +211,9 @@ check( 'blend word', null, s( 'Example Blend 20mg' ) );
 check( 'A + B', null, s( 'Example-A 10mg + Example-B 10mg' ) );
 check( 'slash amounts', null, s( 'Example-A/Example-B 13/3MG' ) );
 check( 'name/name', null, s( 'Tesa/Ipa 10mg' ) );
+check( 'word-number pack', null, s( 'Example Peptide', array( 'variant_title' => '10mg / Ten Pack', 'has_siblings' => true ) ) );
+check( 'single peptide is not a pack', array( 10.0, 'mg', 'single_variant' ), s( 'Example Peptide', array( 'variant_title' => '10mg / Single Peptide', 'has_siblings' => true ) ) );
+check( 'ampersand blend', null, s( 'Example-A 5mg &#038; Example-B 5mg' ) );
 check( 'concentration', null, s( 'Example Solution 5mg/ml' ) );
 check( 'capsules in title', null, s( 'Example Compound 500mg 60 Capsules' ) );
 check( 'servings known', null, s( 'Example Compound 500mg', array( 'servings' => 60 ) ) );

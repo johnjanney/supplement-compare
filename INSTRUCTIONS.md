@@ -922,6 +922,16 @@ goes away and the value becomes yours.
   coming in later releases.
 - Approved offers, and totals you entered or cleared, are never touched.
 
+**After updating to 1.43.1.** Before 1.43.1, WooCommerce variants were imported
+without knowing which option they were, so their totals usually couldn't be
+filled.
+- Run each WooCommerce Extractor Site once. Its variants get their own titles
+  ("30MG", "10mg Kit (100mg)") and URLs.
+- Then click **Fill missing totals** in the Pending Queue.
+- Approved offers will start showing their variant title on the public site.
+- Strength and servings stored at first import don't change. Fix any wrong ones
+  in the offer editor.
+
 ## 9a. Learned mappings
 
 **WP Admin → Supplement Compare → Learned Mappings.** Every mapping the

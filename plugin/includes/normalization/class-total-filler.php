@@ -12,7 +12,9 @@
  *
  *   - no servings count, and not a capsule / tablet / softgel / gummy product;
  *   - no multi-container signal (packs, kits, bulk, "N vials", "x 10");
- *   - no blend signal ("blend", "10mg/10mg", "A + B", "Tesa/Ipa");
+ *   - no blend signal ("blend", "10mg/10mg", "A + B", "A & B", "Tesa/Ipa").
+ *     Slashes count only when unspaced: " / " separates Woo variant
+ *     attributes ("10mg / Single Peptide");
  *   - no concentration ("5mg/ml" needs a volume to become a total);
  *   - exactly one distinct amount in the place it reads from: variant-level
  *     values first (variant title, Woo variation attributes, Shopify variant
@@ -45,14 +47,15 @@ class Supcomp_Total_Filler {
 
 	const DOSE_FORM_PATTERN = '/\b(?:capsules?|caps|tablets?|tabs|softgels?|gummies|gummy|lozenges?|chews?)\b/i';
 	const PACK_COUNT_PATTERN = '/\b(\d+)\s*-?\s*(?:packs?|pk|vials?|kits?|ct|count|pcs|pieces|bottles?)\b/i';
-	const PACK_WORD_PATTERN  = '/\bpack\s+of\b|\bbulk\b|\bkits?\b|\bcombo\b|\bbundle\b|(?<![a-z0-9\-])[x×]\s*\d/i';
-	const BLEND_PATTERN      = '/\bblend\b|\bstack\b|\d\s*(?:mg|mcg|µg)?\s*\/\s*\d|[a-z0-9)]\s*\+\s*[a-z]{2,}|[a-z]{2,}\s*\/\s*[a-z]{2,}/i';
+	const PACK_WORD_PATTERN  = '/\bpack\s+of\b|\bbulk\b|\bkits?\b|\bcombo\b|\bbundle\b|(?<![a-z0-9\-])[x×]\s*\d|\b(?:two|three|four|five|six|seven|eight|nine|ten|twelve|twenty)[\s\-]*(?:packs?|vials?|kits?|bottles?)\b/i';
+	const BLEND_PATTERN      = '/\bblend\b|\bstack\b|\d\s*(?:mg|mcg|µg)?\/\d|[a-z0-9)]\s*(?:\+|&|\band\b)\s*[a-z]{2,}|[a-z]{2,}\/[a-z]{2,}/i';
 	const CONC_PATTERN       = '/\d\s*(?:mg|mcg|µg|iu)\s*(?:\/|per)\s*ml\b/i';
 
 	/**
 	 * @param array $in {
 	 *     product_title, variant_title, raw_attributes_json: string,
-	 *     ingredient_form: string|null, servings: int|null, has_siblings: bool
+	 *     ingredient_form: string|null, servings: int|null, has_siblings: bool,
+	 *     variant_level_attributes?: bool
 	 * }
 	 * @return array{total: float, unit: string, source: string}|null
 	 */
@@ -60,6 +63,12 @@ class Supcomp_Total_Filler {
 		$product = Supcomp_Normalizer::decode_entities( isset( $in['product_title'] ) ? (string) $in['product_title'] : '' );
 		$variant = Supcomp_Normalizer::decode_entities( isset( $in['variant_title'] ) ? (string) $in['variant_title'] : '' );
 		list( $variant_vals, $product_vals ) = self::split_attributes( isset( $in['raw_attributes_json'] ) ? (string) $in['raw_attributes_json'] : '' );
+		// JSON-API rows are one per variant, so their extras ("dosage": 50,
+		// "dosage_unit": "mg") describe this variant, not the product.
+		if ( ! empty( $in['variant_level_attributes'] ) ) {
+			$variant_vals = array_merge( $variant_vals, $product_vals );
+			$product_vals = array();
+		}
 
 		if ( ! empty( $in['servings'] ) ) {
 			return null;
@@ -171,7 +180,17 @@ class Supcomp_Total_Filler {
 			'ingredient_form'     => $offer->ingredient_form,
 			'servings'            => $offer->servings_per_container !== null ? (int) $offer->servings_per_container : null,
 			'has_siblings'        => self::has_siblings( $offer ),
+			'variant_level_attributes' => self::variant_level_attributes( is_array( $raw_row ) ? $raw_row : array() ),
 		);
+	}
+
+	/**
+	 * Whether a raw row's raw_attributes_json describes the variant itself:
+	 * true for JSON-API handler rows that carry a variant id.
+	 */
+	public static function variant_level_attributes( array $raw_row ) {
+		return isset( $raw_row['source'] ) && $raw_row['source'] === 'json'
+			&& isset( $raw_row['source_variant_id'] ) && (string) $raw_row['source_variant_id'] !== '';
 	}
 
 	private static function fill_offer( $offer ) {

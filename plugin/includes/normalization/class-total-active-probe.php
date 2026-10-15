@@ -268,7 +268,19 @@ class Supcomp_Total_Active_Probe {
 			}
 		}
 
+		// Numbers whose unit sits in a sibling field ("dosage": 50,
+		// "dosage_unit": "mg") — keep them as one "50 mg" value.
+		$paired = Supcomp_Normalizer::numeric_unit_pairs( $node );
+		foreach ( $paired as $key => $text ) {
+			if ( $text !== '' ) {
+				$pairs[] = array( (string) $key, $text );
+			}
+		}
+
 		foreach ( $node as $key => $child ) {
+			if ( is_string( $key ) && isset( $paired[ $key ] ) ) {
+				continue;
+			}
 			$child_label = is_string( $key ) ? $key : $label;
 			if ( is_string( $key ) && isset( $option_names[ $key ] ) ) {
 				$child_label = $option_names[ $key ];
