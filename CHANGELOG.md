@@ -17,6 +17,22 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.45.0] — 2026-10-15
+
+### Added
+- **Review list on the Total Active Diagnostic.** A new section, "Stored total differs from the listing", lists every confirmed offer whose stored Total active / container differs from what the listing's own numbers work out to. Published offers come first, because their cost per unit on the site comes from the stored total. Each row links to the offer editor and shows the stored total, the listing's total with the rule used, and a "Likely cause" hint: a unit slip (stored in g, listing says mg), off by 1000×, a variant that now has its own title (before 1.43.1 Woo variants had none, so a typed total may sit on a sibling), stored half or double, or a pack multiple. A link at the top of the report jumps to it, and the CSV gains a `review_hint` column. Read-only; corrections are made in the offer editor.
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+### Repo
+
+- **`tests/total-active-test.php` now 45 checks**, adding 8 review-hint cases.
+
+---
+
 ## [1.44.1] — 2026-10-15
 
 ### Added

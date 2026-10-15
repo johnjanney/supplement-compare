@@ -257,6 +257,12 @@ class Supcomp_Total_Diagnostic_Screen {
 			) );
 			?>
 		</p>
+		<?php
+		$review_n = count( array_filter( $rows, static function ( $r ) { return $r['fill_status'] === 'wrong'; } ) );
+		if ( $review_n ) :
+			?>
+			<p><strong><a href="#supcomp-review"><?php echo esc_html( sprintf( _n( '%d stored total disagrees with its listing — review it', '%d stored totals disagree with their listings — review them', $review_n, 'supplement-compare' ), $review_n ) ); ?></a></strong></p>
+		<?php endif; ?>
 		<p class="description" style="max-width:60em"><?php esc_html_e( '"Approved" totals were usually produced by the same strength × servings math being tested, so they flatter it. The "Typed in" column is the honest one.', 'supplement-compare' ); ?></p>
 
 		<h2><?php esc_html_e( 'Where the confirmed total appears', 'supplement-compare' ); ?></h2>
@@ -372,6 +378,8 @@ class Supcomp_Total_Diagnostic_Screen {
 			</tbody>
 		</table>
 
+		<?php self::render_review( $rows ); ?>
+
 		<?php
 		$problems = array_values( array_filter( $rows, static function ( $r ) {
 			return $r['current_status'] !== 'ok';
@@ -416,6 +424,120 @@ class Supcomp_Total_Diagnostic_Screen {
 		<?php
 	}
 
+	/**
+	 * Review list (v1.45.0): confirmed offers whose stored total differs from
+	 * what the listing itself works out to. Published offers first — their
+	 * cost per unit is what visitors see. A hint names the likely cause when
+	 * the two numbers are related (half / double / a whole multiple / a unit
+	 * slip). Read-only; fixes are made in the offer editor.
+	 */
+	private static function render_review( array $rows ) {
+		$review = array_values( array_filter( $rows, static function ( $r ) {
+			return $r['fill_status'] === 'wrong';
+		} ) );
+		$rank = array( 'active' => 0, 'paused' => 1, 'needs_review' => 2, 'pending' => 3, 'stale' => 4 );
+		usort( $review, static function ( $a, $b ) use ( $rank ) {
+			$ra = $rank[ $a['visibility'] ] ?? 9;
+			$rb = $rank[ $b['visibility'] ] ?? 9;
+			return $ra === $rb ? $a['offer_id'] <=> $b['offer_id'] : $ra <=> $rb;
+		} );
+		$published = count( array_filter( $review, static function ( $r ) { return $r['visibility'] === 'active'; } ) );
+		?>
+		<h2 id="supcomp-review"><?php echo esc_html( sprintf( __( 'Stored total differs from the listing (%d)', 'supplement-compare' ), count( $review ) ) ); ?></h2>
+		<?php if ( ! $review ) : ?>
+			<p><em><?php esc_html_e( 'Every automatic suggestion matches the stored total. Nothing to review.', 'supplement-compare' ); ?></em></p>
+			<?php
+			return;
+		endif;
+		?>
+		<p class="description" style="max-width:60em">
+			<?php
+			echo esc_html(
+				__( 'The listing\'s own numbers (title, variant, pack count, blend parts) work out to a different total than the one stored.', 'supplement-compare' ) . ' '
+				. sprintf( _n( '%d of these is published, so its cost per unit on the site comes from the stored total.', '%d of these are published, so their cost per unit on the site comes from the stored total.', $published, 'supplement-compare' ), $published ) . ' '
+				. __( 'Open each one, compare with the listing, and correct whichever is wrong — the rule can be wrong too, for example a kit with bonus vials. Saving a corrected total makes it yours.', 'supplement-compare' )
+			);
+			?>
+		</p>
+		<table class="widefat striped">
+			<thead><tr>
+				<th><?php esc_html_e( 'Offer', 'supplement-compare' ); ?></th>
+				<th><?php esc_html_e( 'Status', 'supplement-compare' ); ?></th>
+				<th><?php esc_html_e( 'Merchant', 'supplement-compare' ); ?></th>
+				<th><?php esc_html_e( 'Stored total', 'supplement-compare' ); ?></th>
+				<th><?php esc_html_e( 'Listing works out to', 'supplement-compare' ); ?></th>
+				<th><?php esc_html_e( 'Likely cause', 'supplement-compare' ); ?></th>
+			</tr></thead>
+			<tbody>
+				<?php foreach ( $review as $r ) : ?>
+					<tr>
+						<td>
+							<a href="<?php echo esc_url( self::edit_url( $r ) ); ?>"><?php echo esc_html( Supcomp_Normalizer::decode_entities( $r['product_title'] ) ); ?></a>
+							<?php if ( $r['variant_title'] !== '' ) : ?>
+								<br><span class="description"><?php echo esc_html( Supcomp_Normalizer::decode_entities( $r['variant_title'] ) ); ?></span>
+							<?php endif; ?>
+							<br><span class="description">#<?php echo (int) $r['offer_id']; ?></span>
+						</td>
+						<td><?php echo $r['visibility'] === 'active' ? '<strong>' . esc_html__( 'published', 'supplement-compare' ) . '</strong>' : esc_html( $r['visibility'] ); ?></td>
+						<td><?php echo esc_html( $r['merchant'] ); ?></td>
+						<td><?php echo esc_html( self::num( $r['truth'] ) . ' ' . $r['truth_unit'] ); ?></td>
+						<td>
+							<?php echo esc_html( self::num( $r['fill_total'] ) . ' ' . $r['fill_unit'] ); ?>
+							<br><span class="description"><?php echo esc_html( Supcomp_Total_Filler::source_label( $r['fill_source'] ) ); ?></span>
+						</td>
+						<td><?php echo esc_html( self::review_hint( $r ) ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+		<?php
+	}
+
+	/**
+	 * A short guess at why the stored total and the listing disagree, from
+	 * how the two numbers relate. '' when they aren't obviously related.
+	 */
+	public static function review_hint( array $r ) {
+		$stored_unit = Supcomp_Total_Active_Probe::canonical_unit( $r['truth_unit'] );
+		$fill_unit   = Supcomp_Total_Active_Probe::canonical_unit( $r['fill_unit'] );
+		if ( $stored_unit === null || $fill_unit === null || ! is_numeric( $r['fill_total'] ) || (float) $r['truth'] <= 0 ) {
+			return '';
+		}
+		// Same number, different unit: "10 g" stored for a "10mg" listing.
+		if ( $stored_unit !== $fill_unit && abs( (float) $r['truth'] - (float) $r['fill_total'] ) < 1e-6 ) {
+			return sprintf( __( 'Unit looks wrong: stored in %1$s, listing says %2$s', 'supplement-compare' ), $stored_unit, $fill_unit );
+		}
+		$listing = Supcomp_Total_Active_Probe::convert( (float) $r['fill_total'], $fill_unit, $stored_unit );
+		if ( $listing === null || $listing <= 0 ) {
+			return '';
+		}
+		$ratio = $listing / (float) $r['truth'];
+		$near  = static function ( $x, $target ) {
+			return abs( $x - $target ) <= 0.01 * $target;
+		};
+		if ( $near( $ratio, 1000 ) || $near( $ratio, 0.001 ) ) {
+			return __( 'Off by 1000× — mg / g / mcg mix-up?', 'supplement-compare' );
+		}
+		// Before 1.43.1 Woo variants had no titles, so a total typed for one
+		// variant often sits on a sibling. Say so before guessing at packs.
+		if ( strpos( (string) $r['fill_source'], 'single_variant' ) === 0 ) {
+			return __( 'Variant now has its own title — stored total may belong to a different variant', 'supplement-compare' );
+		}
+		if ( $near( $ratio, 2 ) ) {
+			return __( 'Stored is half the listing — one part of a blend, or one of two vials?', 'supplement-compare' );
+		}
+		if ( $near( $ratio, 0.5 ) ) {
+			return __( 'Stored is double the listing', 'supplement-compare' );
+		}
+		if ( $ratio >= 2.5 && $near( $ratio, round( $ratio ) ) ) {
+			return sprintf( __( 'Listing is %d× the stored total — stored as one vial of a pack?', 'supplement-compare' ), (int) round( $ratio ) );
+		}
+		if ( $ratio <= 0.4 && $near( 1 / $ratio, round( 1 / $ratio ) ) ) {
+			return sprintf( __( 'Stored is %d× the listing — stored for another variant or pack size?', 'supplement-compare' ), (int) round( 1 / $ratio ) );
+		}
+		return '';
+	}
+
 	public static function handle_csv() {
 		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
 			wp_die( esc_html__( 'You do not have permission.', 'supplement-compare' ) );
@@ -434,10 +556,11 @@ class Supcomp_Total_Diagnostic_Screen {
 			'truth', 'truth_unit', 'truth_source', 'has_raw',
 			'auto_strength', 'auto_unit', 'auto_servings', 'current_total', 'current_status', 'strength_is_total',
 			'best_source', 'found_in', 'attribute_key', 'context_says_total', 'snippet',
-			'fill_total', 'fill_unit', 'fill_source', 'fill_status',
+			'fill_total', 'fill_unit', 'fill_source', 'fill_status', 'review_hint',
 		);
 		fputcsv( $out, $columns );
 		foreach ( $data['rows'] as $r ) {
+			$r['review_hint'] = $r['fill_status'] === 'wrong' ? self::review_hint( $r ) : '';
 			$line = array();
 			foreach ( $columns as $c ) {
 				$v = $r[ $c ];
