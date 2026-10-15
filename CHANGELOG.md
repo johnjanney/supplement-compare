@@ -17,6 +17,21 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.43.0] — 2026-10-15
+
+### Added
+- **Single-container Total active auto-fill.** For queue offers (pending / needs review) with a blank total you haven't set or cleared, the plugin now suggests Total active / container = the one amount on the listing. The diagnostic showed most of the catalogue is single vials: strength × servings got 6 of ~2,100 typed-in totals right, while the listing amount matched about half. It fills only when every guard passes: no servings count; not capsules, tablets, softgels or gummies; no multi-container signal ("10 vials", "3-Pack", kit, bulk, "x 10"; "(1 vial)" is still single); no blend ("blend", "10mg/10mg", "A + B", "Name/Name"); no concentration ("5mg/ml"); and exactly one distinct amount. Variant-level values (variant title, WooCommerce variation attributes, Shopify variant options) are read first. The product title is used only when the offer has no sibling at the same merchant, and its title, attributes and URL must agree. Runs automatically on new offers after each import or extractor chunk, and on demand from the Pending Queue. Packs and blends are left blank for now. Approved offers are never touched.
+- **"auto" label for filled totals.** New `normalized_offers.total_active_source` column (schema 16 → 17) records where an automatic total came from (`single_variant`, `single_title`, `single_attribute`). The Pending Queue shows a grey "auto" tag next to the total, with the source on hover. The offer editor shows a note above the Total field. Changing the total in the editor clears the label and makes the value yours (1.42.0 provenance).
+- **"Fill missing totals"** in the Pending Queue: a toolbar button for the whole queue and a bulk action for ticked rows, with a ~20-second budget per click.
+- **Diagnostic: single-container suggestion check.** The Total Active Diagnostic gains a table showing what "Fill missing totals" would suggest for each confirmed offer: your total, a different total, or blank, broken down by source. The CSV gains `fill_total`, `fill_unit`, `fill_source` and `fill_status` columns. Check it before filling the whole queue.
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+---
+
 ## [1.42.2] — 2026-10-15
 
 ### Added
@@ -81,6 +96,8 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 Repository-level changes that ship no new plugin build, so they carry no
 version bump. See `CLAUDE.md` § "Repo-level changes: changelog yes, version
 bump no."
+
+- **`tests/total-filler-test.php` added.** Standalone PHP script (`php tests/total-filler-test.php`, 43 checks) covering the suggestion guards, variant-versus-title precedence, sibling blocking, URL disagreement, and the fill pass's provenance, unit-conversion and queue-only rules.
 
 - **`tests/normalizer-cleanup-test.php` gains 6 molecular-weight checks** (36 total).
 

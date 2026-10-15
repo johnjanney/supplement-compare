@@ -112,11 +112,13 @@ class Supcomp_Pending_Queue_Screen {
 							<option value="defer"><?php esc_html_e( 'Defer (needs review)', 'supplement-compare' ); ?></option>
 							<option value="pause"><?php esc_html_e( 'Pause', 'supplement-compare' ); ?></option>
 							<option value="rematch"><?php esc_html_e( 'Re-run matching', 'supplement-compare' ); ?></option>
+							<option value="fill_totals"><?php esc_html_e( 'Fill missing totals', 'supplement-compare' ); ?></option>
 						</select>
 						<?php submit_button( __( 'Apply', 'supplement-compare' ), '', '', false ); ?>
 					</div>
 					<div class="alignleft actions">
 						<button type="submit" name="rematch_all" value="1" class="button" title="<?php esc_attr_e( 'Runs canonical matching again for every offer in the queue that has no canonical yet. Offers that already have one are left alone.', 'supplement-compare' ); ?>"><?php esc_html_e( 'Re-run matching on all unmatched', 'supplement-compare' ); ?></button>
+						<button type="submit" name="fill_totals_all" value="1" class="button" title="<?php esc_attr_e( 'Suggests Total active / container for queue offers that have none, where the listing is clearly a single container with one amount. Totals you entered or cleared are never touched.', 'supplement-compare' ); ?>"><?php esc_html_e( 'Fill missing totals', 'supplement-compare' ); ?></button>
 					</div>
 				</div>
 
@@ -160,6 +162,13 @@ class Supcomp_Pending_Queue_Screen {
 										$total_active = self::trim_decimal( (float) $r->strength_per_serving * (int) $r->servings_per_container );
 									}
 									echo esc_html( $total_active !== '' ? trim( $total_active . ' ' . $unit ) : '—' );
+									if ( ! empty( $r->total_active_source ) && $r->total_active_per_container !== null ) {
+										printf(
+											' <span class="supcomp-auto-badge" title="%s" style="background:#f0f0f1;color:#50575e;padding:1px 5px;border-radius:3px;font-size:11px">%s</span>',
+											esc_attr( sprintf( __( 'Filled automatically: %s. Check before approving.', 'supplement-compare' ), Supcomp_Total_Filler::source_label( $r->total_active_source ) ) ),
+											esc_html__( 'auto', 'supplement-compare' )
+										);
+									}
 									?>
 								</td>
 								<td>
@@ -331,6 +340,31 @@ class Supcomp_Pending_Queue_Screen {
 			exit;
 		}
 
+		// Fill missing totals (v1.43.0): toolbar button = whole queue, bulk
+		// option = ticked rows. Only blank, non-operator totals are filled.
+		if ( ! empty( $_POST['fill_totals_all'] ) || $bulk === 'fill_totals' ) {
+			if ( empty( $_POST['fill_totals_all'] ) && empty( $ids ) ) {
+				wp_safe_redirect( add_query_arg( 'supcomp_notice', 'noop', $return ) );
+				exit;
+			}
+			$result = Supcomp_Total_Filler::fill( empty( $_POST['fill_totals_all'] ) ? $ids : null );
+			if ( $result['filled'] > 0 ) {
+				do_action( 'supcomp_data_changed', array( 'source' => 'fill_totals', 'count' => $result['filled'] ) );
+			}
+			wp_safe_redirect(
+				add_query_arg(
+					array(
+						'supcomp_notice' => 'filled_totals',
+						'n'              => $result['checked'],
+						'm'              => $result['filled'],
+						'partial'        => $result['complete'] ? 0 : 1,
+					),
+					$return
+				)
+			);
+			exit;
+		}
+
 		$map = array(
 			'approve' => 'active',
 			'reject'  => 'rejected',
@@ -435,6 +469,7 @@ class Supcomp_Pending_Queue_Screen {
 			'bulk_pause'    => array( 'success', sprintf( __( 'Paused %d offers.', 'supplement-compare' ), $n ) ),
 			'bulk_defer'    => array( 'success', sprintf( __( 'Deferred %d offers.', 'supplement-compare' ), $n ) ),
 			'rematched'     => array( 'success', sprintf( __( 'Re-ran matching on %1$d unmatched offers; %2$d now have a suggested canonical. Offers that already had a canonical were skipped.', 'supplement-compare' ), $n, $m ) . ( $partial ? ' ' . __( 'Stopped early to avoid a timeout — click "Re-run matching on all unmatched" again to continue.', 'supplement-compare' ) : '' ) ),
+			'filled_totals' => array( 'success', sprintf( __( 'Checked %1$d queue offers with no total; filled %2$d as single containers. Each is marked "auto" — check it before approving.', 'supplement-compare' ), $n, $m ) . ( $partial ? ' ' . __( 'Stopped early to avoid a timeout — click "Fill missing totals" again to continue.', 'supplement-compare' ) : '' ) ),
 			'noop'          => array( 'warning', __( 'No bulk action / no rows selected.', 'supplement-compare' ) ),
 			'error'         => array( 'error',   __( 'Something went wrong.', 'supplement-compare' ) ),
 		);

@@ -214,6 +214,11 @@ class Supcomp_Offers_Repo {
 			if ( $owned !== self::operator_fields( $before ) ) {
 				$clean['operator_fields_json'] = wp_json_encode( $owned );
 			}
+			// An auto-filled total the operator changes is theirs now; drop
+			// the "filled automatically" label (v1.43.0).
+			if ( in_array( 'total_active_per_container', self::changed_fields( $before, $clean ), true ) ) {
+				$clean['total_active_source'] = null;
+			}
 		}
 
 		$clean['updated_at'] = current_time( 'mysql', true );

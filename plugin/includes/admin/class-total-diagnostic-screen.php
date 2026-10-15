@@ -153,9 +153,31 @@ class Supcomp_Total_Diagnostic_Screen {
 			)
 		);
 
+		// What the single-container filler (v1.43.0) would suggest for this
+		// offer if it arrived fresh, scored against the confirmed total.
+		$fill = Supcomp_Total_Filler::suggest(
+			array(
+				'product_title'       => isset( $raw_row['product_title'] ) ? (string) $raw_row['product_title'] : '',
+				'variant_title'       => isset( $raw_row['variant_title'] ) ? (string) $raw_row['variant_title'] : '',
+				'raw_attributes_json' => isset( $raw_row['raw_attributes_json'] ) ? (string) $raw_row['raw_attributes_json'] : '',
+				'ingredient_form'     => $auto['ingredient_form'],
+				'servings'            => $auto['servings_per_container'],
+				'has_siblings'        => Supcomp_Total_Filler::has_siblings( $offer ),
+			)
+		);
+		$fill_status = 'none';
+		if ( $fill ) {
+			$conv        = Supcomp_Total_Active_Probe::convert( $fill['total'], $fill['unit'], Supcomp_Total_Active_Probe::canonical_unit( $unit ) );
+			$fill_status = ( $conv !== null && abs( $conv - $truth ) <= Supcomp_Total_Active_Probe::TOLERANCE * $truth ) ? 'right' : 'wrong';
+		}
+
 		return array_merge(
 			array(
 				'offer_id'          => (int) $offer->id,
+				'fill_total'        => $fill ? $fill['total'] : null,
+				'fill_unit'         => $fill ? $fill['unit'] : '',
+				'fill_source'       => $fill ? $fill['source'] : '',
+				'fill_status'       => $fill_status,
 				'visibility'        => (string) $offer->visibility_status,
 				'merchant'          => $offer->merchant_name !== null ? (string) $offer->merchant_name : '#' . (int) $offer->merchant_id,
 				'platform'          => (string) ( $offer->merchant_platform ? $offer->merchant_platform : $offer->source_platform ),
@@ -271,6 +293,34 @@ class Supcomp_Total_Diagnostic_Screen {
 			</tbody>
 		</table>
 
+		<?php
+		$fill = array();
+		foreach ( $rows as $r ) {
+			$k          = $r['fill_status'] === 'none' ? 'none' : $r['fill_source'] . '|' . $r['fill_status'];
+			$fill[ $k ] = ( $fill[ $k ] ?? 0 ) + 1;
+		}
+		$fill_right = 0;
+		$fill_wrong = 0;
+		foreach ( $rows as $r ) {
+			$fill_right += $r['fill_status'] === 'right' ? 1 : 0;
+			$fill_wrong += $r['fill_status'] === 'wrong' ? 1 : 0;
+		}
+		?>
+		<h2><?php esc_html_e( 'Single-container suggestion (what "Fill missing totals" would do)', 'supplement-compare' ); ?></h2>
+		<table class="widefat striped" style="max-width:50em">
+			<tbody>
+				<tr><td><?php esc_html_e( 'Would suggest your total', 'supplement-compare' ); ?></td><td><?php echo esc_html( $pct( $fill_right ) ); ?></td></tr>
+				<tr><td><?php esc_html_e( 'Would suggest a different total', 'supplement-compare' ); ?></td><td><?php echo esc_html( $pct( $fill_wrong ) ); ?></td></tr>
+				<tr><td><?php esc_html_e( 'Would leave it blank', 'supplement-compare' ); ?></td><td><?php echo esc_html( $pct( $fill['none'] ?? 0 ) ); ?></td></tr>
+				<?php foreach ( array( Supcomp_Total_Filler::SOURCE_VARIANT, Supcomp_Total_Filler::SOURCE_TITLE, Supcomp_Total_Filler::SOURCE_ATTRIBUTE ) as $src ) : ?>
+					<tr>
+						<td style="padding-left:2em"><?php echo esc_html( ucfirst( Supcomp_Total_Filler::source_label( $src ) ) ); ?></td>
+						<td><?php echo esc_html( sprintf( __( '%1$d right, %2$d different', 'supplement-compare' ), $fill[ $src . '|right' ] ?? 0, $fill[ $src . '|wrong' ] ?? 0 ) ); ?></td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+
 		<?php if ( $attr_key ) : ?>
 			<h2><?php esc_html_e( 'Attribute names holding the total', 'supplement-compare' ); ?></h2>
 			<table class="widefat striped" style="max-width:50em">
@@ -375,6 +425,7 @@ class Supcomp_Total_Diagnostic_Screen {
 			'truth', 'truth_unit', 'truth_source', 'has_raw',
 			'auto_strength', 'auto_unit', 'auto_servings', 'current_total', 'current_status', 'strength_is_total',
 			'best_source', 'found_in', 'attribute_key', 'context_says_total', 'snippet',
+			'fill_total', 'fill_unit', 'fill_source', 'fill_status',
 		);
 		fputcsv( $out, $columns );
 		foreach ( $data['rows'] as $r ) {

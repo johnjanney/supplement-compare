@@ -150,6 +150,11 @@ class Supcomp_Offer_Form {
 											<option value="<?php echo esc_attr( $u ); ?>" <?php selected( $offer->strength_unit, $u ); ?>><?php echo esc_html( $u ); ?></option>
 										<?php endforeach; ?>
 									</select>
+									<?php if ( ! empty( $offer->total_active_source ) && $offer->total_active_per_container !== null ) : ?>
+										<p style="margin:.3em 0;padding:.3em .6em;background:#f0f6fc;border-left:3px solid #72aee6">
+											<?php echo esc_html( sprintf( __( 'Filled automatically (%s). Check it against the listing before approving; changing it makes it yours.', 'supplement-compare' ), Supcomp_Total_Filler::source_label( $offer->total_active_source ) ) ); ?>
+										</p>
+									<?php endif; ?>
 									<p class="description"><?php esc_html_e( 'Primary input. Authoritative when entered — the comparison table shows this value (with standardization applied) even when Servings / container is blank. Active mass / serving is derived from Total ÷ Servings when both are filled.', 'supplement-compare' ); ?></p>
 								</td>
 							</tr>
