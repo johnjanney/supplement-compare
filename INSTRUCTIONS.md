@@ -1038,6 +1038,20 @@ title, attribute). The CSV has matching `fill_total`, `fill_unit`,
 `fill_source` and `fill_status` columns. Check the "different total" count
 here before filling the whole queue.
 
+**Stored total differs from the listing (v1.45.0+).** Every confirmed offer
+whose stored total disagrees with what its listing works out to, published
+offers first (their stored total is what visitors' cost per unit uses). The
+link at the top of the report jumps here.
+- Each row links to the offer editor and shows the stored total, the listing's
+  total with the rule used, and a **Likely cause** hint.
+- Common causes: a unit slip ("stored in g, listing says mg"); a WooCommerce
+  variant whose total was typed before variants had titles (pre-1.43.1), so it
+  may belong to a sibling; a pack stored as one vial ("Listing is 10× the
+  stored total"); one part of a blend ("Stored is half the listing").
+- Check the listing before changing anything. The rule can be wrong too (a kit
+  with bonus vials, say); if the stored total is right, leave it.
+- Re-run the diagnostic after a batch of fixes. Corrected offers drop off.
+
 **Limits.** Up to 5,000 offers and about 20 seconds per run. A partial run
 says so on screen, and the CSV ends with a `# partial run` line.
 

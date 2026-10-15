@@ -21,6 +21,9 @@ function current_time( $type, $gmt = 0 ) {
 function get_option( $k, $default = false ) {
 	return isset( $GLOBALS['options'][ $k ] ) ? $GLOBALS['options'][ $k ] : $default;
 }
+function __( $s, $d = null ) {
+	return $s;
+}
 function update_option( $k, $v ) {
 	$GLOBALS['options'][ $k ] = $v;
 	return true;
@@ -49,6 +52,8 @@ foreach ( array( 'strength', 'count', 'form', 'standardization' ) as $rule ) {
 }
 require $inc . 'normalization/class-normalizer.php';
 require $inc . 'normalization/class-total-active-probe.php';
+require $inc . 'normalization/class-total-filler.php';
+require $inc . 'admin/class-total-diagnostic-screen.php';
 
 // ---------- Tiny assertion helper ----------
 
@@ -211,6 +216,20 @@ check( 'nothing anywhere → not_found', 'not_found', $r['best_source'] );
 
 $r = Supcomp_Total_Active_Probe::probe( array_merge( $base, array( 'truth' => 0 ) ) );
 check( 'no truth → inert', 'not_found', $r['best_source'] );
+
+// ---------- 5. Review hints (v1.45.0) ----------
+
+$h = static function ( $truth, $tu, $fill, $fu, $src ) {
+	return Supcomp_Total_Diagnostic_Screen::review_hint( array( 'truth' => $truth, 'truth_unit' => $tu, 'fill_total' => $fill, 'fill_unit' => $fu, 'fill_source' => $src ) );
+};
+check( 'unit slip', 'Unit looks wrong: stored in g, listing says mg', $h( '10', 'g', '10', 'mg', 'single_variant' ) );
+check( '1000x', 'Off by 1000× — mg / g / mcg mix-up?', $h( '50', 'mg', '50000', 'mg', 'single_title' ) );
+check( 'variant first', 'Variant now has its own title — stored total may belong to a different variant', $h( '10', 'mg', '30', 'mg', 'single_variant' ) );
+check( 'half', 'Stored is half the listing — one part of a blend, or one of two vials?', $h( '10', 'mg', '20', 'mg', 'blend_sum' ) );
+check( 'double', 'Stored is double the listing', $h( '100', 'mg', '50', 'mg', 'pack_stated' ) );
+check( 'pack multiple', 'Listing is 10× the stored total — stored as one vial of a pack?', $h( '73', 'mg', '730', 'mg', 'blend_stated_pack' ) );
+check( 'stored multiple', 'Stored is 10× the listing — stored for another variant or pack size?', $h( '100', 'mg', '10', 'mg', 'single_title' ) );
+check( 'unrelated', '', $h( '120', 'mg', '100', 'mg', 'pack_count' ) );
 
 echo "\n{$passes} passed, {$failures} failed\n";
 exit( $failures ? 1 : 0 );
