@@ -209,6 +209,7 @@ match_confidence            DECIMAL(3,2) NULL        0.00–1.00; see section 3.
 variation_retrieval_status  ENUM('not_applicable','retrieved','failed','fallback_parent_only')
 operator_notes              TEXT
 operator_fields_json        TEXT NULL                JSON array of dose/composition fields the operator set by hand (v1.42.0, Q-020)
+total_active_source         VARCHAR(32) NULL         set when the plugin auto-filled total_active_per_container (single_variant / single_title / single_attribute); cleared when the operator changes the total (v1.43.0)
 last_seen_import_run_id     BIGINT, FK → import_runs
 first_seen_at               DATETIME
 last_synced_at              DATETIME

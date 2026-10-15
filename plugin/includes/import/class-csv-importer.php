@@ -146,6 +146,7 @@ class Supcomp_CSV_Importer {
 		$suppressed      = 0;
 		$errored         = 0;
 		$merchant_ids    = array();
+		$new_ids         = array();
 		$suppress_cache  = array(); // merchant_id => set of "pid|vid", lazy-loaded
 
 		$now = current_time( 'mysql', true );
@@ -201,6 +202,7 @@ class Supcomp_CSV_Importer {
 					$new_id = Supcomp_Offers_Repo::insert_from_csv( $merchant_id, $row, $run_id, $now );
 					self::normalize_and_match( $new_id, $row );
 					self::run_derivations_for( $new_id );
+					$new_ids[] = $new_id;
 					++$inserted;
 				}
 			} catch ( Exception $e ) {
@@ -210,6 +212,13 @@ class Supcomp_CSV_Importer {
 				++$errored;
 				$row_errors[ $row_num ] = $e->getMessage();
 			}
+		}
+
+		// Single-container total suggestions (v1.43.0) run once the whole
+		// chunk is in, not row by row: a product's variants arrive together,
+		// and the filler must see all of them to know a title is shared.
+		if ( $new_ids && class_exists( 'Supcomp_Total_Filler' ) ) {
+			Supcomp_Total_Filler::fill( $new_ids );
 		}
 
 		return array(

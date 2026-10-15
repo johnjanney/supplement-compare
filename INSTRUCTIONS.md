@@ -898,6 +898,30 @@ filled in are never overwritten. On a very large queue a pass stops after
 about 20 seconds to avoid a timeout; the notice says so, and clicking the
 button again continues.
 
+### Automatic totals for single containers (v1.43.0+)
+
+For offers in the queue whose Total active / container is blank, and which you
+haven't set or cleared yourself, the plugin suggests a total when the listing is
+clearly a single container with one amount: for example, a "10mg" vial becomes
+10 mg total. This happens automatically for new offers after each import or
+extractor run. Nothing is published until you approve it.
+
+An automatic total shows a grey **auto** tag in the Pending Queue (hover to see
+where it came from). The offer editor shows a note above the Total field. Check
+the total against the listing before approving. If you change it, the label
+goes away and the value becomes yours.
+
+- **Fill missing totals** (toolbar button for the whole queue, or bulk action
+  for ticked rows) runs the same suggestion on offers already in the queue.
+  Each click has about 20 seconds; the notice tells you if you need to click
+  again.
+- Left blank on purpose: packs and kits ("10 vials", "3-Pack"), blends,
+  concentrations ("5mg/ml"), capsules / tablets / softgels / gummies, anything
+  with a servings count, and variants that share a title with siblings when
+  the variant's own amount isn't in the merchant data. Packs and blends are
+  coming in later releases.
+- Approved offers, and totals you entered or cleared, are never touched.
+
 ## 9a. Learned mappings
 
 **WP Admin → Supplement Compare → Learned Mappings.** Every mapping the
@@ -973,6 +997,13 @@ billion CFU only match themselves, and "12,000 mg" style commas are handled.
 - **Offers where the automatic total is wrong or missing**: the first 100,
   each linked to its offer editor, with a snippet of where the total was
   found. The CSV has all of them.
+
+**Single-container suggestion (v1.43.0+).** This table shows what **Fill
+missing totals** would suggest for each confirmed offer: your total, a
+different total, or blank, split by where the amount was read (variant, product
+title, attribute). The CSV has matching `fill_total`, `fill_unit`,
+`fill_source` and `fill_status` columns. Check the "different total" count
+here before filling the whole queue.
 
 **Limits.** Up to 5,000 offers and about 20 seconds per run. A partial run
 says so on screen, and the CSV ends with a `# partial run` line.

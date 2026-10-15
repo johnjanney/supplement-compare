@@ -94,6 +94,7 @@ class Supcomp_Plugin {
 		require_once $inc . 'normalization/class-offer-derivations.php';
 		require_once $inc . 'normalization/class-rematcher.php';
 		require_once $inc . 'normalization/class-total-active-probe.php';
+		require_once $inc . 'normalization/class-total-filler.php';
 
 		// Canonical created / edited / re-statused / CSV-imported → offers
 		// waiting with no canonical get another matching pass.
