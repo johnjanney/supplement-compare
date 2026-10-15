@@ -135,20 +135,41 @@ class Supcomp_Normalizer {
 		if ( ! is_array( $node ) ) {
 			return '';
 		}
-		if ( isset( $node['value'] ) && is_numeric( $node['value'] ) ) {
-			$unit = isset( $node['unitText'] ) && is_string( $node['unitText'] ) ? $node['unitText'] : '';
-			if ( $unit !== '' ) {
-				return $node['value'] . ' ' . $unit;
-			}
-		}
-		$parts = array();
+		$paired = self::numeric_unit_pairs( $node );
+		$parts  = array_values( $paired );
 		foreach ( $node as $key => $v ) {
-			if ( is_string( $key ) && in_array( strtolower( $key ), self::FLATTEN_SKIP_KEYS, true ) ) {
+			if ( is_string( $key ) && ( in_array( strtolower( $key ), self::FLATTEN_SKIP_KEYS, true ) || isset( $paired[ $key ] ) ) ) {
 				continue;
 			}
 			$parts[] = self::flatten_for_search( $v, $depth + 1 );
 		}
 		return implode( ' | ', array_filter( $parts, 'strlen' ) );
+	}
+
+	/**
+	 * Numbers that carry their unit in a sibling field, joined into one
+	 * "N unit" string: {"value": 10, "unitText": "mg"} (schema.org) and
+	 * {"dosage": 50, "dosage_unit": "mg"} (JSON-API stores). Keyed by every
+	 * key consumed, so callers can skip them.
+	 *
+	 * @return array<string, string> key => "N unit" (the unit key maps to '')
+	 */
+	public static function numeric_unit_pairs( array $node ) {
+		$out = array();
+		foreach ( $node as $key => $v ) {
+			if ( ! is_string( $key ) || ! is_numeric( $v ) ) {
+				continue;
+			}
+			$candidates = $key === 'value' ? array( 'unitText', 'unitCode' ) : array( $key . '_unit', $key . 'Unit', $key . '_units' );
+			foreach ( $candidates as $uk ) {
+				if ( isset( $node[ $uk ] ) && is_string( $node[ $uk ] ) && $node[ $uk ] !== '' ) {
+					$out[ $key ] = $v . ' ' . $node[ $uk ];
+					$out[ $uk ]  = '';
+					break;
+				}
+			}
+		}
+		return $out;
 	}
 
 	/**

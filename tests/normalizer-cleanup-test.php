@@ -131,6 +131,9 @@ check( 'numeric ids do not fuse with a unit', null, $n['strength_per_serving'] )
 $n = norm( 'Example Peptide', array( 'additionalProperty' => array( array( 'name' => 'Strength', 'value' => 10, 'unitText' => 'mg' ) ) ) );
 check( 'value + unitText pair kept', array( 10.0, 'mg' ), array( $n['strength_per_serving'], $n['strength_unit'] ) );
 
+$n = norm( 'Example Peptide', array( 'form' => 'injectable', 'dosage' => 50, 'dosage_unit' => 'mg' ) );
+check( 'dosage + dosage_unit pair kept', array( 50.0, 'mg' ), array( $n['strength_per_serving'], $n['strength_unit'] ) );
+
 $n = norm( 'Example Peptide', array( 'attributes' => array( array( 'name' => 'Size', 'terms' => array( array( 'name' => '20 MG' ) ) ) ) ) );
 check( 'string attribute values still read', array( 20.0, 'mg' ), array( $n['strength_per_serving'], $n['strength_unit'] ) );
 

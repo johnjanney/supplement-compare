@@ -163,6 +163,7 @@ class Supcomp_Total_Diagnostic_Screen {
 				'ingredient_form'     => $auto['ingredient_form'],
 				'servings'            => $auto['servings_per_container'],
 				'has_siblings'        => Supcomp_Total_Filler::has_siblings( $offer ),
+				'variant_level_attributes' => Supcomp_Total_Filler::variant_level_attributes( $raw_row ),
 			)
 		);
 		$fill_status = 'none';

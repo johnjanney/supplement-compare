@@ -327,6 +327,8 @@ class Supcomp_Extractor_Woo {
 				: ( isset( $parent['short_description'] ) ? (string) $parent['short_description'] : '' )
 		);
 
+		$parent_variations = self::parent_variation_map( $parent );
+
 		$offers = array();
 		foreach ( $variations as $v ) {
 			$v_prices     = ( isset( $v['prices'] ) && is_array( $v['prices'] ) ) ? $v['prices'] : array();
@@ -336,13 +338,27 @@ class Supcomp_Extractor_Woo {
 			$sale_raw     = isset( $v_prices['sale_price'] )    ? (string) $v_prices['sale_price']    : '';
 			$current_raw  = isset( $v_prices['price'] )         ? (string) $v_prices['price']         : '';
 
-			$v_attrs        = isset( $v['attributes'] ) && is_array( $v['attributes'] ) ? $v['attributes'] : array();
-			$variant_title  = self::variant_title_from_attrs( $v_attrs );
+			// Each entry: name, value (the slug Woo's URL params expect) and
+			// label (the term name a shopper sees, e.g. "30mg Kit (300mg)").
+			$v_attrs       = self::resolve_variation_attrs( $parent, $v, $parent_variations );
+			$variant_title = self::variant_title_from_attrs(
+				array_map(
+					static function ( $a ) {
+						return array( 'name' => $a['name'], 'value' => $a['label'] );
+					},
+					$v_attrs
+				)
+			);
 
 			$variant_raw                          = $raw_base;
-			$variant_raw['variation_attributes']  = $v_attrs;
+			$variant_raw['variation_attributes']  = array_map(
+				static function ( $a ) {
+					return array( 'name' => $a['name'], 'value' => $a['label'], 'slug' => $a['value'] );
+				},
+				$v_attrs
+			);
 
-			$variant_url = self::variation_url( $permalink, $parent, $v );
+			$variant_url = self::variation_url( $permalink, $parent, array( 'attributes' => $v_attrs ) );
 
 			$offer = new Supcomp_Extractor_Offer();
 			$offer->export_run_id              = $run_id;
@@ -412,6 +428,110 @@ class Supcomp_Extractor_Woo {
 			}
 		}
 		return $body;
+	}
+
+	/**
+	 * Variation id → its attribute selections, from the parent product's
+	 * `variations` list ([{id, attributes: [{name, value}]}]). The Store API
+	 * returns variation objects with an EMPTY `attributes` array, so this
+	 * list (or the variation's `variation` string) is the only place a
+	 * variant says which option it is. Before v1.43.1 every Woo variant was
+	 * imported with a blank variant title and no variant URL.
+	 *
+	 * @return array<string, array<int, array{name: string, value: string}>>
+	 */
+	private static function parent_variation_map( $parent ) {
+		$map = array();
+		$list = isset( $parent['variations'] ) && is_array( $parent['variations'] ) ? $parent['variations'] : array();
+		foreach ( $list as $pv ) {
+			if ( ! is_array( $pv ) || ! isset( $pv['id'] ) || empty( $pv['attributes'] ) || ! is_array( $pv['attributes'] ) ) {
+				continue;
+			}
+			$attrs = array();
+			foreach ( $pv['attributes'] as $a ) {
+				if ( is_array( $a ) && isset( $a['name'], $a['value'] ) && (string) $a['value'] !== '' ) {
+					$attrs[] = array( 'name' => (string) $a['name'], 'value' => (string) $a['value'] );
+				}
+			}
+			if ( $attrs ) {
+				$map[ (string) $pv['id'] ] = $attrs;
+			}
+		}
+		return $map;
+	}
+
+	/**
+	 * A variation's selections as [{name, value (slug), label (term name)}].
+	 * Sources, in order: the parent's `variations` map; the variation's own
+	 * `variation` string ("Size: 10MG, Form: Vial"), split on the parent's
+	 * attribute names; the variation's `attributes` array (legacy endpoint).
+	 *
+	 * @return array<int, array{name: string, value: string, label: string}>
+	 */
+	private static function resolve_variation_attrs( $parent, $v, array $parent_variations ) {
+		$terms = array(); // lower(attr name) => [ slug => name ]
+		$names = array();
+		foreach ( ( isset( $parent['attributes'] ) && is_array( $parent['attributes'] ) ? $parent['attributes'] : array() ) as $pa ) {
+			if ( ! is_array( $pa ) || ! isset( $pa['name'] ) ) {
+				continue;
+			}
+			$names[] = (string) $pa['name'];
+			$key     = strtolower( (string) $pa['name'] );
+			foreach ( ( isset( $pa['terms'] ) && is_array( $pa['terms'] ) ? $pa['terms'] : array() ) as $t ) {
+				if ( is_array( $t ) && isset( $t['slug'], $t['name'] ) ) {
+					$terms[ $key ][ (string) $t['slug'] ] = (string) $t['name'];
+				}
+			}
+		}
+		$label_for = static function ( $name, $value ) use ( $terms ) {
+			$key   = strtolower( $name );
+			$label = isset( $terms[ $key ][ $value ] ) ? $terms[ $key ][ $value ] : $value;
+			// An attribute named for its unit ("MG" with options "5", "50"):
+			// carry the unit into the label so the variant reads "5 MG".
+			if ( is_numeric( $label ) && preg_match( '/^(?:mg|mcg|g|iu|ml)$/i', trim( $name ) ) ) {
+				$label .= ' ' . trim( $name );
+			}
+			return $label;
+		};
+		$slug_for = static function ( $name, $label ) use ( $terms ) {
+			$key = strtolower( $name );
+			if ( isset( $terms[ $key ] ) ) {
+				$slug = array_search( $label, $terms[ $key ], true );
+				if ( $slug !== false ) {
+					return (string) $slug;
+				}
+			}
+			return $label;
+		};
+
+		$id    = isset( $v['id'] ) ? (string) $v['id'] : '';
+		$pairs = array();
+		if ( $id !== '' && isset( $parent_variations[ $id ] ) ) {
+			foreach ( $parent_variations[ $id ] as $a ) {
+				$pairs[] = array( 'name' => $a['name'], 'value' => $a['value'], 'label' => $label_for( $a['name'], $a['value'] ) );
+			}
+			return $pairs;
+		}
+
+		$text = isset( $v['variation'] ) && is_string( $v['variation'] ) ? trim( $v['variation'] ) : '';
+		if ( $text !== '' && $names ) {
+			$alt = implode( '|', array_map( static function ( $n ) { return preg_quote( $n, '/' ); }, $names ) );
+			if ( preg_match_all( '/(?:^|,\s*)(' . $alt . '):\s*(.*?)(?=,\s*(?:' . $alt . '):|$)/u', $text, $m, PREG_SET_ORDER ) ) {
+				foreach ( $m as $hit ) {
+					$slug    = $slug_for( $hit[1], trim( $hit[2] ) );
+					$pairs[] = array( 'name' => $hit[1], 'value' => $slug, 'label' => $label_for( $hit[1], $slug ) );
+				}
+				return $pairs;
+			}
+		}
+
+		foreach ( ( isset( $v['attributes'] ) && is_array( $v['attributes'] ) ? $v['attributes'] : array() ) as $a ) {
+			if ( is_array( $a ) && isset( $a['value'] ) && (string) $a['value'] !== '' ) {
+				$name    = (string) ( $a['name'] ?? '' );
+				$pairs[] = array( 'name' => $name, 'value' => (string) $a['value'], 'label' => $label_for( $name, (string) $a['value'] ) );
+			}
+		}
+		return $pairs;
 	}
 
 	private static function variant_title_from_attrs( array $v_attrs ) {

@@ -17,6 +17,24 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.43.1] — 2026-10-15
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **WooCommerce variants are now imported with their own identity.** The Store API returns variation objects with an empty `attributes` array, and the extractor only read that. So every Woo variant was stored with a blank variant title, empty `variation_attributes` and no variant-specific URL, and all variants of a product (10MG / 20MG / 30MG) looked the same apart from price. The extractor now reads each variant's selections from the parent product's `variations` list, mapping slugs to the shopper-facing term names. It falls back to the variation's `variation` string ("Size: 10MG, Form: Vial"), then to the old `attributes` array (legacy endpoint). Variant titles are filled ("10mg Kit (100mg)"; an attribute named "MG" with option "5" reads "5 MG"), raw `variation_attributes` hold `{name, value, slug}`, and each variant gets its own URL (shown as Variant URL in the offer editor). The Buy button still sends visitors to the product page, as before. Existing offers pick this up on their next extractor run. Strength and servings normalized at first import don't change, but queue offers with a blank total can then be filled with "Fill missing totals". Approved offers start showing their variant title in the public JSON.
+- **Numbers with a separate unit field are kept again.** 1.42.1 started dropping bare numeric values, which lost strengths that JSON-API stores send as `{"dosage": 50, "dosage_unit": "mg"}`. A number with a sibling `<key>_unit` / `<key>Unit` field, or a schema.org `value` with `unitText` / `unitCode`, now reads as one "50 mg" amount. For JSON-API rows with a variant id, these values count as variant-level data for the single-container fill.
+- **Single-container fill guards.** "A & B" and "A and B" between names now count as a blend (one diagnostic offer, "5mg & 5mg", was filled as 5 instead of 10). Word-number packs ("Ten Pack", "three vials") count as packs. A slash counts as a blend only when unspaced ("Tesa/Ipa", "5/5MG"), so the " / " separating Woo variant attributes ("10mg / Single Peptide") no longer blocks a fill.
+### Security
+
+### Repo
+
+- **`tests/woo-variations-test.php` added** (`php tests/woo-variations-test.php`, 9 checks): parent `variations` map, slug-to-name labels, variant URLs, unit-named attributes, the `variation`-string fallback (including several attributes) and the legacy `attributes` path. `tests/total-filler-test.php` is now 49 checks and `tests/normalizer-cleanup-test.php` 37. `tests/total-active-test.php` now loads the normalizer, because the probe uses its number-plus-unit pairing.
+
+---
+
 ## [1.43.0] — 2026-10-15
 
 ### Added
