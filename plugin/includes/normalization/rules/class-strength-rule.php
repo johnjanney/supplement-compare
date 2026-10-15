@@ -27,6 +27,17 @@ class Supcomp_Strength_Rule {
 	// as "000 mg" (Q-021).
 	private const NUMBER = '(?<![\d.,])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)';
 
+	// A unit followed by "/mol" ("403.9 g/mol", "g·mol") is a molecular
+	// weight, not an amount. Peptide pages print it in the description, and
+	// it used to land in strength_per_serving as hundreds of grams.
+	private const NOT_MOLAR = '(?!\s*(?:\/|·|per\s)\s*mol)';
+
+	// Labels that put a molecular weight right before the number even when
+	// the unit lacks "/mol" ("Molecular weight: 403.9 g"). Checked only in
+	// the few characters before a match so a nearby real dose isn't dropped.
+	private const MOLAR_LABELS = array( 'molecular weight', 'molecular mass', 'molar mass', 'mol. wt', 'mol wt', 'm.w.', 'mw:', 'mw ' );
+	private const MOLAR_LOOKBACK = 20;
+
 	private const POSITIVE_TERMS = array(
 		'per serving',
 		'per dose',
@@ -90,7 +101,7 @@ class Supcomp_Strength_Rule {
 		}
 
 		$lower = strtolower( $text );
-		$best  = self::best_mass_match( $text, $lower, '/' . self::NUMBER . '\s*(mg|mcg|g|iu)\b/i' );
+		$best  = self::best_mass_match( $text, $lower, '/' . self::NUMBER . '\s*(mg|mcg|g|iu)\b' . self::NOT_MOLAR . '/i' );
 		if ( $best !== null ) {
 			$unit = strtolower( $best['unit'] );
 			return array(
@@ -100,7 +111,7 @@ class Supcomp_Strength_Rule {
 		}
 
 		// "milligrams" / "micrograms" / "grams" — less common but seen on Woo.
-		$best = self::best_mass_match( $text, $lower, '/' . self::NUMBER . '\s*(milligrams?|micrograms?|grams?)\b/i' );
+		$best = self::best_mass_match( $text, $lower, '/' . self::NUMBER . '\s*(milligrams?|micrograms?|grams?)\b' . self::NOT_MOLAR . '/i' );
 		if ( $best !== null ) {
 			$word = strtolower( $best['unit'] );
 			$unit = 'mg';
@@ -143,6 +154,10 @@ class Supcomp_Strength_Rule {
 				continue;
 			}
 
+			if ( self::follows_molar_label( $lower, $offset ) ) {
+				continue;
+			}
+
 			$score = self::score_context( $lower, $offset );
 
 			// Container-total contamination is the primary failure mode this
@@ -167,6 +182,17 @@ class Supcomp_Strength_Rule {
 		}
 
 		return $best;
+	}
+
+	private static function follows_molar_label( $lower, $offset ) {
+		$start  = max( 0, $offset - self::MOLAR_LOOKBACK );
+		$before = substr( $lower, $start, $offset - $start );
+		foreach ( self::MOLAR_LABELS as $label ) {
+			if ( strpos( $before, $label ) !== false ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static function score_context( $lower, $offset ) {

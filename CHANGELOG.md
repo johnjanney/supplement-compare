@@ -17,6 +17,18 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.42.2] — 2026-10-15
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **Molecular weights are no longer read as strengths.** About 20 peptide offers had a parsed strength of hundreds of grams (403.9 g, 751.9 g…). These turned out to be molecular weights from descriptions like "Molecular weight: 403.9 g/mol", not the shipping weights 1.42.1 assumed. The strength rule now ignores an amount whose unit is followed by "/mol", "·mol" or "per mol", or that comes within 20 characters after a label such as "molecular weight", "molar mass" or "MW:". A real dose next to a molecular weight is still read. Offers imported earlier keep their stored strength; fix those in the offer editor.
+### Security
+
+---
+
 ## [1.42.1] — 2026-10-15
 
 ### Added
@@ -69,6 +81,8 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 Repository-level changes that ship no new plugin build, so they carry no
 version bump. See `CLAUDE.md` § "Repo-level changes: changelog yes, version
 bump no."
+
+- **`tests/normalizer-cleanup-test.php` gains 6 molecular-weight checks** (36 total).
 
 - **`tests/normalizer-cleanup-test.php` added.** Standalone PHP script (`php tests/normalizer-cleanup-test.php`, 30 checks) covering entity decoding, the title-key and learned-mapping re-key, date/amount rejection in the count rule, attribute flattening, and comma thousands.
 
