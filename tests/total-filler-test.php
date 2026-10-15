@@ -202,18 +202,38 @@ check(
 
 // ---------- 3. Guards ----------
 
-check( 'N-pack', null, s( 'Example Peptide 30mg 3-Pack' ) );
-check( 'N vials', null, s( 'BULK Example Peptide 5mg (10 VIALS)' ) );
-check( 'singular VIAL pack', null, s( '10 VIAL COMBO PACK: Example Peptide 50mg' ) );
-check( 'x count', null, s( 'Example Peptide 10mg x 10 vials' ) );
+check( 'N-pack', array( 90.0, 'mg', 'pack_count' ), s( 'Example Peptide 30mg 3-Pack' ) );
+check( 'N vials', array( 50.0, 'mg', 'pack_count' ), s( 'BULK Example Peptide 5mg (10 VIALS)' ) );
+check( 'singular VIAL pack', array( 500.0, 'mg', 'pack_count' ), s( '10 VIAL COMBO PACK: Example Peptide 50mg' ) );
+check( 'x count', array( 100.0, 'mg', 'pack_count' ), s( 'Example Peptide 10mg x 10 vials' ) );
 check( 'kit', null, s( 'Example Peptide 10mg Kit' ) );
-check( 'blend word', null, s( 'Example Blend 20mg' ) );
-check( 'A + B', null, s( 'Example-A 10mg + Example-B 10mg' ) );
-check( 'slash amounts', null, s( 'Example-A/Example-B 13/3MG' ) );
-check( 'name/name', null, s( 'Tesa/Ipa 10mg' ) );
-check( 'word-number pack', null, s( 'Example Peptide', array( 'variant_title' => '10mg / Ten Pack', 'has_siblings' => true ) ) );
+check( 'blend with one stated amount', array( 20.0, 'mg', 'blend_stated' ), s( 'Example Blend 20mg' ) );
+check( 'A + B summed', array( 20.0, 'mg', 'blend_sum' ), s( 'Example-A 10mg + Example-B 10mg' ) );
+check( 'name/name slash amounts summed', array( 16.0, 'mg', 'blend_sum' ), s( 'Tesa/Ipa 13/3MG' ) );
+check( 'bare 5/10mg is an options list', null, s( 'Example Peptide 5/10mg' ) );
+check( 'name/name with one amount', array( 10.0, 'mg', 'blend_stated' ), s( 'Tesa/Ipa 10mg' ) );
+check( 'word-number pack', array( 100.0, 'mg', 'pack_count' ), s( 'Example Peptide', array( 'variant_title' => '10mg / Ten Pack', 'has_siblings' => true ) ) );
 check( 'single peptide is not a pack', array( 10.0, 'mg', 'single_variant' ), s( 'Example Peptide', array( 'variant_title' => '10mg / Single Peptide', 'has_siblings' => true ) ) );
-check( 'ampersand blend', null, s( 'Example-A 5mg &#038; Example-B 5mg' ) );
+check( 'ampersand blend', array( 10.0, 'mg', 'blend_sum' ), s( 'Example-A 5mg &#038; Example-B 5mg' ) );
+
+// ---------- 3b. Packs and blends (v1.44.0) ----------
+
+check( 'kit with stated total', array( 100.0, 'mg', 'pack_stated' ), s( 'Example Peptide', array( 'variant_title' => '10mg Kit (100mg)', 'has_siblings' => true ) ) );
+check( 'kit with no count or total', null, s( 'Example-1295 Kit', array( 'variant_title' => '5mg Kit with Extra', 'has_siblings' => true ) ) );
+check( 'code number is not a count', null, s( 'Example-1295 Kit 5mg' ) );
+check( 'count from product, amounts from variant', array( 100.0, 'mg', 'pack_stated' ), s( 'Example 10-Pack Kits 5/10mg', array( 'variant_title' => '10mg Kit (100mg)', 'has_siblings' => true ) ) );
+check( 'pack count with matching stated total', array( 50.0, 'mg', 'pack_stated' ), s( 'Example Peptide 5mg 50mg total (10 vials)' ) );
+check( 'stated blend total', array( 70.0, 'mg', 'blend_stated' ), s( 'Example-A 50mg + Example-B 10mg + Example-C 10mg (Example 70mg)' ) );
+check( 'three-part slash blend', array( 90.0, 'mg', 'blend_sum' ), s( 'Example Blend 70/10/10mg' ) );
+check( '"each" amounts are components', array( 20.0, 'mg', 'blend_stated' ), s( 'Example Blend', array( 'variant_title' => '20MG (10MG Each)', 'has_siblings' => true ) ) );
+check( 'blend pack: parts summed × vials', array( 200.0, 'mg', 'blend_sum_pack' ), s( 'Example-A 10mg+ Example-B 10mg 20mgx10vials Blend' ) );
+check( 'count-first pack', array( 20.0, 'mg', 'pack_count' ), s( 'Example Peptide 2 x 10mg' ) );
+check( 'vial count stored as servings is fine', array( 100.0, 'mg', 'pack_count' ), s( 'Example Peptide 10mg x 10 vials', array( 'servings' => 10 ) ) );
+check( 'real servings count blocks a pack', null, s( 'Example Peptide 10mg 3-Pack', array( 'servings' => 60 ) ) );
+check( 'two different counts', null, s( 'Example Peptide 10mg 3-Pack (10 vials)' ) );
+check( 'mg and IU are not added', null, s( 'Example-A 10mg + Example-B 5 IU' ) );
+check( 'pack with siblings and no variant amount', null, s( 'Example Peptide 10mg 3-Pack', array( 'has_siblings' => true ) ) );
+check( 'pack attributes must not add amounts', null, s( 'Example Peptide 10mg 3-Pack', array( 'raw_attributes_json' => attrs( array( 'attributes' => array( array( 'name' => 'Size', 'terms' => array( array( 'name' => '20mg' ) ) ) ) ) ) ) ) );
 check( 'concentration', null, s( 'Example Solution 5mg/ml' ) );
 check( 'capsules in title', null, s( 'Example Compound 500mg 60 Capsules' ) );
 check( 'servings known', null, s( 'Example Compound 500mg', array( 'servings' => 60 ) ) );
@@ -243,7 +263,7 @@ $wpdb->offers = array(
 	6 => offer( 6, 'Example Other 10mg 3-Pack' ),
 );
 $r = Supcomp_Total_Filler::fill();
-check( 'fill result (offer 1 blocked by same-title sibling 4)', array( 'checked' => 4, 'filled' => 1, 'complete' => true ), $r );
+check( 'fill result (offer 1 blocked by same-title sibling 4)', array( 'checked' => 4, 'filled' => 2, 'complete' => true ), $r );
 check( 'sibling-blocked offer left blank', null, $wpdb->offers[1]->total_active_per_container );
 // Same title at another merchant is not a sibling.
 $wpdb->offers[4]->merchant_id = 2;
@@ -257,7 +277,8 @@ check( 'converted into existing unit', '2000', $wpdb->offers[3]->total_active_pe
 check( 'existing unit kept', 'mcg', $wpdb->offers[3]->strength_unit );
 check( 'approved offer untouched', null, $wpdb->offers[4]->total_active_per_container );
 check( 'existing total untouched', '9', $wpdb->offers[5]->total_active_per_container );
-check( 'pack untouched', null, $wpdb->offers[6]->total_active_per_container );
+check( 'pack filled as count × amount', '30', $wpdb->offers[6]->total_active_per_container );
+check( 'pack source recorded', 'pack_count', $wpdb->offers[6]->total_active_source );
 check( 'empty id list is a no-op', array( 'checked' => 0, 'filled' => 0, 'complete' => true ), Supcomp_Total_Filler::fill( array() ) );
 
 // ---------- 5. Editing an auto total clears its label ----------

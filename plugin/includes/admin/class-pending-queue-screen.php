@@ -118,7 +118,7 @@ class Supcomp_Pending_Queue_Screen {
 					</div>
 					<div class="alignleft actions">
 						<button type="submit" name="rematch_all" value="1" class="button" title="<?php esc_attr_e( 'Runs canonical matching again for every offer in the queue that has no canonical yet. Offers that already have one are left alone.', 'supplement-compare' ); ?>"><?php esc_html_e( 'Re-run matching on all unmatched', 'supplement-compare' ); ?></button>
-						<button type="submit" name="fill_totals_all" value="1" class="button" title="<?php esc_attr_e( 'Suggests Total active / container for queue offers that have none, where the listing is clearly a single container with one amount. Totals you entered or cleared are never touched.', 'supplement-compare' ); ?>"><?php esc_html_e( 'Fill missing totals', 'supplement-compare' ); ?></button>
+						<button type="submit" name="fill_totals_all" value="1" class="button" title="<?php esc_attr_e( 'Suggests Total active / container for queue offers that have none, where the listing clearly states it: one amount in a single container, a pack (amount × vials, or a stated pack total), or a blend (sum of its parts, or a stated blend total). Totals you entered or cleared are never touched.', 'supplement-compare' ); ?>"><?php esc_html_e( 'Fill missing totals', 'supplement-compare' ); ?></button>
 					</div>
 				</div>
 
@@ -469,7 +469,7 @@ class Supcomp_Pending_Queue_Screen {
 			'bulk_pause'    => array( 'success', sprintf( __( 'Paused %d offers.', 'supplement-compare' ), $n ) ),
 			'bulk_defer'    => array( 'success', sprintf( __( 'Deferred %d offers.', 'supplement-compare' ), $n ) ),
 			'rematched'     => array( 'success', sprintf( __( 'Re-ran matching on %1$d unmatched offers; %2$d now have a suggested canonical. Offers that already had a canonical were skipped.', 'supplement-compare' ), $n, $m ) . ( $partial ? ' ' . __( 'Stopped early to avoid a timeout — click "Re-run matching on all unmatched" again to continue.', 'supplement-compare' ) : '' ) ),
-			'filled_totals' => array( 'success', sprintf( __( 'Checked %1$d queue offers with no total; filled %2$d as single containers. Each is marked "auto" — check it before approving.', 'supplement-compare' ), $n, $m ) . ( $partial ? ' ' . __( 'Stopped early to avoid a timeout — click "Fill missing totals" again to continue.', 'supplement-compare' ) : '' ) ),
+			'filled_totals' => array( 'success', sprintf( __( 'Checked %1$d queue offers with no total; filled %2$d. Each is marked "auto" — check it before approving.', 'supplement-compare' ), $n, $m ) . ( $partial ? ' ' . __( 'Stopped early to avoid a timeout — click "Fill missing totals" again to continue.', 'supplement-compare' ) : '' ) ),
 			'noop'          => array( 'warning', __( 'No bulk action / no rows selected.', 'supplement-compare' ) ),
 			'error'         => array( 'error',   __( 'Something went wrong.', 'supplement-compare' ) ),
 		);

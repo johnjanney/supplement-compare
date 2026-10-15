@@ -307,13 +307,21 @@ class Supcomp_Total_Diagnostic_Screen {
 			$fill_wrong += $r['fill_status'] === 'wrong' ? 1 : 0;
 		}
 		?>
-		<h2><?php esc_html_e( 'Single-container suggestion (what "Fill missing totals" would do)', 'supplement-compare' ); ?></h2>
+		<h2><?php esc_html_e( 'Automatic total suggestion (what "Fill missing totals" would do)', 'supplement-compare' ); ?></h2>
 		<table class="widefat striped" style="max-width:50em">
 			<tbody>
 				<tr><td><?php esc_html_e( 'Would suggest your total', 'supplement-compare' ); ?></td><td><?php echo esc_html( $pct( $fill_right ) ); ?></td></tr>
 				<tr><td><?php esc_html_e( 'Would suggest a different total', 'supplement-compare' ); ?></td><td><?php echo esc_html( $pct( $fill_wrong ) ); ?></td></tr>
 				<tr><td><?php esc_html_e( 'Would leave it blank', 'supplement-compare' ); ?></td><td><?php echo esc_html( $pct( $fill['none'] ?? 0 ) ); ?></td></tr>
-				<?php foreach ( array( Supcomp_Total_Filler::SOURCE_VARIANT, Supcomp_Total_Filler::SOURCE_TITLE, Supcomp_Total_Filler::SOURCE_ATTRIBUTE ) as $src ) : ?>
+				<?php
+				$fill_sources = array(
+					Supcomp_Total_Filler::SOURCE_VARIANT, Supcomp_Total_Filler::SOURCE_TITLE, Supcomp_Total_Filler::SOURCE_ATTRIBUTE,
+					Supcomp_Total_Filler::SOURCE_PACK_COUNT, Supcomp_Total_Filler::SOURCE_PACK_STATED,
+					Supcomp_Total_Filler::SOURCE_BLEND_SUM, Supcomp_Total_Filler::SOURCE_BLEND_STATED,
+					Supcomp_Total_Filler::SOURCE_BLEND_SUM . '_pack', Supcomp_Total_Filler::SOURCE_BLEND_STATED . '_pack',
+				);
+				foreach ( $fill_sources as $src ) :
+					?>
 					<tr>
 						<td style="padding-left:2em"><?php echo esc_html( ucfirst( Supcomp_Total_Filler::source_label( $src ) ) ); ?></td>
 						<td><?php echo esc_html( sprintf( __( '%1$d right, %2$d different', 'supplement-compare' ), $fill[ $src . '|right' ] ?? 0, $fill[ $src . '|wrong' ] ?? 0 ) ); ?></td>

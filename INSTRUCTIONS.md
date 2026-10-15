@@ -922,6 +922,20 @@ goes away and the value becomes yours.
   coming in later releases.
 - Approved offers, and totals you entered or cleared, are never touched.
 
+**Packs and blends (v1.44.0+).** The same automatic fill now works out totals
+for multi-vial packs and blends, using only what the listing states. These are
+tagged **auto** too, and the tooltip / editor note says which rule was used.
+- Packs: "Example 30mg 3-Pack" → 90 mg; "5mg (10 vials)" → 50 mg; "10mg x 10"
+  → 100 mg; "10mg Kit (100mg)" → 100 mg (the stated kit total).
+- Blends: "A 10mg + B 10mg" → 20 mg; "Tesa/Ipa 13/3MG" → 16 mg;
+  "A 50mg + B 10mg + C 10mg (70mg)" → 70 mg; "20MG (10MG Each)" → 20 mg.
+- Blend packs multiply the blend total by the vial count.
+- Left blank: a kit, bulk or combo with no count and no stated total; a bare
+  "5/10mg" (usually an options list); two different counts; mg mixed with IU.
+- Check pack and blend totals before approving. If a store means something
+  different by "kit" (e.g. a kit with bonus vials), correct the total in the
+  offer editor, which makes it yours.
+
 **After updating to 1.43.1.** Before 1.43.1, WooCommerce variants were imported
 without knowing which option they were, so their totals usually couldn't be
 filled.

@@ -17,6 +17,24 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.44.0] — 2026-10-15
+
+### Added
+- **Automatic totals for packs.** "Fill missing totals" and the post-import fill now handle multi-vial listings instead of leaving them blank. The count comes from "10 vials", "3-Pack", "pack of 5", "10mg x 10", "2 x 10mg" or "Ten Pack"; numbers that are part of a product code ("CJC-1295 Kit") are not counts. The total is the per-vial amount × the count, or the listing's own stated pack total when it agrees ("10mg Kit (100mg)" → 100 mg). A kit, bulk or combo listing with no count and no stated total stays blank, as do listings with two different counts. The count can come from the product title while the amounts come from the variant ("10-Pack Kits" with a "10mg Kit (100mg)" variant). Same safety as 1.43.0: queue offers with a blank total only, never a total you set or cleared, never approved offers, and every fill is tagged "auto" with its source.
+- **Automatic totals for blends.** A listing with a real blend signal ("blend", "stack", "+", "&", "and", or Name/Name like "Tesa/Ipa") gets the blend's total: the one amount if only one is listed, a stated total that equals the sum of the other parts ("50mg + 10mg + 10mg (70mg)" → 70), or otherwise the sum of the parts. Slash lists share a trailing unit ("13/3MG" → 16, "70/10/10mg" → 90). "(5MG Each)" amounts are per component and not added. Blend packs multiply by the vial count. A bare "5/10mg" is treated as an options list, not a blend, and mg and IU are never added together. Running the code over the latest diagnostic CSV: 297 pack and blend totals matched your typed totals and 16 differed, all where the listing's arithmetic is unambiguous but the stored total isn't (e.g. "10 VIAL COMBO PACK … 10mg" stored as 120), most of them paused offers.
+### Changed
+- The diagnostic's suggestion table is now "Automatic total suggestion" and breaks out the pack and blend sources. The Pending Queue "Fill missing totals" tooltip and result notice cover packs and blends.
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+### Repo
+
+- **`tests/total-filler-test.php` expanded to 67 checks** covering packs, kits with stated totals, product-code numbers, count-from-product with amounts-from-variant, stated blend totals, three-part slash blends, "each" components, blend packs, count-first packs, servings versus vial count, conflicting counts, and mg + IU.
+
+---
+
 ## [1.43.1] — 2026-10-15
 
 ### Added
