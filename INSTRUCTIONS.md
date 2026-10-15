@@ -936,6 +936,15 @@ tagged **auto** too, and the tooltip / editor note says which rule was used.
   different by "kit" (e.g. a kit with bonus vials), correct the total in the
   offer editor, which makes it yours.
 
+**After updating to 1.44.1.** 1.44.0 could double automatic blend totals on
+WooCommerce variants.
+- Queue offers still carrying an automatic blend total are re-filled with
+  the corrected rule on the first admin page load. Nothing to do.
+- If the Pending Queue shows a warning listing approved offers, open each one
+  and correct its Total active / container. Approved offers are never changed
+  automatically.
+- Click **Dismiss — I have checked these** when done.
+
 **After updating to 1.43.1.** Before 1.43.1, WooCommerce variants were imported
 without knowing which option they were, so their totals usually couldn't be
 filled.

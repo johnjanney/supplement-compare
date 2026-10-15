@@ -84,6 +84,15 @@ class Supcomp_Total_Filler {
 			$variant_vals = array_merge( $variant_vals, $product_vals );
 			$product_vals = array();
 		}
+		// A Woo variant title is built from its attribute values, so the same
+		// text arrives twice. Drop values the variant title already contains,
+		// or a blend would add "10mg vial | 10mg vial" up to 20 (v1.44.1).
+		if ( $variant !== '' ) {
+			$variant_vals = array_values( array_filter( $variant_vals, static function ( $v ) use ( $variant ) {
+				$v = trim( (string) $v );
+				return $v !== '' && stripos( $variant, $v ) === false;
+			} ) );
+		}
 
 		if ( isset( $in['ingredient_form'] ) && in_array( (string) $in['ingredient_form'], self::DOSE_FORMS, true ) ) {
 			return null;
@@ -260,6 +269,63 @@ class Supcomp_Total_Filler {
 			return null;
 		}
 		return self::multi_result( $per, $family, $unit, $kind );
+	}
+
+	const BLEND_REPAIR_OPTION  = 'supcomp_blend_total_repair_done';
+	const BLEND_RECHECK_OPTION = 'supcomp_blend_total_recheck_ids';
+
+	/**
+	 * One-time repair after v1.44.1. 1.44.0 double-counted blend amounts on
+	 * WooCommerce variants (the variant title and its attribute values were
+	 * both read). An "auto" label is removed the moment the operator changes
+	 * a total, so any blend total still labelled is the filler's own work:
+	 *
+	 *   - queue offers: the auto blend total is cleared and filled again;
+	 *   - approved offers are never changed; those whose stored auto total no
+	 *     longer matches the corrected suggestion are listed for review
+	 *     (BLEND_RECHECK_OPTION, shown on the Pending Queue).
+	 *
+	 * @return array{refilled:int, recheck:int[]}
+	 */
+	public static function repair_blend_totals_once() {
+		if ( get_option( self::BLEND_REPAIR_OPTION ) ) {
+			return array( 'refilled' => 0, 'recheck' => array() );
+		}
+		global $wpdb;
+		$table = Supcomp_Offers_Repo::table();
+		$rows  = (array) $wpdb->get_results(
+			"SELECT * FROM {$table}
+			 WHERE total_active_source LIKE 'blend%'
+			   AND total_active_per_container IS NOT NULL"
+		);
+		$queue   = array();
+		$recheck = array();
+		foreach ( $rows as $offer ) {
+			if ( in_array( $offer->visibility_status, array( 'pending', 'needs_review' ), true ) ) {
+				$queue[] = (int) $offer->id;
+				continue;
+			}
+			$s = self::suggest( self::inputs_for( $offer ) );
+			$unit = $offer->strength_unit ? Supcomp_Total_Active_Probe::canonical_unit( $offer->strength_unit ) : null;
+			$now  = ( $s && $unit ) ? Supcomp_Total_Active_Probe::convert( $s['total'], $s['unit'], $unit ) : null;
+			if ( $now === null || abs( $now - (float) $offer->total_active_per_container ) > 0.01 * max( $now, 1e-9 ) ) {
+				$recheck[] = (int) $offer->id;
+			}
+		}
+		if ( $queue ) {
+			$wpdb->query(
+				$wpdb->prepare(
+					"UPDATE {$table} SET total_active_per_container = NULL, total_active_source = NULL
+					 WHERE id IN (" . implode( ',', array_fill( 0, count( $queue ), '%d' ) ) . ")
+					   AND total_active_source LIKE 'blend%%'",
+					$queue
+				)
+			);
+			self::fill( $queue );
+		}
+		update_option( self::BLEND_RECHECK_OPTION, $recheck, false );
+		update_option( self::BLEND_REPAIR_OPTION, 1 );
+		return array( 'refilled' => count( $queue ), 'recheck' => $recheck );
 	}
 
 	/**

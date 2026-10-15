@@ -17,6 +17,23 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.44.1] — 2026-10-15
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+- **Automatic blend totals are no longer doubled for WooCommerce variants.** A Woo variant title is built from the variant's attribute values, and 1.44.0's filler read both, so the same text appeared twice ("10mg vial | 10mg vial"). The blend rule then added the amounts: "10mg vial" of a blend became 20 mg, and "10/10mg" became 40 mg. In the latest diagnostic, 23 blend suggestions were exactly double. With the fix, 19 match your stored totals, and the rest are stored-total disagreements. Attribute values already contained in the variant title are now ignored.
+- **One-time repair of totals 1.44.0 filled.** On the first admin page load after updating, queue offers whose total is still an automatic blend total are cleared and filled again with the corrected rule. These were never edited, because the "auto" label is removed as soon as you change a total. Approved offers are never changed. Any approved offer whose automatic blend total no longer matches the corrected suggestion is listed in a warning on the Pending Queue, with links, until you click "Dismiss — I have checked these".
+### Security
+
+### Repo
+
+- **`tests/total-filler-test.php` now 78 checks**, adding the double-count cases and the one-time repair (queue refilled, approved listed and untouched, runs once).
+
+---
+
 ## [1.44.0] — 2026-10-15
 
 ### Added

@@ -19,7 +19,11 @@ function current_time( $type, $gmt = 0 ) {
 	return '2026-01-01 00:00:00';
 }
 function get_option( $k, $default = false ) {
-	return $default;
+	return isset( $GLOBALS['options'][ $k ] ) ? $GLOBALS['options'][ $k ] : $default;
+}
+function update_option( $k, $v, $autoload = null ) {
+	$GLOBALS['options'][ $k ] = $v;
+	return true;
 }
 function absint( $v ) {
 	return abs( (int) $v );
@@ -43,6 +47,14 @@ class Fake_WPDB {
 	}
 	public function get_results( $sql ) {
 		$out = array();
+		if ( strpos( $sql, "total_active_source LIKE 'blend%'" ) !== false ) {
+			foreach ( $this->offers as $o ) {
+				if ( $o->total_active_source !== null && strpos( (string) $o->total_active_source, 'blend' ) === 0 && $o->total_active_per_container !== null ) {
+					$out[] = clone $o;
+				}
+			}
+			return $out;
+		}
 		foreach ( $this->offers as $o ) {
 			if ( in_array( $o->visibility_status, array( 'pending', 'needs_review' ), true ) && $o->total_active_per_container === null
 				&& preg_match( '/id > (\d+)/', $sql, $c ) && $o->id > (int) $c[1]
@@ -77,6 +89,13 @@ class Fake_WPDB {
 		return null;
 	}
 	public function query( $sql ) {
+		if ( preg_match( '/SET total_active_per_container = NULL, total_active_source = NULL\s+WHERE id IN \(([^)]*)\)/', $sql, $m ) ) {
+			foreach ( array_map( 'trim', explode( ',', $m[1] ) ) as $id ) {
+				$this->offers[ (int) $id ]->total_active_per_container = null;
+				$this->offers[ (int) $id ]->total_active_source        = null;
+			}
+			return 1;
+		}
 		if ( ! preg_match( '/SET (.*) WHERE id = (\d+) AND total_active_per_container IS NULL/s', $sql, $m ) ) {
 			return 0;
 		}
@@ -240,6 +259,17 @@ check( 'servings known', null, s( 'Example Compound 500mg', array( 'servings' =>
 check( 'capsule form', null, s( 'Example Compound 500mg', array( 'ingredient_form' => 'capsule' ) ) );
 check( 'no amount', null, s( 'Example Peptide' ) );
 
+// ---------- 3c. Variant title + the attribute values it was built from (v1.44.1) ----------
+
+$wv = static function ( $title, array $vals ) {
+	return attrs( array( 'variation_attributes' => array_map( static function ( $v ) { return array( 'name' => 'Size', 'value' => $v ); }, $vals ) ) );
+};
+check( 'blend variant not double-counted', array( 10.0, 'mg', 'blend_stated' ), s( 'Example-A/Example-B Blend', array( 'variant_title' => '10mg vial', 'raw_attributes_json' => $wv( '10mg vial', array( '10mg vial' ) ), 'has_siblings' => true ) ) );
+check( 'slash blend variant not double-counted', array( 20.0, 'mg', 'blend_sum' ), s( 'Abc/Def', array( 'variant_title' => '10/10mg', 'raw_attributes_json' => $wv( '10/10mg', array( '10/10mg' ) ), 'has_siblings' => true ) ) );
+check( 'multi-attribute variant not double-counted', array( 73.03, 'mg', 'blend_stated' ), s( 'Example Blend', array( 'variant_title' => '73.03mg / Single Peptide', 'raw_attributes_json' => $wv( '', array( '73.03mg', 'Single Peptide' ) ), 'has_siblings' => true ) ) );
+check( 'each-variant not double-counted', array( 20.0, 'mg', 'blend_stated' ), s( 'Example & Other Blend', array( 'variant_title' => '20MG (10MG Each)', 'raw_attributes_json' => $wv( '', array( '20MG (10MG Each)' ) ), 'has_siblings' => true ) ) );
+check( 'attribute value not in the title still read', array( 20.0, 'mg', 'single_attribute' ), s( 'Example Peptide', array( 'variant_title' => 'Option B', 'raw_attributes_json' => $wv( '', array( '20mg' ) ), 'has_siblings' => true ) ) );
+
 // ---------- 4. fill() writes only blank, non-operator queue totals ----------
 
 function offer( $id, $title, $extra = array() ) {
@@ -280,6 +310,24 @@ check( 'existing total untouched', '9', $wpdb->offers[5]->total_active_per_conta
 check( 'pack filled as count × amount', '30', $wpdb->offers[6]->total_active_per_container );
 check( 'pack source recorded', 'pack_count', $wpdb->offers[6]->total_active_source );
 check( 'empty id list is a no-op', array( 'checked' => 0, 'filled' => 0, 'complete' => true ), Supcomp_Total_Filler::fill( array() ) );
+
+// ---------- 4b. One-time repair of 1.44.0's doubled blend totals ----------
+
+$dbl = json_encode( array( 'variation_attributes' => array( array( 'name' => 'Size', 'value' => '10mg vial' ) ) ) );
+$wpdb->offers = array(
+	20 => offer( 20, 'Example-A/Example-B Blend', array( 'variant_title' => '10mg vial', 'source_product_id' => 'b1', 'strength_unit' => 'mg', 'total_active_per_container' => '20', 'total_active_source' => 'blend_sum' ) ),
+	21 => offer( 21, 'Example-A/Example-B Blend', array( 'variant_title' => '10mg vial', 'source_product_id' => 'b1', 'strength_unit' => 'mg', 'total_active_per_container' => '20', 'total_active_source' => 'blend_sum', 'visibility_status' => 'active' ) ),
+	22 => offer( 22, 'Example Other 10mg', array( 'strength_unit' => 'mg', 'total_active_per_container' => '10', 'total_active_source' => 'single_title' ) ),
+);
+$wpdb->raw = array( 20 => $dbl, 21 => $dbl );
+$GLOBALS['options'] = array();
+$r = Supcomp_Total_Filler::repair_blend_totals_once();
+check( 'queue blend refilled', 1, $r['refilled'] );
+check( 'queue blend now correct', '10', $wpdb->offers[20]->total_active_per_container );
+check( 'approved blend listed, not changed', array( 21 ), $r['recheck'] );
+check( 'approved total untouched', '20', $wpdb->offers[21]->total_active_per_container );
+check( 'non-blend auto total untouched', '10', $wpdb->offers[22]->total_active_per_container );
+check( 'repair runs once', array( 'refilled' => 0, 'recheck' => array() ), Supcomp_Total_Filler::repair_blend_totals_once() );
 
 // ---------- 5. Editing an auto total clears its label ----------
 

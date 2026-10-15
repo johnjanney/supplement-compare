@@ -27,6 +27,7 @@ class Supcomp_Pending_Queue_Screen {
 	public static function register_hooks() {
 		add_action( 'admin_post_supcomp_offer_row_action', array( __CLASS__, 'handle_row_action' ) );
 		add_action( 'admin_post_supcomp_offer_bulk_action', array( __CLASS__, 'handle_bulk_action' ) );
+		add_action( 'admin_post_supcomp_dismiss_blend_recheck', array( __CLASS__, 'handle_dismiss_blend_recheck' ) );
 	}
 
 	public static function render() {
@@ -61,6 +62,7 @@ class Supcomp_Pending_Queue_Screen {
 			<hr class="wp-header-end">
 
 			<?php self::render_notice(); ?>
+			<?php self::render_blend_recheck(); ?>
 
 			<form method="get">
 				<input type="hidden" name="page" value="<?php echo esc_attr( self::PAGE_SLUG ); ?>">
@@ -304,6 +306,49 @@ class Supcomp_Pending_Queue_Screen {
 			}
 		}
 		wp_safe_redirect( add_query_arg( 'supcomp_notice', $notice, $return ) );
+		exit;
+	}
+
+	/**
+	 * Approved offers whose automatic blend total 1.44.0 may have doubled
+	 * (Supcomp_Total_Filler::repair_blend_totals_once()). Listed until the
+	 * operator dismisses it; nothing is changed automatically.
+	 */
+	private static function render_blend_recheck() {
+		$ids = get_option( Supcomp_Total_Filler::BLEND_RECHECK_OPTION, array() );
+		if ( ! is_array( $ids ) || empty( $ids ) ) {
+			return;
+		}
+		$links = array();
+		foreach ( $ids as $id ) {
+			$links[] = sprintf(
+				'<a href="%s">#%d</a>',
+				esc_url( add_query_arg( array( 'page' => 'supcomp-active', 'action' => 'edit', 'id' => (int) $id ), admin_url( 'admin.php' ) ) ),
+				(int) $id
+			);
+		}
+		?>
+		<div class="notice notice-warning">
+			<p>
+				<?php echo esc_html( sprintf( _n( '%d approved offer has an automatic blend total that version 1.44.0 may have doubled. Check it in the offer editor:', '%d approved offers have an automatic blend total that version 1.44.0 may have doubled. Check them in the offer editor:', count( $ids ), 'supplement-compare' ), count( $ids ) ) ); ?>
+				<?php echo wp_kses( implode( ', ', $links ), array( 'a' => array( 'href' => array() ) ) ); ?>
+			</p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="supcomp_dismiss_blend_recheck">
+				<?php wp_nonce_field( 'supcomp_dismiss_blend_recheck' ); ?>
+				<p><button type="submit" class="button button-small"><?php esc_html_e( 'Dismiss — I have checked these', 'supplement-compare' ); ?></button></p>
+			</form>
+		</div>
+		<?php
+	}
+
+	public static function handle_dismiss_blend_recheck() {
+		if ( ! current_user_can( Supcomp_Admin::CAPABILITY ) ) {
+			wp_die( esc_html__( 'You do not have permission.', 'supplement-compare' ) );
+		}
+		check_admin_referer( 'supcomp_dismiss_blend_recheck' );
+		delete_option( Supcomp_Total_Filler::BLEND_RECHECK_OPTION );
+		wp_safe_redirect( self::url() );
 		exit;
 	}
 
