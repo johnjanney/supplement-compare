@@ -334,7 +334,7 @@ class Supcomp_Extract_Sites_Screen {
 						<th><label for="supcomp-site-cookies"><?php esc_html_e( 'Request cookies', 'supplement-compare' ); ?></label></th>
 						<td>
 							<input type="text" id="supcomp-site-cookies" name="request_cookies" value="<?php echo esc_attr( $cookies ); ?>" class="large-text code" placeholder="age_gate=1; age_gate_birthdate=1990-01-01">
-							<p class="description"><?php esc_html_e( 'Optional. A Cookie header sent with every request to this site — use it to get past an age-verification gate that redirects the extractor to a landing page (the run otherwise completes with 0 offers). Capture it from your browser after you click through the gate: DevTools → Application → Cookies (or copy the request "Cookie" header from the Network tab), then paste the relevant name=value pairs here, separated by "; ". Leave blank for normal sites.', 'supplement-compare' ); ?></p>
+							<p class="description"><?php esc_html_e( 'Optional. A Cookie header sent with every request to this site — use it to get past an age-verification gate that redirects the extractor to a landing page (the run otherwise completes with 0 offers). Capture it from your browser after you click through the gate: DevTools → Application → Cookies (or copy the request "Cookie" header from the Network tab), then paste the relevant name=value pairs here, separated by "; ". For a site that hides its catalog behind a member login, sign in with a throwaway account and paste the whole request "Cookie" header from the Network tab instead — the session expires, so re-capture it when runs start failing again. Leave blank for normal sites.', 'supplement-compare' ); ?></p>
 						</td>
 					</tr>
 					<tr>

@@ -17,6 +17,21 @@ pre-1.0 leniency per [`PROJECTBRIEF.md` §11](PROJECTBRIEF.md).
 
 ---
 
+## [1.45.1] — 2026-10-31
+
+### Added
+### Changed
+- **Request cookies help text** (Extractor Sites → Edit) now also covers sites that hide their catalog behind a member login: sign in with a throwaway account, paste the whole request Cookie header, and re-capture it when the session expires.
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+### Repo
+- INSTRUCTIONS.md: new Extractor troubleshooting entry for merchants that put their whole catalog behind a free member-account login. It explains how to capture a signed-in Cookie header into **Request cookies**, plus the expiry, account-safety and curation caveats. Docs only.
+
+---
+
 ## [1.45.0] — 2026-10-15
 
 ### Added

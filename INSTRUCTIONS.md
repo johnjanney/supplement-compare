@@ -397,6 +397,34 @@ lingers before being marked failed. The fix is making each tick do less work.
   - The cookie's value is usually a hash, so you can't just type
     `age_gate=1` — capture the real value. Age Gate cookies last ~90 days;
     when offers drop back to 0, the cookie has expired — re-capture it.
+- *"Auto-detect failed", and visiting the site bounces you to a sign-up /
+  sign-in / "research access" page* → the merchant puts its whole catalog
+  behind a **free member-account login**. Its home page and sitemaps
+  redirect to the gate, and the WooCommerce Store API returns 401 with a
+  custom code ("Sign in to view this content" or similar). An age-gate
+  cookie won't help; the extractor needs a signed-in session. Fix:
+  1. Register a free account on the merchant site — a **throwaway account
+     with no payment details saved**, because the cookie you paste is a
+     full login and is stored in plain text in the WordPress database.
+  2. Sign in in your browser (some gates email a one-time code instead of
+     using a password) and confirm you can see **product prices**.
+  3. DevTools → **Network**, reload a product page, click the first
+     request (type "document"), and copy the whole value of the request's
+     **Cookie** header.
+  4. Paste it into the site's **Request cookies** field (Extractor Sites →
+     Edit), leave **Platform hint** on `auto`, save and re-run.
+  - Copy the whole Cookie header rather than picking cookies from the
+    Application tab. Many cookies listed there belong to third-party
+    tracking scripts and do nothing for the gate; the real session cookie
+    is usually **HttpOnly** and easy to miss.
+  - If the Store API still refuses the cookie (WordPress REST treats a
+    cookie without a nonce as logged out), `auto` falls back to sitemap +
+    JSON-LD on the product pages, which do accept it.
+  - Sessions expire, typically within days to a couple of weeks. When the
+    site starts failing again, sign in and re-capture the header.
+  - Before listing a gated merchant, weigh that its terms may forbid
+    automated access, and that readers who click a buy button land on the
+    merchant's sign-up wall, not the product.
 - *"Site has no merchant linked"* on the row → link a Merchants row in
   the site edit form and re-run.
 - *"Auto-detect failed: Shopify, WooCommerce, and generic JSON-LD
